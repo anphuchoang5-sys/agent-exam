@@ -2,7 +2,7 @@
 
 ## 状态与情况说明
 
-- 状态：进行中
+- 状态：已完成
 - 来源请求：用户授权创建 `.gitignore`，并把当前项目自有内容上传到 `https://github.com/anphuchoang5-sys/agent-exam.git`。
 - 当前事实：
   - `E:\9.1实训` 尚未初始化为 Git 仓库。
@@ -10,7 +10,7 @@
   - `framework/` 是本地恢复的第三方上游源码，已确认不进入 AgentExam 主仓库；来源、固定提交和恢复方式由 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 维护。
   - 根目录存在空的 `.tmp/` 和 Word 临时锁文件 `~$26年秋季学期-软件项目实训选题目录-征求意见版.docx`，不属于项目成果。
 - 已确认决定：创建项目级 `.gitignore`；排除第三方框架、秘密、依赖缓存、构建产物、运行数据、日志和编辑器临时文件；首次上传项目自有文档。
-- 未知项：远程仓库是否确实为空、本机 GitHub 认证是否可用，将在推送前后核验。
+- 已核验远程状态：配置 Windows 本机代理后，`git ls-remote origin` 成功且无引用输出，证明首次推送前远程为空；本机 GitHub 认证可完成 HTTPS 推送。
 - 明确排除：不删除任何本地文件；不上传 `framework/`、`.tmp/` 或 Word 锁文件；不安装依赖、不运行 Docker/Harness、不编写业务代码；不提交检测到的真实秘密。
 
 ## 实施措施
@@ -24,7 +24,7 @@
 
 完成标准：远程仓库包含当前项目文档、协作规则、依赖说明与正式选题文件；不包含 `framework/`、`.tmp/`、Word 锁文件或已识别秘密；本地与远程提交一致。
 
-## 需要修改的文件树
+## 实际修改的文件树
 
 ```text
 E:\9.1实训\
@@ -49,4 +49,14 @@ E:\9.1实训\
 
 ## 自验证情况
 
-待执行。
+- 秘密扫描：高置信度内容规则检查私钥头、常见 GitHub/OpenAI/AWS/Slack 凭据格式，命中文件数为 0；检查带引号的 `api_key`、`access_token`、`secret`、`password` 赋值，命中文件数为 0。首次敏感文件名扫描命令因 PowerShell 参数多写一个 `-` 而失败，未计为通过；修正后重跑，候选文件数为 0。
+- 扫描限制：暂存后再次按文件名报告高置信度秘密格式，命中文件数为 0。正则扫描不能替代专业秘密扫描器；正式选题 DOCX 为用户明确授权上传的二进制资料，不在文本正则扫描范围内。
+- 忽略规则：`git check-ignore -v --no-index` 已证明 `framework/`、`.tmp`、`.env`、私钥文件、`node_modules`、`.next`、`infra/data` 和运行日志会被忽略。
+- 文件边界：`git status --ignored --short` 显示 `framework/` 与 Word 锁文件为 `!!`；正式选题 DOCX、`docs/`、`AGENTS.md`、`CONTEXT.md` 均未被误忽略。
+- 暂存范围：共 27 个文件，禁止路径命中数为 0；提交内容为 `.gitignore`、正式选题 DOCX、`AGENTS.md`、`CONTEXT.md` 和完整 `docs/`。
+- Git 配置与网络：沙箱内访问 GitHub 被禁止，获得外部网络权限后首次直连仍被重置。本机 Windows 代理为 `127.0.0.1:7890`，Git 全局未配置代理；只在当前仓库 `.git/config` 设置该代理后远程访问成功，该机器配置不会进入提交。
+- 首次提交：`f2f0e3f`（`docs: initialize AgentExam project`），包含 27 个文件、4006 行新增。
+- 首次推送：`git push -u origin main` 成功，Git 报告 `main -> main` 并建立 `origin/main` 跟踪关系。
+- 行尾提示：暂存时 Git 提示部分 Markdown 工作树将来可能由 LF 转为 CRLF；提交未失败、内容未丢失。本次未扩大范围创建行尾规范，后续出现 Docker/Linux 脚本前再决定是否增加 `.gitattributes`。
+- 工具限制：初始化 `.git` 后，Windows 沙箱文件编辑助手无法刷新权限，标准 `apply_patch` 连续两次失败；随后三次 `git apply` 分别因补丁行数头错误或 PTY 匹配差异被拒绝，均未修改文件。第一次受控替换又因过严的末尾换行条件在写盘前停止。最终替换逐项验证旧文本只出现一次；所有失败均未记作通过。
+- 范围检查：没有删除本地文件，没有上传 `framework/`、`.tmp/` 或 Word 锁文件，没有安装依赖、运行 Docker/Harness 或编写业务代码。
