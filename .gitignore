@@ -1,0 +1,73 @@
+# Third-party frameworks restored from docs/dependencies/DEPENDENCIES.md
+/framework/
+
+# Local temporary files and Office lock files
+/.tmp/
+~$*
+*.tmp
+*.bak
+
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.netrc
+.npmrc
+.pypirc
+credentials.json
+secrets.json
+/.codex/
+/.claude/
+/.mcp.json
+
+# Python environments, caches, tests, and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Node.js / Next.js dependencies and build output
+node_modules/
+.next/
+out/
+coverage/
+.turbo/
+.pnpm-store/
+
+# Agent and evaluator local histories
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.*
+
+# Runtime data and generated artifacts
+/runtime/
+/runtime-logs/
+/runs/
+/results/
+/outputs/
+/artifacts/
+/infra/data/
+/infra/volumes/
+*.log
+*.pid
+*.sqlite
+*.sqlite3
+
+# IDE and operating-system metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
