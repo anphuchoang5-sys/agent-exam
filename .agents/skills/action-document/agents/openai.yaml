@@ -1,0 +1,6 @@
+interface:
+  display_name: "Action Document"
+  short_description: "Track file changes and verification with a durable record"
+  default_prompt: "Use $action-document to prepare and maintain a traceable action record for this task."
+policy:
+  allow_implicit_invocation: true
