@@ -20,9 +20,17 @@ _Avoid_：Agent 名称、模型名称
 经过项目组审核、固定版本并明确允许出现在评测列表中的被测 Agent。
 _Avoid_：任意 Agent 仓库、临时 Agent
 
+**Agent 源码提交（Agent Source Submission）**：
+可信参与者提交给项目组审核的一份固定 Agent 源码版本；审核通过前不是已登记 Agent，也不能参加正式评测。
+_Avoid_：已登记 Agent、可直接运行的任意仓库
+
+**评测 Job（Evaluation Job）**：
+用户一次提交的评测批次，冻结一个或多个 Agent 配置、一个或多个评测任务和共同评测策略；它是平台排队、取消和查看总体进度的单位。
+_Avoid_：评测运行、Run、单题测试
+
 **评测运行（Evaluation Run）**：
-一个 Agent 配置在一个评测任务和一组固定限制下完成的一次独立评测尝试。
-_Avoid_：Job、Trial、测试记录
+一个评测 Job 中，某个 Agent 配置在某个评测任务和一组固定限制下完成的一次独立尝试；所有逐题补丁和证据都归属于它。
+_Avoid_：评测 Job、批次、测试记录
 
 **补丁（Patch）**：
 被测 Agent 针对目标仓库生成的 Git diff，是确定性验证的主要输入。

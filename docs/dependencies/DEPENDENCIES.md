@@ -1,7 +1,8 @@
 # 项目依赖唯一事实源
 
-> 文档状态：已建立；上游源代码身份已核验，运行环境与外部制品版本仍待确认  
-> 最后核验：2026-09-02  
+> 文档状态：已建立；三项上游源代码身份及本机 Docker/WSL 运行时已核验，项目版本基线与外部制品版本仍待确认
+>
+> 最后核验：2026-09-03
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
 
 ## 1. 文档边界
@@ -23,14 +24,15 @@
 | 依赖 | 项目用途 | 固定版本 | 是否进入主仓库 | 当前状态 |
 |---|---|---|---:|---|
 | SWE-Gym | 任务数据、模型与复现实验材料的上游来源 | `b681068ca20628c6987b7416cc4cf03f06b77ba5` | 否 | 源码身份、许可证和上游制品入口已核验；数据未下载 |
-| SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 源码身份、许可证和安装入口已核验；未安装、未运行 Docker |
+| SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 源码身份、许可证和安装入口已核验；该 Fork 尚未安装或运行 |
+| Harbor | Execution Backend（执行后端）：把一个平台 Job 展开并运行成多个 Agent Trial，管理 Agent、环境、资源/网络策略和轨迹 | `6af8d6e31eced13b93849cdf80feeadf24603d15` | 否 | 固定源码接口、包版本和许可证已静态核验；本机尚未下载、安装或运行 |
 | Python 运行时 | 后端及 SWE-Bench-Fork 运行时 | 待确认 | 不适用 | 已确认采用；上游只声明 `>=3.8`，项目基线未选定 |
 | FastAPI | 后端 HTTP 交付层 | 待确认 | 后续由项目包清单锁定 | 已确认采用；精确版本未固定 |
 | Node.js 运行时 | Web 前端构建/运行 | 待确认 | 不适用 | 已确认采用；版本未选定 |
 | Next.js | Web 框架 | `15.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 Next.js 15 |
 | React | Web 视图框架 | `19.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 React 19 |
-| Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 待确认 | 不适用 | 已确认采用；版本与部署形态未选定 |
-| PostgreSQL | 结构化业务数据存储与首版运行队列 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
+| Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | 本机 Windows + WSL2 部署和无网络冒烟测试已验证；Compose 与 SWE-Bench-Fork 集成未验证，详见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
+| PostgreSQL | 结构化业务数据存储与首版平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
 | Codex CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；可运行版本未固定 |
 | Aider CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；尚未安装或固定版本 |
@@ -43,11 +45,11 @@
 
 `framework/` 是本机用于阅读和运行第三方上游源码的工作区，不是 AgentExam 自有源码的一部分。团队已确认：
 
-1. `framework/swe-gym/` 和 `framework/swe-bench-fork/` 不上传到 AgentExam 主仓库；
+1. `framework/swe-gym/`、`framework/swe-bench-fork/` 和计划恢复的 `framework/harbor/` 不上传到 AgentExam 主仓库；
 2. 不把它们作为普通目录、复制代码或 Git Submodule（主仓库只记录另一个仓库提交的机制）纳入主仓库；
 3. 主仓库只提交本文件记录的来源、固定提交与恢复方法；
 4. 后续可以提供恢复脚本，但本次仅提供人工命令，没有创建脚本；
-5. 在主仓库首次批量暂存文件前，应人工确认 `framework/` 未被纳入。当前规则尚未由 `.gitignore` 或其他自动检查强制执行。
+5. 在主仓库批量暂存文件前，应人工确认 `framework/` 未被纳入；当前 `.gitignore` 已忽略整个 `framework/`，后续还应增加自动检查。
 
 ## 4. SWE-Gym
 
@@ -118,9 +120,35 @@ python -m pip install -e .
 - 基础 Dockerfile 从 `ubuntu:22.04` 构建并下载 Miniconda 安装器；两者都未按镜像 digest 或文件校验和固定。
 - 对固定提交执行源码搜索，没有发现 `docker pull` 或 Docker SDK `images.pull` 调用。也就是说，SWE-Gym README 提到的 `xingyaoww/...` 预构建镜像不是当前 Harness 自动恢复流程；默认行为是在本机缺少镜像时按源码构建。
 
-当前验证状态：安装声明、包内版本、数据加载入口、镜像命名和本地构建路径已经静态核验；没有安装 Python 包，没有连接 Docker daemon，没有构建、拉取或运行镜像，也没有执行评测。
+当前验证状态：安装声明、包内版本、数据加载入口、镜像命名和本地构建路径已经静态核验；该 Fork 尚未安装，没有构建或运行其评测镜像，也没有执行评测。本机 Docker daemon 的独立冒烟验证记录在 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md)，不能据此宣称 Harness 已跑通。
 
-## 6. 恢复固定源码
+## 6. Harbor
+
+### 6.1 身份与来源
+
+| 项目 | 已核验值 |
+|---|---|
+| 官方仓库 | <https://github.com/harbor-framework/harbor.git> |
+| 计划恢复路径 | `framework/harbor`；当前目录不存在 |
+| 固定提交 | `6af8d6e31eced13b93849cdf80feeadf24603d15` |
+| 包内版本 | `0.22.0` |
+| Python 要求 | `>=3.12` |
+| 许可证 | Apache License 2.0 |
+| 固定提交入口 | <https://github.com/harbor-framework/harbor/tree/6af8d6e31eced13b93849cdf80feeadf24603d15> |
+
+完整提交哈希是项目的权威固定版本；包内版本 `0.22.0` 只作为辅助身份。版本、Python 要求与许可证已经从固定提交的 `pyproject.toml` 和 `LICENSE` 静态核验，但这不等于 Harbor 已在本机安装或跑通。
+
+### 6.2 在项目中的边界
+
+- Harbor 是已确认采用、但仍须通过原型验收的 Execution Backend，不是平台数据库、课程管理后端或最终判卷器。
+- PostgreSQL 继续管理平台 Evaluation Job 队列；一个平台 Job 映射为一个 Harbor Job。
+- Harbor 按 Agent × Task × Attempt 展开 Trial；首版 `n_attempts=1`、`n_concurrent_trials=1`。
+- 固定 SWE-Bench-Fork 的 `swebench.harness.run_evaluation` 仍是唯一确定性最终判卷入口，Harbor Reward 不能覆盖其结论。
+- Harbor 的精确接口、转换与退出门槛由 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) 维护；采用决定见 [`ADR-0001`](../adr/0001-use-harbor-as-execution-backend.md)。
+
+当前验证状态：已对固定提交中的配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力进行静态核验；尚未下载源码、安装依赖、创建 Harbor Job、启动 Trial 或验证 `model_patch` 提取。
+
+## 7. 恢复固定源码
 
 在 AgentExam 仓库根目录执行以下命令。目标目录必须不存在；如果已经存在，应先核验，不要直接覆盖。
 
@@ -130,11 +158,14 @@ git -C framework/swe-gym checkout --detach b681068ca20628c6987b7416cc4cf03f06b77
 
 git clone https://github.com/SWE-Gym/SWE-Bench-Fork.git framework/swe-bench-fork
 git -C framework/swe-bench-fork checkout --detach 242429c188fcfd06aad13fce9a54d450470bf0ac
+
+git clone https://github.com/harbor-framework/harbor.git framework/harbor
+git -C framework/harbor checkout --detach 6af8d6e31eced13b93849cdf80feeadf24603d15
 ```
 
 `--detach` 表示不跟随某个可继续移动的分支，而是直接停在指定提交。恢复源码不等于安装依赖，也不会自动下载数据集或镜像。
 
-## 7. 核验本地源码
+## 8. 核验本地源码
 
 分别执行：
 
@@ -146,16 +177,22 @@ git -C framework/swe-gym status --porcelain
 git -C framework/swe-bench-fork remote get-url origin
 git -C framework/swe-bench-fork rev-parse HEAD
 git -C framework/swe-bench-fork status --porcelain
+
+git -C framework/harbor remote get-url origin
+git -C framework/harbor rev-parse HEAD
+git -C framework/harbor status --porcelain
 ```
 
 成功标准：
 
-- 两个远程地址分别与第 4、5 节完全一致；
-- 两个 `HEAD` 分别等于表中的 40 位完整提交哈希；
-- 两个 `status --porcelain` 均无输出，表示没有本地改动；
+- 三个远程地址分别与第 4、5、6 节完全一致；
+- 三个 `HEAD` 分别等于表中的 40 位完整提交哈希；
+- 三个 `status --porcelain` 均无输出，表示没有本地改动；
 - SWE-Bench-Fork 的 `swebench/__init__.py` 仍声明 `2.0.13`；若任一结果不同，不得把该环境标记为已复现。
 
-## 8. 尚待确认的锁定项
+Harbor 当前尚未恢复到本机，所以对它执行上述命令会因目录不存在而失败；这正是当前真实状态，不应标记为已复现。
+
+## 9. 尚待确认的锁定项
 
 以下事项必须通过后续架构确认或真实运行完成，当前不得补猜：
 
@@ -165,18 +202,20 @@ git -C framework/swe-bench-fork status --porcelain
 4. SWE-Bench-Fork 未固定 Python 依赖的项目级锁定版本；
 5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；
 6. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
-7. 恢复脚本、依赖缓存和供应链校验流程。
+7. Harbor 的安装方式、项目隔离环境、完整依赖锁、Job 目录位置及原型验收结果；
+8. 恢复脚本、依赖缓存和供应链校验流程。
 
-## 9. 本次核验证据摘要
+## 10. 本次核验证据摘要
 
 | 检查 | 结果 |
 |---|---|
-| 两仓库 `remote.origin.url` | 与第 4、5 节官方仓库地址一致 |
-| 两仓库 `HEAD` | 与固定提交一致 |
-| 两仓库 tracked worktree / index | 干净 |
-| 两仓库许可证 | SWE-Gym 为 Apache-2.0；SWE-Bench-Fork 为 MIT |
+| 本机两仓库 `remote.origin.url` | SWE-Gym 与 SWE-Bench-Fork 均与第 4、5 节官方地址一致 |
+| 本机两仓库 `HEAD` | SWE-Gym 与 SWE-Bench-Fork 均与固定提交一致 |
+| 本机两仓库 tracked worktree / index | 均干净 |
+| 三项上游许可证 | SWE-Gym、Harbor 为 Apache-2.0；SWE-Bench-Fork 为 MIT |
+| Harbor 固定源码 | 配置/Job/Trial/结果/制品/Verifier 接口已远程静态核验；本机目录尚不存在 |
 | SWE-Gym 根目录安装清单 | 未发现统一包清单或锁文件 |
 | SWE-Bench-Fork 安装入口 | `setup.py` / `pyproject.toml` 存在；Python `>=3.8`，依赖未锁版本 |
 | 数据集来源 | SWE-Gym Hugging Face 组织页已从 README 核验；精确数据 revision 未核验 |
 | 镜像来源 | Docker Hub 前缀已从 SWE-Gym README 核验；镜像 digest 与可用性未核验 |
-| 动态验证 | 按任务范围跳过安装、数据下载、Docker 和评测运行 |
+| 动态验证 | 本机 Docker/WSL 已通过无网络最小容器验证；Harbor、SWE-Gym 数据、镜像构建和 SWE-Bench-Fork 评测仍未执行 |

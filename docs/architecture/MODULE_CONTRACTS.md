@@ -1,7 +1,8 @@
 # 模块职责与输入输出契约
 
-> 文档状态：候选 v0.1，讨论中，尚未实现  
-> 最后更新：2026-09-01  
+> 文档状态：架构边界已确认；字段契约 v0.2，尚未实现
+>
+> 最后更新：2026-09-03
 > 权威范围：本文件只维护项目内部模块的职责、输入、输出、错误、不变量和依赖。全局组成见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)，字段级边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)、[`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](./DATA_MODEL.md)。
 
 ## 1. 先用小白能懂的话解释
@@ -13,7 +14,7 @@
 3. 哪些情况算业务上没成功，哪些情况是系统坏了（错误）；
 4. 窗口永远不能破坏什么规则（不变量）。
 
-例如 Agent Runner 只负责“让 Agent 工作并拿回补丁”，不负责判断补丁对不对；Patch Evaluator 只负责“用测试判补丁”，不负责评价 Agent 是否积极。这样职责不会互相污染。
+例如 Execution Backend 只负责“让一批 Agent 工作并按逐题运行拿回补丁和证据”，不负责判断补丁对不对；Patch Evaluator 只负责“用测试判补丁”，不负责评价 Agent 是否积极。这样 Harbor Job/Trial 的复杂性不会污染业务模块。
 
 ## 2. 状态和命名规则
 
@@ -34,7 +35,7 @@ flowchart LR
     APP --> DOMAIN[Domain Rules]
     APP --> PORTS[Ports / 内部接口]
     ADAPTERS[External Adapters] -. 实现 .-> PORTS
-    ADAPTERS --> EXT[SWE-Gym / SWE-Bench-Fork / Agent CLI / Docker / PostgreSQL / MinIO / LLM]
+    ADAPTERS --> EXT[SWE-Gym / Harbor / SWE-Bench-Fork / Docker / PostgreSQL / MinIO / LLM]
 
     DOMAIN -. 不允许依赖 .-> EXT
 ```
@@ -53,16 +54,17 @@ flowchart LR
 
 | 对象 | 必需内容 | 明确不包含 | 主要生产者 → 消费者 |
 |---|---|---|---|
-| `EvaluationTask` | `instance_id`、数据集身份/版本、`repo`、`base_commit`、`problem_statement`、验证引用 | 不向 Agent 暴露 gold `patch`、`test_patch`、隐藏测试答案 | Task Catalog → Orchestrator、Runner、Evaluator |
-| `AgentConfiguration` | 登记 ID、Agent 类型/版本、模型、关键配置、Adapter 类型、配置指纹 | 明文 API key、临时登录 token | Agent Registry → Run Submission、Runner |
-| `EvaluationPolicy` | `evaluation_track`（`closed_book`/`open_book_experimental`）、已登记网络策略、已登记工具配置及其版本 | 按模型国别猜测的能力、用户任意代理/网址配置 | Run Submission → Orchestrator、Sandbox、Runner、Reporting |
-| `RunLimits` | 墙钟超时、CPU、内存、PID、输出大小、Agent 特有限制 | 用户可随意提交的宿主机权限 | Run Submission → Orchestrator、Sandbox、Runner |
-| `RunRequest` | `run_id`、任务、Agent 配置、评测策略、限制、协议版本 | 判分答案和 gold patch | Orchestrator → Agent Runner |
-| `AgentRunResult` | 终止原因、退出状态、补丁引用、轨迹引用、原始输出引用、资源汇总 | “补丁是否修好”的结论 | Agent Runner → Orchestrator |
-| `EvaluationRequest` | `run_id`、`instance_id`、`model_patch`、可追溯的 Agent 身份 | Agent 的自然语言自评 | Orchestrator → Patch Evaluator |
-| `DeterministicResult` | `resolved`、补丁应用情况、测试分类、Harness 报告/日志引用、基础设施错误 | LLM 主观评分 | Patch Evaluator → Orchestrator、Reporting、Judge |
+| `EvaluationTask` | `instance_id`、数据集身份/版本、`repo`、`base_commit`、`problem_statement`、验证引用 | 不向 Agent 暴露 gold `patch`、`test_patch`、隐藏测试答案 | Task Catalog → Job Submission、Job Orchestrator、Patch Evaluator |
+| `AgentConfiguration` | 登记 ID、Agent 类型/版本、模型、关键配置、Adapter 类型、配置指纹 | 明文 API key、临时登录 token | Agent Registry → Job Submission、Job Orchestrator、Execution Backend |
+| `EvaluationJobSpec` | `job_id`、选中的任务/Agent 配置、赛道、限制模板、预计运行数、结果范围 | Harbor `JobConfig`、用户任意命令/路径 | Job Submission → Job Repository、Job Orchestrator |
+| `EvaluationPolicy` | `evaluation_track`（`closed_book`/`open_book_experimental`）、已登记网络策略、已登记工具配置及其版本 | 按模型国别猜测的能力、用户任意代理/网址配置 | Job Submission → Job Orchestrator、Execution Backend、Reporting |
+| `RunLimits` | 墙钟超时、CPU、内存、PID、输出大小、Agent 特有限制 | 用户可随意提交的宿主机权限 | Job Submission → Job Orchestrator、Execution Backend |
+| `ExecutionJobRequest` | Job 身份、逐题 `run_id` 映射、任务、Agent 配置、策略、限制、后端版本 | 判分答案、gold patch、Harbor 外的任意执行命令 | Job Orchestrator → Execution Backend |
+| `ExecutionTrialResult` | `run_id`、后端 Job/Trial 引用、终止原因、补丁/轨迹/原始结果引用、资源汇总 | `resolved` 或“补丁是否修好”的结论 | Execution Backend → Job Orchestrator |
+| `EvaluationRequest` | `run_id`、`instance_id`、`model_patch`、可追溯的 Agent 身份 | Agent 的自然语言自评 | Job Orchestrator → Patch Evaluator |
+| `DeterministicResult` | `resolved`、补丁应用情况、测试分类、Harness 报告/日志引用、基础设施错误 | LLM 主观评分 | Patch Evaluator → Job Orchestrator、Reporting、Judge |
 | `TraceEvent` | 时间、序号、事件类型、来源、公开载荷、原始事件引用 | 思维链、秘密、未脱敏环境变量 | Adapter/Recorder → Artifact Store、Reporting |
-| `JudgeRequest` | 已裁剪的任务、补丁、确定性结果、允许的轨迹摘要、Prompt 版本 | 凭据、隐藏答案、无关宿主信息 | Orchestrator → Failure Judge |
+| `JudgeRequest` | 已裁剪的任务、补丁、确定性结果、允许的轨迹摘要、Prompt 版本 | 凭据、隐藏答案、无关宿主信息 | Job Orchestrator → Failure Judge |
 | `JudgeAnalysis` | 分类、解释、证据引用、模型/Prompt 版本、原始响应引用 | 对 `resolved` 的覆盖权 | Failure Judge → Review、Reporting |
 | `HumanReviewRecord` | 运行、复核结论、对 Judge 的确认/修正、备注、复核者、时间 | 对原始制品的覆写 | Review → Run Repository |
 | `ArtifactRef` | 对象键、类型、大小、SHA-256、内容类型、创建时间 | 制品正文 | Artifact Store → 其他所有模块 |
@@ -74,18 +76,18 @@ flowchart LR
 | HTTP Delivery | 把浏览器请求翻译为应用用例 | HTTP 请求 | HTTP 响应/错误 | 运行 Agent、写 SQL |
 | Task Catalog | 从固定 SWE-Gym 数据取得任务 | 数据集版本 + `instance_id` | `EvaluationTask` | 运行或判题 |
 | Agent Registry | 只提供已审核 Agent 配置 | 配置 ID/筛选条件 | `AgentConfiguration` | 下载任意仓库 |
-| Run Submission | 校验并创建排队运行 | 任务 ID + Agent 配置 ID + 允许限制 | `run_id` + 初始状态 | 执行评测 |
-| Run Repository | 保存、领取、推进和查询运行 | 运行/状态命令 | 持久化结果/查询视图 | 保存大制品正文 |
-| Run Orchestrator | 编排一次完整评测 | 已领取的运行 | 完整运行结果 | 实现具体 CLI/存储 |
-| Agent Runner | 调用正确 Adapter 生成补丁 | `RunRequest` | `AgentRunResult` | 判断补丁正确性 |
-| Sandbox Controller | 创建和清理受限环境 | 沙箱规格 + 执行请求 | 进程结果 + 资源数据 | 理解 Agent 语义 |
+| Job Submission | 校验矩阵并创建排队 Job | 任务 ID[] + Agent 配置 ID[] + 赛道/限制模板 | `job_id`、`run_id[]`、Trial 数和初始状态 | 执行评测 |
+| Job/Run Repository | 保存、领取、推进和查询 Job/运行 | Job/运行状态命令 | 持久化结果/查询视图 | 保存大制品正文、调度 Harbor Trial |
+| Job Orchestrator | 编排一个 Job 的执行和逐题判卷 | 已领取 Job | Job 汇总与逐题完整结果 | 理解 Harbor 类型或具体 CLI |
+| Execution Backend | 执行一批 Agent×任务并返回逐题补丁/证据 | `ExecutionJobRequest` | `ExecutionTrialResult[]` | 判断补丁正确性、管理业务队列 |
+| Agent Source Review | 审核源码提交并登记可执行配置 | Git URL + commit + manifest + 审核决定 | 已登记/拒绝的 Agent 配置 | 审核前执行仓库代码 |
 | Patch Evaluator | 调用 SWE-Bench-Fork 判卷 | `EvaluationRequest` | `DeterministicResult` | LLM 评分 |
 | Trajectory Recorder | 规范化并保存可公开过程证据 | 原始 CLI/进程事件 | JSONL 轨迹引用 + 汇总 | 保存思维链或秘密 |
 | Artifact Store | 保存不可变文件证据 | 字节流 + 元数据 | `ArtifactRef` | 决定运行状态 |
 | Failure Judge | 对失败证据分类解释 | `JudgeRequest` | `JudgeAnalysis` | 修改确定性事实 |
 | Human Review | 领取抽检并保存人工结论 | 待复核运行 + 人工输入 | `HumanReviewRecord` | 重跑 Agent |
 | Reporting | 组合只读报告和排行榜 | 查询条件 | 报告/排行视图 | 改写原始结果 |
-| Worker Shell | 原子领取运行并调用 Orchestrator | Worker 身份 + 轮询配置 | 心跳/执行结果 | 包含业务判定规则 |
+| Worker Shell | 原子领取平台 Job 并调用 Job Orchestrator | Worker 身份 + 轮询配置 | 心跳/Job 执行结果 | 包含业务判定规则 |
 
 ## 6. 逐模块契约
 
@@ -98,7 +100,7 @@ flowchart LR
 | 输出 | 稳定的 JSON 成功响应，或统一 `ApiError` |
 | 错误 | 请求格式错误、资源不存在、状态冲突、服务暂不可用 |
 | 不变量 | 只调用 application 用例；不执行 Agent、不拼 SQL、不返回 MinIO 密钥 |
-| 依赖 | Run Submission、Review、Reporting 等应用入口 |
+| 依赖 | Job Submission、Review、Reporting 等应用入口 |
 | 验证 | OpenAPI schema 检查；请求/响应契约测试；错误码测试 |
 
 详细端点只在 [`HTTP_API.md`](../interfaces/HTTP_API.md) 维护。
@@ -107,7 +109,7 @@ flowchart LR
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Run Submission、Run Orchestrator、Reporting |
+| 调用方 | Job Submission、Job Orchestrator、Reporting |
 | 输入 | `dataset_id`、`dataset_revision`、`split`、`instance_id` |
 | 输出 | 规范化 `EvaluationTask`，以及仅供 Evaluator 使用的验证引用 |
 | 错误 | 数据集不存在、任务不存在、字段缺失、固定版本校验不一致 |
@@ -119,7 +121,7 @@ flowchart LR
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Run Submission、Agent Runner、Reporting |
+| 调用方 | Job Submission、Job Orchestrator、Execution Backend、Reporting |
 | 输入 | 登记配置 ID，或只读筛选条件 |
 | 输出 | 固定版本的 `AgentConfiguration`；可展示列表 |
 | 错误 | 未登记、已禁用、版本/镜像不存在、配置指纹不匹配 |
@@ -127,80 +129,80 @@ flowchart LR
 | 依赖 | PostgreSQL 配置记录；项目内 Adapter Factory |
 | 验证 | 未登记命令不能运行；相同配置生成相同指纹；秘密不进入查询结果 |
 
-### 6.4 Run Submission
+### 6.4 Job Submission
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
 | 调用方 | HTTP Delivery |
-| 输入 | `task_id`、`agent_configuration_id`、`evaluation_track`，以及受白名单约束的 `RunLimits` |
-| 输出 | 新 `run_id`、`QUEUED` 状态、创建时间 |
+| 输入 | `task_ids[]`、`agent_configuration_ids[]`、`evaluation_track`、登记的规模预设与 `limit_profile_id` |
+| 输出 | 新 `job_id`、`QUEUED` Job、交叉组合产生的 `run_id[]`、`trial_count`、创建时间 |
 | 错误 | 任务/Agent 不存在、配置禁用、限制越界、重复幂等键冲突 |
-| 不变量 | 创建时冻结任务版本、Agent 配置指纹、协议版本、限制、网络策略和工具配置；闭卷/开卷不可在运行中切换；不接收任意 shell 命令 |
-| 依赖 | Task Catalog、Agent Registry、Run Repository |
-| 验证 | 合法请求入队；越权限制被拒绝；重复幂等请求不产生两个运行 |
+| 不变量 | 任务与 Agent 列表非空且去重；首版每组合尝试一次；创建时冻结任务/Agent/后端/策略/限制；不接收任意 shell 命令或资源值；Mock Job 必须隔离为 `internal_test` |
+| 依赖 | Task Catalog、Agent Registry、Job/Run Repository |
+| 验证 | 合法矩阵生成正确数量的运行；越权限制被拒绝；重复幂等请求不产生两个 Job；超出规模预设在执行前拒绝 |
 
-### 6.5 Run Repository
+### 6.5 Job/Run Repository
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Run Submission、Worker Shell、Orchestrator、Review、Reporting |
-| 输入 | 创建、原子领取、合法状态迁移、附加结果、查询命令 |
-| 输出 | 当前运行、领取结果、版本号或只读查询视图 |
+| 调用方 | Job Submission、Worker Shell、Job Orchestrator、Review、Reporting |
+| 输入 | 创建 Job/运行、原子领取一个 Job、合法状态迁移、附加结果、查询命令 |
+| 输出 | 当前 Job/运行、领取结果、版本号或只读查询视图 |
 | 错误 | 状态冲突、并发版本冲突、记录不存在、数据库暂不可用 |
-| 不变量 | 状态迁移只按 `DATA_MODEL.md`；一个排队运行同一时刻只被一个 Worker 领取；大制品只存引用 |
+| 不变量 | 状态迁移只按 `DATA_MODEL.md`；一个排队 Job 只被一个 Worker 领取；单机最多一个重型 Job 活跃；运行不独立从 PostgreSQL 抢队；大制品只存引用 |
 | 依赖 | PostgreSQL Adapter |
 | 验证 | 并发领取测试；非法回退状态测试；事务回滚测试 |
 
-### 6.6 Run Orchestrator
+### 6.6 Job Orchestrator
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
 | 调用方 | Worker Shell |
-| 输入 | 已领取且处于 `PREPARING` 的运行快照 |
-| 输出 | 完整的运行汇总，或明确的基础设施失败记录 |
+| 输入 | 已领取且处于 `PREPARING` 的 Job 及其 `PENDING` 运行快照 |
+| 输出 | Job 汇总、逐题运行结果，或明确的部分/整体基础设施失败记录 |
 | 错误 | 任务准备、Agent、补丁提取、Evaluator、存储或 Judge 阶段错误；错误必须带阶段和证据引用 |
-| 不变量 | 顺序固定为准备 → Agent → 保存证据 → 干净验证 → 分析/复核路由 → 完成；失败补丁等于 `resolved=false`，不等于平台 `FAILED` |
-| 依赖 | Task Catalog、Agent Runner、Patch Evaluator、Artifact Store、Failure Judge、Run Repository |
+| 不变量 | 每条运行顺序固定为 Harbor 执行 → 保存证据 → 固定 Fork 干净验证 → 分析/复核；Harbor reward 不能写入确定性结果；已完成 Trial 的证据不因后续 Trial 失败而丢失 |
+| 依赖 | Task Catalog、Execution Backend、Patch Evaluator、Artifact Store、Failure Judge、Job/Run Repository |
 | 验证 | 用 Fake ports 覆盖每个分支；任一步骤失败都不会伪装成完成；重试不覆盖旧制品 |
 
-这是一个“深模块”：对外只有“执行一个运行”，内部隐藏很多步骤和错误恢复，不让调用方参与编排细节。
+这是一个“深模块”：对外只有“执行一个 Job”，内部隐藏逐 Trial 判卷、部分失败、证据保存和汇总，不让 Worker 参与编排细节。
 
-### 6.7 Agent Runner
-
-| 项目 | 候选 v0.1 契约 |
-|---|---|
-| 调用方 | Run Orchestrator |
-| 输入 | `RunRequest`；Adapter 由已登记配置决定，并接收冻结的 `EvaluationPolicy` |
-| 输出 | `AgentRunResult`，其中补丁、轨迹和原始输出均通过 `ArtifactRef` 关联 |
-| 错误 | 输入无效、Adapter 不可用、认证缺失、启动失败、超时、非零退出、补丁提取失败、沙箱违规 |
-| 不变量 | 不能自己宣判 `resolved`；不能把自然语言回答当补丁；不能运行未登记命令；只向 Agent 暴露本赛道登记的工具 |
-| 依赖 | Agent Registry、具体 Agent Adapter、Sandbox Controller、Trajectory Recorder、Artifact Store |
-| 验证 | 所有 Adapter 共用同一契约测试；空补丁与进程失败分开；真实 CLI 分层冒烟测试 |
-
-进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)，真实 CLI 映射见 [`FRAMEWORK_INTERFACES.md`](../interfaces/FRAMEWORK_INTERFACES.md)。
-
-### 6.8 Sandbox Controller
+### 6.7 Execution Backend
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Agent Runner、Patch Evaluator Adapter |
-| 输入 | 固定镜像/工作区、只读/可写挂载、命令标识、秘密引用、CPU/内存/PID/时间限制和已登记网络策略 |
-| 输出 | 退出码、终止原因、stdout/stderr 引用、资源统计和清理结果 |
-| 错误 | 镜像缺失、容器创建失败、超时、OOM、网络策略失败、清理失败 |
-| 不变量 | Agent 生成环境和确定性验证环境分离；秘密不写入镜像/日志；闭卷只放行模型所需端点，开卷按实验策略放行并留证；验证环境从干净任务状态开始 |
-| 依赖 | Docker |
-| 验证 | 超时/OOM/PID/网络/挂载边界测试；强制终止后无残留容器；秘密脱敏检查 |
+| 调用方 | Job Orchestrator |
+| 输入 | `ExecutionJobRequest`；只含已登记任务/Agent、冻结策略、限制和 `run_id` 映射 |
+| 输出 | 与请求逐项对应的 `ExecutionTrialResult[]`；补丁、轨迹和原始输出均通过 `ArtifactRef` 关联 |
+| 错误 | 后端版本不符、配置映射失败、认证、环境、超时、Agent、补丁提取、Trial 身份或制品错误 |
+| 不变量 | 不能宣判 `resolved`；不能把自然语言回答当补丁；不能运行未审核配置；Harbor `TrialResult` 不向调用方泄漏；并发固定 1 |
+| 依赖 | Agent Registry、Harbor 固定提交、Docker、Trajectory Normalizer、Artifact Store |
+| 验证 | Harbor/Fake Backend 共用同一 interface contract；空补丁与失败分开；真实 SWE-Gym 单题原型覆盖补丁、轨迹、资源和清理 |
+
+Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
+
+### 6.8 Agent Source Review
+
+| 项目 | 候选 v0.1 契约 |
+|---|---|
+| 调用方 | 可信用户提交入口、管理员审核界面 |
+| 输入 | 固定 Git URL、完整 commit SHA、`agent-exam.yaml`、说明和审核决定 |
+| 输出 | `PENDING_REVIEW` 提交记录，或审核通过后新 `AgentConfiguration` |
+| 错误 | URL/commit/manifest 无效、来源不可访问、危险声明、重复提交、权限不足 |
+| 不变量 | 审核前不执行仓库代码、不构建镜像、不把提交者输入直接变成 Harbor `import_path`/命令；禁用不删除历史配置 |
+| 依赖 | Agent Registry、PostgreSQL；manifest schema 待下一轮确认 |
+| 验证 | 未审核提交无法创建 Job；分支/`latest` 被拒绝；审核事件可追溯；秘密和任意命令不进入公开配置 |
 
 ### 6.9 Patch Evaluator
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Run Orchestrator |
+| 调用方 | Job Orchestrator |
 | 输入 | `EvaluationRequest` |
 | 输出 | `DeterministicResult` 和 Harness 制品引用 |
 | 错误 | prediction 格式错误、镜像构建失败、补丁无法应用、测试超时、Harness 异常 |
 | 不变量 | 直接调用固定版本 SWE-Bench-Fork；Agent 生成环境的残留不得进入验证；Judge 不能改写输出 |
-| 依赖 | SWE-Bench-Fork、SWE-Gym 数据/环境、Sandbox Controller、Artifact Store |
+| 依赖 | SWE-Bench-Fork、SWE-Gym 数据/环境、Fork 自身 Docker Harness、Artifact Store |
 | 验证 | gold patch、空 patch、错误 patch、不可应用 patch、测试超时五类样例 |
 
 注意：补丁“可应用但测试未通过”是一次正常完成的确定性评测；Harness 无法完成才是基础设施错误。
@@ -209,7 +211,7 @@ flowchart LR
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | 各 Agent Adapter |
+| 调用方 | Execution Backend Adapter 内部实现 |
 | 输入 | Codex/Claude/Aider/自研 Agent 的原始事件，外加统一时间和来源信息 |
 | 输出 | 按序 JSONL 轨迹 `ArtifactRef`，以及工具调用数、耗时、token 等可用汇总 |
 | 错误 | 事件无法解析、序号断裂、大小超限、写入失败 |
@@ -221,7 +223,7 @@ flowchart LR
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Runner、Recorder、Evaluator、Judge、Reporting |
+| 调用方 | Job Orchestrator、Execution Backend、Recorder、Evaluator、Judge、Reporting |
 | 输入 | `run_id`、制品类型、文件名、内容流、内容类型 |
 | 输出 | 带 SHA-256、大小和对象键的 `ArtifactRef` |
 | 错误 | 写入/读取失败、校验和不一致、对象不存在、类型不允许 |
@@ -233,7 +235,7 @@ flowchart LR
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Run Orchestrator；只在确定性结果产生后运行 |
+| 调用方 | Job Orchestrator；只在确定性结果产生后运行 |
 | 输入 | `JudgeRequest` |
 | 输出 | `JudgeAnalysis` 和原始响应 `ArtifactRef` |
 | 错误 | 模型不可用、超时、schema 不合格、证据不足、内容被拒绝 |
@@ -270,35 +272,37 @@ flowchart LR
 | 项目 | 候选 v0.1 契约 |
 |---|---|
 | 调用方 | 单机进程管理器/容器启动命令 |
-| 输入 | `worker_id`、轮询间隔、允许并发数、优雅停止信号 |
-| 输出 | 心跳、领取记录、一次 Orchestrator 调用结果 |
+| 输入 | `worker_id`、轮询间隔、固定重型 Job 并发 1、优雅停止信号 |
+| 输出 | 心跳、Job 领取记录、一次 Job Orchestrator 调用结果 |
 | 错误 | 数据库不可用、失去租约、进程停止 |
-| 不变量 | 只负责循环和进程生命周期；业务流程只调用 Orchestrator；首版默认重型运行并发为 1 |
-| 依赖 | Run Repository、Run Orchestrator |
-| 验证 | 双 Worker 不重复领取；停止时不误报完成；超期租约可由明确恢复流程处理 |
+| 不变量 | 只负责循环和进程生命周期；业务流程只调用 Job Orchestrator；任何配置下都不得同时执行两个重型 Job |
+| 依赖 | Job/Run Repository、Job Orchestrator |
+| 验证 | 双 Worker 不重复领取同一 Job且不产生两个活跃 Job；停止时不误报完成；超期租约由明确恢复流程处理 |
 
 ## 7. 必须跨模块保持的规则
 
-1. `run_id` 是所有数据库记录和 MinIO 制品的追溯主线。
-2. 每次运行冻结数据集版本、框架提交、Agent 配置指纹、Runner 协议版本和限制。
+1. `job_id` 是批次主线，`run_id` 是每个 Agent×任务尝试及其制品的追溯主线；二者不可互相替代。
+2. Job 创建时冻结数据集版本、Harbor/Fork 提交、Agent 配置指纹、执行协议和限制。
 3. Agent 只看到 Issue 与仓库快照，不看到 gold patch、`test_patch` 或隐藏判分答案。
-4. Agent 原始 stdout 不是最终补丁；Adapter 结束后从受控 Git 工作区提取 diff，再交给统一 Runner 输出。
+4. Agent 原始 stdout 和 Harbor `TrialResult` 都不是最终补丁；Execution Backend 必须从受控 Git 工作区提取并校验 diff。
 5. 确定性结果、Judge 分析和人工复核是三类不同事实，任何一层不得覆写上一层原始证据。
 6. 工具调用次数是过程指标；是否计分仍待确认，当前不能用“调用越多越积极”作为既定规则。
 7. 未登记 Agent、未固定版本或携带任意 shell 命令的请求不得进入执行链路。
 8. 每次运行冻结 `evaluation_track`、网络策略和工具配置；闭卷与开卷使用相同确定性判卷，但成绩严格分榜。
 9. 模型来源国家不能推导网络能力；只以该次运行实际登记并验证的工具和网络策略为准。
+10. Mock 只允许 `internal_test`，报告和排行榜必须从查询层排除。
 
 ## 8. 尚待继续讨论
 
 1. Judge 是否进入总分，还是只做失败归因。
 2. 工具调用、token、耗时等过程指标只展示，还是形成单独效率分。
 3. 开卷实验榜使用统一的平台 Web 工具，还是各 Agent 原生搜索工具；以及相应的公平性标注。
-4. Worker 是宿主机进程还是挂载 Docker Socket 的容器；必须先做本机最小实验。
-5. 本地自研 Agent 固定为源码快照、Git commit 还是预构建镜像。
-6. HTTP 接口是否需要登录与角色权限；题目当前没有给出明确身份规则。
+4. Harbor/Worker 是宿主机进程还是挂载 Docker Socket 的容器；必须先做本机最小实验。
+5. `agent-exam.yaml` 的最小字段和自研 Agent 到 Harbor 的转换方式。
+6. 已确认只允许可信用户，但具体登录方案和提交者/管理员/评审者权限仍待确定。
 
 ## 9. 变更记录
 
 - 2026-09-01：创建候选 v0.1；明确公共对象、15 个模块的职责/输入/输出/错误/不变量/依赖/验证，以及跨模块保密和证据规则。
 - 2026-09-02：同步闭卷主榜/开卷实验榜决定；新增评测策略对象，并要求 Run、Runner、Sandbox 和 Reporting 冻结赛道、网络及工具配置。
+- 2026-09-03：用 Job Submission、Job Orchestrator 和深 `ExecutionBackend` 取代逐运行自研 Runner/Sandbox 主路径；Harbor 为主 Adapter，固定 Fork 独立判卷，并新增受控 Agent 源码审核模块。

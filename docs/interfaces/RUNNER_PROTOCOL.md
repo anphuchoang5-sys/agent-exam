@@ -1,19 +1,21 @@
-# 统一 Agent Runner 协议
+# 自研 Agent / 后备进程 Runner 协议
 
-> 文档状态：候选 v0.1，讨论中，尚未实现  
-> 最后更新：2026-09-01  
-> 权威范围：本文件是项目自定义 Runner 进程边界的唯一事实源。它不是 SWE-Gym、Codex、Aider 或 Claude Code 原生协议；真实上游接口和 Adapter 映射见 [`FRAMEWORK_INTERFACES.md`](./FRAMEWORK_INTERFACES.md)。
+> 文档状态：候选 v0.1，尚未实现；不是正式 Harbor 接口
+>
+> 最后更新：2026-09-03
+> 权威范围：本文件只维护自研 Agent 或 Harbor 验收失败时 `ProcessExecutionAdapter` 使用的跨进程协议。正式主路径见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；真实上游接口见 [`FRAMEWORK_INTERFACES.md`](./FRAMEWORK_INTERFACES.md)。
 
 ## 1. 一句话解释
 
-不同 Agent 像使用不同语言的选手；Adapter 是翻译员。平台永远用同一种方式把题目交给翻译员：**stdin 输入一份 JSON 任务，stdout 只接收 Git 补丁**。Agent 自己的聊天、工具事件和报错走旁路文件，不得混进补丁。
+如果某个自研 Agent 采用独立进程方式，平台用一种简单协议调用它：**stdin 输入一份 JSON 任务，stdout 只接收 Git 补丁**。这不是 Harbor 内置 Codex/Aider/Claude Code 的原生用法，也不要求 Harbor 为迁就本协议而改造。
 
 ## 2. 协议边界
 
 ```mermaid
 flowchart LR
-    O[Run Orchestrator] -->|stdin: RunEnvelope JSON| A[选定 Agent Adapter]
-    A -->|真实 CLI / 本地进程接口| G[Codex / Aider / Claude / 自研 Agent]
+    O[ExecutionBackend seam] --> P[ProcessExecutionAdapter]
+    P -->|stdin: RunEnvelope JSON| A[自研 Agent wrapper]
+    A -->|自研进程接口| G[自研 Agent]
     G --> A
     A -->|stdout: unified diff| O
     A -->|stderr: 诊断| LOG[原始日志制品]
@@ -22,9 +24,9 @@ flowchart LR
 
 适用方式：
 
-- 对本地自研 Agent：可以直接实现本协议。
-- 对 Codex/Aider/Claude Code：它们不需要改造为本协议；项目的专用 Adapter 接收本协议，再调用各自真实 CLI。
-- 对后端内部调用：`AgentRunner` port 可以使用等价的类型化对象；跨进程时必须序列化为本文格式。
+- 对本地自研 Agent：是否采用本协议或 Harbor `BaseAgent` 适配，待 `agent-exam.yaml` schema 讨论后确定。
+- 对 Codex/Aider/Claude Code：正式主路径复用 Harbor 已有 Agent，不经过本文 stdin/stdout wrapper。
+- 对后备实现：`ProcessExecutionAdapter` 可把项目类型化对象序列化为本文格式，但对外仍实现统一 `ExecutionBackend` interface。
 
 ## 3. 进程启动约定
 
@@ -34,9 +36,9 @@ flowchart LR
 | stdin | 一个 UTF-8 JSON 对象，读到 EOF；最大尺寸由平台限制 |
 | stdout | 只允许 UTF-8 Git unified diff；不得包含 Markdown 围栏、解释或进度日志 |
 | stderr | 人类可读诊断；平台完整捕获、脱敏并保存 |
-| 环境变量 | `EVAL_RUN_ID`、`EVAL_ARTIFACT_DIR`、`EVAL_PROTOCOL_VERSION`；由 Runner 注入，Agent 不得覆盖 |
+| 环境变量 | `EVAL_JOB_ID`、`EVAL_RUN_ID`、`EVAL_ARTIFACT_DIR`、`EVAL_PROTOCOL_VERSION`；由 wrapper 注入，Agent 不得覆盖 |
 | secret | 通过沙箱的 secret 注入机制提供，不进入 stdin、命令行、环境快照、轨迹或制品 |
-| 超时 | 外层 Sandbox Controller 强制执行；Agent 自报超时不能替代外层限制 |
+| 超时 | `ProcessExecutionAdapter` 所属 Execution Backend 强制执行；Agent 自报超时不能替代外层限制 |
 
 `stdout` 为空并不自动表示平台错误：它可能表示 Agent 正常结束但没有修改代码。Evaluator 应把空补丁记录为未解决，而不是把它伪装成 Runner 崩溃。
 
@@ -47,6 +49,7 @@ flowchart LR
 ```json
 {
   "protocol_version": "0.1",
+  "job_id": "job_01J...",
   "run_id": "01J...",
   "task": {
     "instance_id": "django__django-12345",
@@ -85,7 +88,8 @@ flowchart LR
 
 | 字段 | 类型 | 生产者 | 约束 |
 |---|---|---|---|
-| `protocol_version` | string | Run Submission | 首版固定为 `0.1`；不支持时应拒绝，不静默猜测 |
+| `protocol_version` | string | Job Orchestrator / Process Adapter | 首版固定为 `0.1`；不支持时应拒绝，不静默猜测 |
+| `job_id` | string | Job Repository | 所属平台评测 Job；与运行映射一致 |
 | `run_id` | string | Run Repository | 全链路追溯 ID；与环境变量一致 |
 | `task.instance_id` | string | Task Catalog | 必须能在冻结的数据集版本中唯一定位任务 |
 | `task.dataset_id` | string | Task Catalog | Hugging Face 数据集 ID 或项目登记的本地数据集 ID |
@@ -99,10 +103,10 @@ flowchart LR
 | `agent.agent_version` | string | Agent Registry | 固定 Agent/CLI 版本；无法取得时不得进入正式排行 |
 | `agent.model` | string | Agent Registry | 固定模型身份；本地 Agent 不使用模型时可采用明确的 `none` |
 | `agent.public_options` | object | Agent Registry | 只允许该 Adapter 预先声明的键；不得接受 shell 命令或秘密 |
-| `evaluation_policy.evaluation_track` | enum | Run Submission | `closed_book` 或 `open_book_experimental`；运行中不可切换 |
+| `evaluation_policy.evaluation_track` | enum | Job Submission | `closed_book` 或 `open_book_experimental`；运行中不可切换 |
 | `evaluation_policy.network_policy_id` | string | Policy Registry | 已登记网络规则；不接受任意代理地址或防火墙命令 |
 | `evaluation_policy.tool_profile_id` | string | Policy Registry | 已登记工具集合；Adapter 只能暴露对应工具 |
-| `limits.*` | number/string | Run Submission | 来自平台限制模板，用户输入只能在允许范围内选择 |
+| `limits.*` | number/string | Job Submission | 来自平台限制模板，用户输入只能在允许范围内选择 |
 
 ### 4.2 绝对禁止进入 Agent 输入的内容
 
@@ -217,6 +221,7 @@ stderr 只用于诊断，不能作为补丁或得分输入。必须：
 ```json
 {
   "protocol_version": "0.1",
+  "job_id": "job_01J...",
   "run_id": "01J...",
   "evaluation_track": "closed_book",
   "network_policy_id": "provider-only-v1",
@@ -288,9 +293,9 @@ stateDiagram-v2
 
 Runner 的 `completed` 只表示“运行流程正常拿到了一个补丁结果”，不表示题目解决。只有 Patch Evaluator 能生成 `resolved=true/false`。
 
-## 12. Adapter 共同验收清单
+## 12. Process Adapter 验收清单
 
-每个 Adapter 都必须通过同一组契约测试：
+每个使用本文协议的自研 Agent wrapper 和 `ProcessExecutionAdapter` 都必须通过同一组契约测试：
 
 1. 能读取合法 stdin，并拒绝未知协议版本和额外危险选项。
 2. stdout 只有 diff；上游聊天和日志没有混入。
@@ -308,7 +313,7 @@ Runner 的 `completed` 只表示“运行流程正常拿到了一个补丁结果
 - `protocol_version` 使用主版本/次版本语义；不兼容字段变化提升主版本。
 - Adapter 必须记录自身版本、上游 CLI 版本和配置指纹。
 - 新字段默认只能追加为可选字段；旧 Runner 不认识的危险行为字段必须拒绝。
-- 上游 CLI 升级先更新 [`FRAMEWORK_INTERFACES.md`](./FRAMEWORK_INTERFACES.md) 的核验记录，再跑契约测试，最后才能更新登记配置。
+- 自研 Agent/wrapper 升级先更新登记版本与 manifest，再跑契约测试，最后才能更新 Agent Configuration。
 
 ## 14. 仍待确认/待实测
 
@@ -324,3 +329,4 @@ Runner 的 `completed` 只表示“运行流程正常拿到了一个补丁结果
 
 - 2026-09-01：创建候选 v0.1；确定 JSON stdin、纯 patch stdout、诊断 stderr、旁路制品、统一错误映射、轨迹事件和防泄漏规则。
 - 2026-09-02：加入闭卷/开卷评测赛道、网络策略和工具配置；明确工具层与网络层双重治理和严格分榜。
+- 2026-09-03：正式主路径改为 Harbor Execution Backend；本文收窄为自研 Agent/后备 Process Adapter 协议，并加入 `job_id` 追溯。

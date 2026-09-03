@@ -1,8 +1,9 @@
 # 上游框架与 Agent CLI 接口清单
 
-> 文档状态：持续维护；上游事实已核验，项目映射为候选 v0.1，运行能力仍待分层实测  
-> 最后更新：2026-09-02  
-> 权威范围：本文件只维护我们实际调用的 SWE-Gym、SWE-Bench-Fork、Codex、Aider、Claude Code 接口，以及它们到项目 Adapter 的映射。依赖来源、固定版本、获取方式与入库策略见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；统一项目协议见 [`RUNNER_PROTOCOL.md`](./RUNNER_PROTOCOL.md)。
+> 文档状态：持续维护；上游事实已核验，Harbor 架构映射已确认，运行能力仍待分层实测
+>
+> 最后更新：2026-09-03
+> 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
 
 ## 1. 先把最容易混淆的事说清楚
 
@@ -13,9 +14,9 @@
 1. SWE-Gym 主仓库提供数据、模型与复现实验材料；官方 README 把数据放在 Hugging Face，并明确把环境常量指向 SWE-Bench-Fork。
 2. 配套 SWE-Bench-Fork 提供实际的任务字段、Docker 环境构建和 `swebench.harness.run_evaluation` 判卷入口。
 3. 因此本项目“直接使用框架”的运行含义是：**读取真实 SWE-Gym 任务 → 让 Agent 在固定仓库快照生成 patch → 把真实 prediction 交给固定版本 SWE-Bench-Fork 判卷**。
-4. 本项目只在外面增加统一 Agent Adapter、排队、制品、Judge、人工复核和 Web，不重写上游判卷语义。
+4. 本项目用 Harbor 统一运行 Agent 和 Docker 环境，在外面增加平台 Job 队列、长期制品、固定 Fork 判卷、Judge、人工复核和 Web，不重写上游判卷语义。
 
-上游并没有提供 Codex/Aider/Claude Code 的统一 Runner，所以这一层只能由本项目 Adapter 补齐。它是题目要求的新增能力，不是绕开 SWE-Gym。
+SWE-Gym 本身没有提供 Codex/Aider/Claude Code 的统一 Runner；固定 Harbor 已核验包含多 Agent、Environment、Job/Trial 与轨迹能力，因此项目通过 `HarborExecutionAdapter` 复用它，而不是重复自研同一层。补丁出口和本机兼容性仍需真实原型证明。
 
 ## 2. 事实状态
 
@@ -23,6 +24,7 @@
 |---|---|
 | 已核验源码 | 已从当前本地固定提交读取到接口定义 |
 | 已核验官方文档 | 已从工具供应商官方文档/官方源码确认 |
+| 架构已确认 | 项目已决定采用该映射，但不等于本机运行通过 |
 | 候选映射 | 本项目怎样使用真实接口的设计，尚未实现 |
 | Adapter 契约通过 | 固定版本通过本项目统一协议测试 |
 | 真实账号通过 | 使用真实模型凭据在小仓库运行通过 |
@@ -168,9 +170,23 @@ Harness 还在当前工作目录生成 `<model_name_or_path>.<run_id>.json` 汇�
 
 该方式仍需在 Linux/WSL2 + Docker Desktop 环境进行 gold patch 冒烟测试后确认。
 
-## 6. Codex CLI Adapter
+## 6. Harbor Execution Backend
 
-### 6.1 已核验官方接口
+[`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 固定的 Harbor 提交已通过官方源码静态核验：
+
+- `JobConfig` 接受 `agents`、`datasets`/`tasks`、`n_attempts`、`n_concurrent_trials`、`environment`、`verifier` 与 `artifacts`；
+- `JobPlan.build_trial_configs()` 按 attempts×tasks×agents 展开 `TrialConfig`；
+- `VerifierConfig.disable` 可关闭 Harbor Verifier；
+- `SingleStepTrial` 在运行 Agent 后、Verifier 前同步 Agent 输出并收集 artifacts；
+- `JobResult` 聚合 `trial_results`，但 `TrialResult` 没有标准 `model_patch` 字段。
+
+架构决定是：平台 Job→Harbor Job，评测运行→Harbor Trial，`n_attempts=1`、`n_concurrent_trials=1`、`verifier.disable=true`；每个 Trial 的 patch 由 Adapter 强校验后交给固定 SWE-Bench-Fork。完整输入、输出、错误和验收门槛只在 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md) 维护。
+
+静态核验不能证明 Harbor 已经在本机安装、任务能运行或 patch 能提取；当前状态仍是“架构已确认、运行待原型”。
+
+## 7. Codex CLI Adapter
+
+### 7.1 已核验官方接口
 
 OpenAI 官方将 `codex exec` 标为稳定的非交互/脚本运行入口：
 
@@ -184,7 +200,9 @@ OpenAI 官方将 `codex exec` 标为稳定的非交互/脚本运行入口：
 
 来源：[Codex Non-interactive mode](https://developers.openai.com/codex/noninteractive)、[Codex CLI reference](https://developers.openai.com/codex/cli/reference)，访问日期 2026-09-01。
 
-### 6.2 候选 Adapter 映射
+### 7.2 直接 CLI 后备映射
+
+正式主路径优先使用 Harbor 已有 Codex Agent。以下映射保留为 Harbor Adapter 调试参考和 `ProcessExecutionAdapter` 后备方案，不代表首版同时维护两套 Codex 执行实现。
 
 ```text
 Runner RunEnvelope
@@ -203,14 +221,14 @@ Runner RunEnvelope
 | 可观察轨迹 | `--json` JSONL；保留原始事件并规范化 |
 | 工具调用数 | 只统计官方输出中可识别的 item，保留事件类型 |
 | patch | 从最终 Git 工作区提取，不取最终回答文本 |
-| 超时/CPU/内存/网络 | 外层 Sandbox Controller；Codex 自身 sandbox 是第二层，不替代 Docker |
+| 超时/CPU/内存/网络 | Execution Backend 的环境策略；Codex 自身 sandbox 是第二层，不替代 Docker |
 | 版本/模型/配置 | Agent Configuration 冻结并写入 `result.json` |
 
 当前本机核验限制：2026-09-01 尝试执行 `codex --version` / `codex exec --help` 时，WindowsApps 中打包的 `codex.exe` 被操作系统拒绝启动。因此这里只能说官方接口已核验，不能说本机 CLI Adapter 或精确本地版本已验证。
 
-## 7. Aider CLI Adapter
+## 8. Aider CLI Adapter
 
-### 7.1 已核验官方接口
+### 8.1 已核验官方接口
 
 - `aider --message "..."` / `--message-file <file>` 会处理单条任务后退出；
 - Aider 直接修改当前 Git 仓库，不原生输出纯 patch；
@@ -222,7 +240,9 @@ Runner RunEnvelope
 
 完整来源和源码行号见 [`2026-09-01-aider-cli-interface.md`](../research/2026-09-01-aider-cli-interface.md)。
 
-### 7.2 候选 Adapter 映射
+### 8.2 直接 CLI 后备映射
+
+正式主路径优先使用 Harbor 已有 Aider Agent。以下映射只作为能力差异事实和后备实现参考。
 
 ```text
 Runner stdin JSON
@@ -245,9 +265,9 @@ Runner stdin JSON
 
 当前状态：只证明理论可接入；Aider 未在本机安装或运行。
 
-## 8. Claude Code CLI Adapter
+## 9. Claude Code CLI Adapter
 
-### 8.1 已核验官方接口
+### 9.1 已核验官方接口
 
 - `claude -p` 是非交互模式，支持 stdin；
 - `--output-format stream-json --verbose` 可输出逐行结构化会话和工具事件；
@@ -258,7 +278,9 @@ Runner stdin JSON
 
 完整来源和许可/认证边界见 [`2026-09-01-claude-code-adapter.md`](../research/2026-09-01-claude-code-adapter.md)。
 
-### 8.2 候选 Adapter 映射
+### 9.2 直接 CLI 后备映射
+
+正式主路径优先使用 Harbor 已有 Claude Code Agent。以下映射只作为能力差异事实和后备实现参考。
 
 ```text
 Runner RunEnvelope
@@ -280,7 +302,7 @@ Runner RunEnvelope
 
 当前状态：官方接口证明理论可接入；本机没有检测到可运行 `claude`，尚未通过 Adapter 或真实账号测试。
 
-## 9. 本地自研 Agent 接口
+## 10. 本地自研 Agent 接口
 
 本地自研 Agent 没有上游接口需要猜。它有两种合规方式：
 
@@ -289,7 +311,7 @@ Runner RunEnvelope
 
 两种方式都必须：固定 Git commit/镜像版本、登记模型和关键配置、在 Agent 沙箱运行、保存轨迹/日志、从干净工作区生成 patch，并由同一个 SWE-Bench-Fork Evaluator 判分。它不能因为是“自己写的”就绕过沙箱或看到隐藏答案。
 
-## 10. 统一能力差异
+## 11. 统一能力差异
 
 | 能力 | 自研进程 | Codex | Aider | Claude Code |
 |---|---:|---:|---:|---:|
@@ -304,7 +326,7 @@ Runner RunEnvelope
 
 因此页面不能把“工具调用数”当成所有 Agent 天然等价的指标。缺失值必须显示为“不支持/未知”，不能记成 0；是否计分仍待用户确认。
 
-## 11. Adapter 错误映射
+## 12. Adapter 错误映射
 
 | 上游现象 | 统一终止原因 | 是否进入 Evaluator |
 |---|---|---:|
@@ -318,7 +340,7 @@ Runner RunEnvelope
 
 不能只看上游 exit 0：Aider/Codex/Claude 都可能正常结束但没有修好；也不能因为测试失败就把 Adapter 运行标成平台失败。
 
-## 12. 接入验证顺序
+## 13. 接入验证顺序
 
 每类 Agent 按同样四层推进：
 
@@ -327,9 +349,9 @@ Runner RunEnvelope
 3. **真实 CLI 小仓库测试**：固定版本和真实凭据，在极小仓库完成一次修改。
 4. **SWE-Gym E2E**：一条固定任务，保存 Runner 证据并由固定 SWE-Bench-Fork 判卷。
 
-建议实现顺序仍是：本地自研/Mock → Codex → Aider → Claude Code。顺序只是降低风险，最终目标仍包括四类。
+建议实现顺序改为：Mock 只验证内部状态/错误分支 → Harbor 固定提交 + 一个真实 Agent 跑通单题 → 再验证其余真实 Agent。Mock 不属于正式 Agent 接入，也不产生展示或排行证据。
 
-## 13. 升级维护清单
+## 14. 升级维护清单
 
 升级任一框架/CLI 时必须在同一个行动文档中：
 
@@ -341,16 +363,18 @@ Runner RunEnvelope
 6. 至少运行小仓库冒烟测试，影响 Harness 时再跑 gold patch 与 E2E；
 7. 只有证据通过后，才启用新的 Agent Configuration；历史成绩保留旧版本身份。
 
-## 14. 当前未解决接口问题
+## 15. 当前未解决接口问题
 
 1. 真实 SWE-Gym 数据集 ID、revision、split 和首批小任务；需实际读取数据集元数据，不能暗猜。
 2. Windows + Docker Desktop 下 SWE-Bench-Fork 固定提交是否无需补丁即可运行；需 gold patch 实测。
-3. Codex 打包 CLI 在当前 Windows 环境为什么被拒绝启动，以及容器内固定版本安装方式。
-4. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
-5. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
-6. 自研 Agent 的具体进程接口和版本载体。
+3. Harbor 固定提交在本机的安装方式、Worker 载体、`model_patch` 受控提取和 Trial→`run_id` 映射。
+4. Codex 打包 CLI 在当前 Windows 环境为什么被拒绝启动，以及 Harbor 容器内固定版本安装方式。
+5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
+6. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
+7. `agent-exam.yaml` 的 schema，以及自研 Agent 使用 Harbor `BaseAgent` 还是后备进程协议。
 
-## 15. 变更记录
+## 16. 变更记录
 
 - 2026-09-02：把依赖来源、固定版本、获取与入库策略迁移到 `DEPENDENCIES.md` 唯一维护；公开证据改用固定提交的 GitHub permalink，避免 `framework/` 不入库后链接失效。
 - 2026-09-01：创建；核验固定 SWE-Gym/SWE-Bench-Fork 源码、Codex 官方非交互接口，并汇总 Aider/Claude Code 官方研究；定义四类 Adapter 映射、能力差异、错误映射和分层验证。
+- 2026-09-03：加入固定 Harbor 的真实 Job/Trial/Verifier/Artifact 接口入口；确认 Harbor 为主 Execution Backend，直接 CLI 映射降为后备，运行状态仍保持待原型。

@@ -1,7 +1,7 @@
 # AI Coding Agent 评测平台总架构
 
-> 文档状态：总体方案已确认，细节持续讨论；尚无业务代码  
-> 最后更新：2026-09-02  
+> 文档状态：总体方案已确认，细节持续讨论；尚无业务代码
+> 最后更新：2026-09-03
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
 ## 1. 从哪里开始读
@@ -14,7 +14,8 @@
 | 系统由什么组成、为什么这样分 | 本文 |
 | 项目依赖什么、从哪里取得、固定到哪个版本 | [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) |
 | 每个模块做什么、输入输出和错误是什么 | [`MODULE_CONTRACTS.md`](./MODULE_CONTRACTS.md) |
-| Agent 怎样统一接题并交 patch | [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md) |
+| 自研 Agent 或后备进程怎样接题并交 patch | [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md) |
+| AgentExam 怎样调用 Harbor、怎样取得 Trial 结果 | [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) |
 | Next.js 怎样调用 FastAPI | [`HTTP_API.md`](../interfaces/HTTP_API.md) |
 | PostgreSQL/MinIO 保存什么 | [`DATA_MODEL.md`](./DATA_MODEL.md) |
 | SWE-Gym、SWE-Bench-Fork 和各 Agent 的真实接口 | [`FRAMEWORK_INTERFACES.md`](../interfaces/FRAMEWORK_INTERFACES.md) |
@@ -25,7 +26,7 @@
 
 - **已确认**：用户已经决定，后续实现必须遵守。
 - **已核验**：已从上游源码或官方文档查到。
-- **候选 v0.1**：已经写成可讨论契约，但尚未实现或最终确认。
+- **候选 v0.x**：已经写成可讨论契约，但尚未实现或最终确认；具体版本以专题文档为准。
 - **待确认/待实测**：需要人类决定或真实运行证据。
 - **已实现**：代码存在且验证通过；当前没有业务代码，因此不能使用这个标签。
 
@@ -33,12 +34,13 @@
 
 一次完整使用动线：
 
-1. 从已登记列表选择一个固定的 Agent 配置和 SWE-Gym 评测任务。
-2. 平台创建评测运行，并在受限 Agent 沙箱中让 Agent 阅读 Issue、修改固定仓库快照。
-3. Adapter 保存过程事件、原始输出和资源数据，从 Git 工作区提取最终 patch。
-4. SWE-Bench-Fork 在新的干净验证环境中应用 patch，并依据测试生成确定性结果。
-5. 页面分别展示确定性结果、过程指标、LLM Judge 失败归因和人工复核。
-6. 排行榜按完整的“Agent + 模型 + 关键配置”统计，原始证据能追溯到 `run_id`。
+1. 可信用户从已登记列表选择一个或多个固定 Agent 配置、一个或多个 SWE-Gym 任务和一个评测赛道。
+2. 平台创建一个评测 Job，在 PostgreSQL 排队，并预先冻结 Agent×任务组合对应的逐题评测运行。
+3. 单机 Worker 一次只领取一个 Job；Execution Backend Adapter 把它转换为一个 Harbor Job，并固定 `n_concurrent_trials=1`。
+4. Harbor 把 Agent×任务展开为 Trial，运行真实 Agent、管理 Docker 环境并保存过程事件、原始输出和制品。
+5. Adapter 为每个 Trial 校验并返回最终 patch；SWE-Bench-Fork 在新的干净验证环境中独立应用 patch 和执行测试。
+6. 页面展示 Job 总进度，并对每条运行分别展示确定性结果、过程指标、LLM Judge 失败归因和人工复核。
+7. 排行榜按完整的“Agent + 模型 + 关键配置”统计，原始证据能从 `job_id` 追溯到每个 `run_id`。
 
 ## 3. 已确认决定
 
@@ -49,16 +51,21 @@
 | C-03 | 周期约一个月，实际开发力量约 2.5 人 | 优先最小完整闭环，控制并发和功能范围 |
 | C-04 | Web 为 Next.js 15 + React 19 | 页面独立，不在前端直接驱动 Docker/Harness |
 | C-05 | 后端为 Python + FastAPI，耗时任务由 Python Worker 执行 | 与 Python 版 SWE-Bench-Fork 同语言；HTTP 请求不等待评测完成 |
-| C-06 | PostgreSQL 保存元数据并承担首版队列，MinIO 保存制品 | 首版不引入 Redis/Celery；大日志不塞数据库 |
+| C-06 | PostgreSQL 保存元数据并承担平台评测 Job 队列，MinIO 保存制品 | 首版不引入 Redis/Celery；不把 Harbor 本地目录当课程数据库；大日志不塞数据库 |
 | C-07 | 单机模块化单体 | 代码按边界分模块，但不拆微服务；Web/API/Worker 为进程角色，不是独立业务微服务 |
-| C-08 | Docker 负责 Agent 生成与干净验证环境 | 两阶段隔离；最终判卷不能受 Agent 工作区残留影响 |
+| C-08 | Harbor 使用 Docker 运行 Agent；固定 SWE-Bench-Fork 使用独立干净验证环境 | 两阶段隔离；最终判卷不能受 Agent 工作区或 Harbor reward 影响 |
 | C-09 | 全程证据可追溯 | patch、轨迹、原始输出、测试、Judge 和人工复核都关联同一 `run_id` |
-| C-10 | 第一版只运行项目组审核、登记并固定版本的 Agent | 不提供任意 GitHub URL 自动下载执行，不接受用户提交任意 shell 命令 |
+| C-10 | 第一版只运行项目组审核、登记并固定版本的 Agent | 可信用户可提交固定 Git URL + commit + `agent-exam.yaml` 供审核；未审核仓库绝不执行，也不接受用户提交任意 shell 命令 |
 | C-11 | 排行榜单位是 Agent + 模型 + 关键配置 | 不同模型/关键配置分行统计，不能混为同一 Agent 成绩 |
-| C-12 | 第一版目标包含自研 Agent、Codex、Aider、Claude Code | 接入顺序为自研/Mock → Codex → Aider → Claude Code，最终目标不因分阶段减少 |
+| C-12 | 第一版目标包含自研 Agent、Codex、Aider、Claude Code | 优先复用 Harbor 已有 Agent；Mock 仅用于内部软件测试，不属于正式接入成绩 |
 | C-13 | 确定性测试、Judge 分析、人工复核分层保存 | LLM 或人工解释不能覆盖 SWE-Bench-Fork 原始测试事实 |
 | C-14 | 架构、模块、接口、框架事实和行动记录分文档持续维护 | 同一事实只设一个权威来源；实现变化时同任务更新相关文档 |
 | C-15 | 采用闭卷主排行榜（`closed_book`）+ 开卷实验榜（`open_book_experimental`） | 两条赛道使用相同确定性判卷，但按网络/工具配置严格分榜，不横向混分 |
+| C-16 | Harbor 是带验收退出条件的正式 Execution Backend | 版本由依赖事实源固定；隐藏在 Adapter 后；原型失败时替换为轻量 Process Adapter，不改上层业务 |
+| C-17 | 一个平台评测 Job 映射一个 Harbor Job，一条评测运行映射一个 Harbor Trial | 平台负责业务排队和长期事实；Harbor 负责 Job 内 Trial 执行 |
+| C-18 | 单机同时只执行一个重型平台 Job，Harbor `n_concurrent_trials=1` | Job 中 Trial 顺序执行；不以增加并发换取演示速度 |
+| C-19 | 一个 Job 可选择多个 Agent 和多个任务，首版每组合尝试一次 | 创建前展示 Trial 总数；预设规模为演示 1–3 题、快速 5 题、标准 10–20 题，Agent 首版最多约 3 个 |
+| C-20 | 正式展示、报告和排行只接受真实执行证据 | Mock 结果必须隔离为 `internal_test`，不能冒充真实 Agent 或进入正式统计 |
 
 ## 4. 总体架构
 
@@ -69,20 +76,24 @@ flowchart TB
     subgraph HOST[单台物理计算机]
         WEB --> API[FastAPI HTTP Delivery]
         API --> APP[应用用例 / 模块化单体]
-        APP --> PG[(PostgreSQL\n元数据 + 运行队列)]
+        APP --> PG[(PostgreSQL\n元数据 + Job 队列)]
         APP --> MINIO[(MinIO\n不可变制品)]
 
-        WORKER[Python Worker] --> PG
-        WORKER --> ORCH[Run Orchestrator]
+        WORKER[Python Worker\n同时 1 个重型 Job] --> PG
+        WORKER --> ORCH[Job Orchestrator]
         ORCH --> TASK[Task Catalog Adapter]
-        ORCH --> RUNNER[Agent Runner]
+        ORCH --> EXEC[ExecutionBackend interface]
         ORCH --> EVAL[Patch Evaluator Adapter]
         ORCH --> JUDGE[Failure Judge Adapter]
         ORCH --> MINIO
 
         TASK --> SWEGYM[SWE-Gym 数据]
-        RUNNER --> AGENTBOX[Docker Agent 生成沙箱]
+        EXEC --> HARBORADAPTER[Harbor Execution Adapter]
+        HARBORADAPTER --> HJOB[Harbor Job]
+        HJOB --> HTRIAL[Harbor Trial\n顺序执行]
+        HTRIAL --> AGENTBOX[Docker Agent 生成环境]
         AGENTBOX --> AGENTS[自研 / Codex / Aider / Claude Code]
+        HARBORADAPTER --> MINIO
         EVAL --> HARNESS[SWE-Bench-Fork Harness]
         HARNESS --> VERIFYBOX[Docker 干净验证沙箱]
     end
@@ -92,8 +103,9 @@ flowchart TB
 
 - Web 只走 HTTP API，不直连 PostgreSQL、MinIO 或 Docker。
 - FastAPI 负责短请求、校验和查询，不亲自等待 Agent/Harness。
-- Worker 原子领取排队运行，再调用一个深的 Run Orchestrator 完成评测。
-- Orchestrator 依赖小型 ports；不同 Agent、SWE-Gym、Harness、存储和 Judge 位于外层 Adapters。
+- Worker 原子领取排队 Job，再调用一个深的 Job Orchestrator；Job 内的逐题运行由 Harbor Trial 顺序执行。
+- Orchestrator 只依赖小型 `ExecutionBackend` interface，不直接理解 Harbor `JobConfig`、Trial 目录或异常。
+- Harbor 负责 Agent 环境，不替代 PostgreSQL 业务队列、MinIO 长期制品、SWE-Bench-Fork 判卷、Judge 或人工复核。
 - 闭卷 Agent 生成沙箱只允许模型调用所需端点，并禁用 Web 搜索/抓取工具；开卷实验运行允许已登记的联网工具。验证沙箱候选为断网干净环境。代理、端点白名单和工具公平性的精确实现仍待确认。
 
 ## 5. 一次运行的输入输出
@@ -104,32 +116,38 @@ sequenceDiagram
     participant W as Next.js Web
     participant A as FastAPI
     participant D as PostgreSQL
-    participant K as Worker/Orchestrator
+    participant K as Worker/Job Orchestrator
     participant T as SWE-Gym Task Adapter
-    participant R as Agent Adapter + Sandbox
+    participant H as Harbor Execution Backend
     participant S as MinIO
     participant E as SWE-Bench-Fork
     participant J as LLM Judge
 
-    U->>W: 选择任务和 Agent 配置
-    W->>A: POST /api/v1/runs
-    A->>D: 创建 QUEUED 运行
-    A-->>W: 202 + run_id
-    K->>D: 原子领取运行
-    K->>T: 数据集版本 + instance_id
-    T-->>K: EvaluationTask
-    K->>R: RunEnvelope（不含隐藏答案）
-    R-->>K: patch + 轨迹/日志/资源引用
-    K->>S: 保存 Runner 证据
-    K->>E: instance_id + model_patch + Agent 身份
-    E-->>K: 确定性结果 + Harness 证据
-    K->>S: 保存测试报告和输出
-    opt 失败归因或抽检
-        K->>J: 受控失败证据
-        J-->>K: JudgeAnalysis
-        K->>S: 保存原始 Judge 证据
+    U->>W: 选择多个任务和多个 Agent 配置
+    W->>A: POST /api/v1/jobs
+    A->>D: 创建 QUEUED Job + PENDING runs
+    A-->>W: 202 + job_id + trial_count
+    K->>D: 原子领取一个 Job
+    K->>T: 读取 Job 中冻结的任务
+    T-->>K: EvaluationTask[]
+    K->>H: ExecutionJobRequest（不含隐藏答案）
+    H->>H: 生成 1 个 Harbor Job，n_concurrent_trials=1
+    loop 每个 Harbor Trial / Evaluation Run
+        H->>S: 保存并校验 patch/轨迹/日志/原始结果
+        H-->>K: run_id + 执行证据引用
+        K->>S: 按 patch_ref 读取已校验 patch
+        S-->>K: model_patch 字节
+        K->>E: instance_id + model_patch + Agent 身份
+        E-->>K: 确定性结果 + Harness 证据
+        K->>S: 保存测试报告和输出
+        opt 失败归因或抽检
+            K->>J: 受控失败证据
+            J-->>K: JudgeAnalysis
+            K->>S: 保存原始 Judge 证据
+        end
+        K->>D: 更新逐题运行状态
     end
-    K->>D: 完成/待复核/平台失败
+    K->>D: 汇总 Job 完成/部分失败/失败
     W->>A: 轮询报告和轨迹
     A-->>W: 分层结果与制品索引
 ```
@@ -138,6 +156,7 @@ sequenceDiagram
 
 - 内部模块：[`MODULE_CONTRACTS.md`](./MODULE_CONTRACTS.md)
 - Runner 进程：[`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)
+- Harbor 执行：[`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)
 - HTTP：[`HTTP_API.md`](../interfaces/HTTP_API.md)
 - 依赖来源、固定版本与恢复方式：[`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)
 - 上游框架/CLI：[`FRAMEWORK_INTERFACES.md`](../interfaces/FRAMEWORK_INTERFACES.md)
@@ -146,7 +165,7 @@ sequenceDiagram
 
 | 层 | 回答的问题 | 是否为最终测试事实 |
 |---|---|---:|
-| Runner 结果 | Agent 是否正常运行、产生了什么 patch/轨迹 | ❌ |
+| Execution Backend 结果 | Agent 是否正常运行、产生了什么 patch/轨迹 | ❌ |
 | 确定性验证 | patch 是否应用、规定测试是否通过、`resolved` 是否为真 | ✅ |
 | 过程指标 | 调用了哪些可观察工具、耗时/token/资源怎样 | ❌ |
 | Judge 分析 | 为什么失败、过程可能有什么问题 | ❌ |
@@ -173,23 +192,29 @@ sequenceDiagram
 - 模块仍通过 ports 隔离；以后真有多机需要，可以优先把 Worker 边界外移。
 - Web、API、Worker 是不同进程职责，但共享一个后端领域/应用代码库，不把它们误称为三套微服务。
 
-### 7.2 PostgreSQL 队列，而不是 Redis/Celery
+### 7.2 PostgreSQL 管平台 Job 队列，而不是让 Harbor 代替业务数据库
 
-- PostgreSQL 已经是题目要求，排队量在单机首版可控。
-- 运行状态和领取事务在一个事实源内，减少双写不一致。
-- 候选使用短事务和 `FOR UPDATE SKIP LOCKED`；精确 SQL 和崩溃恢复要通过双 Worker 实测。
+- PostgreSQL 已经是题目要求，可信用户、审核、排队、取消、报告和长期状态必须有业务事实源。
+- Harbor Job 目录是执行产物，不负责课程用户、权限和长期查询；PostgreSQL 只领取平台 Job，不逐条与 Harbor 抢调度权。
+- 候选使用短事务和 `FOR UPDATE SKIP LOCKED`，并额外保证只有一个重型 Job 活跃；精确 SQL 和崩溃恢复要通过双 Worker 实测。
 
-### 7.3 Adapter，而不是为每个 Agent 改主流程
+### 7.3 深的 Execution Backend，而不是把 Harbor 类型传播到全项目
 
-- Codex、Aider、Claude Code 和自研 Agent 的真实输入/输出不同。
-- Adapter 把差异翻译成一个 Runner 契约；Run Orchestrator 永远只理解“任务进去，patch/证据出来”。
-- 新增 Agent 时增加 Adapter 和登记配置，不在主流程堆叠条件分支。
+- Harbor 已经处理多种 Agent、Docker 环境、Job/Trial 和轨迹；重复自研会增加一个月项目的风险。
+- `HarborExecutionAdapter` 把差异翻译成一个项目 interface；Job Orchestrator 永远只理解“批次进去，逐题 patch/证据出来”。
+- Harbor 原型若失败，只新增后备 `ProcessExecutionAdapter`；调用方、数据库和 HTTP 不跟着重写。
 
 ### 7.4 两阶段沙箱
 
 - Agent 生成环境允许修改仓库、运行获准工具，并记录轨迹。
 - Patch Evaluator 重新从固定任务环境开始，只应用最终 patch，再执行真实测试。
 - 这样 Agent 修改测试、留下缓存或声称“我测试通过”都不能替代最终判卷。
+
+### 7.5 Harbor Job 不是最终判卷
+
+- 固定提交允许 `verifier.disable=true`；Harbor 仍先同步 Agent 日志并收集 artifacts。
+- Harbor `TrialResult` 没有标准 `model_patch` 字段，补丁出口必须通过真实原型验收。
+- 只有固定 SWE-Bench-Fork 的完整报告能写入 `DeterministicResult.resolved`；Harbor reward 只可作为调试证据或直接禁用。
 
 ## 8. 候选项目文件树
 
@@ -205,8 +230,10 @@ E:\9.1实训\
 │  # 本地恢复的第三方上游依赖；不进入 AgentExam 主仓库，来源与版本见依赖文档
 │  ├─ swe-gym\
 │  │  # 固定提交的 SWE-Gym 数据/实验框架源码
-│  └─ swe-bench-fork\
-│     # 固定提交的 Docker 环境与确定性 Harness
+│  ├─ swe-bench-fork\
+│  │  # 固定提交的 Docker 环境与确定性 Harness
+│  └─ harbor\
+│     # 未来按依赖文档恢复的 Harbor 固定源码；当前尚未下载
 ├─ apps\
 │  ├─ backend\
 │  │  # FastAPI 与 Worker 共享的 Python 模块化单体
@@ -217,35 +244,39 @@ E:\9.1实训\
 │  │  │  │  # 纯领域规则，不依赖框架/数据库/Docker
 │  │  │  │  ├─ task.py       # EvaluationTask 与 Agent 可见/验证视图边界
 │  │  │  │  ├─ agent.py      # AgentConfiguration 与配置指纹规则
-│  │  │  │  ├─ run.py        # State 模式：运行状态和合法迁移
+│  │  │  │  ├─ job.py        # EvaluationJob、组合规模和 Job 状态规则
+│  │  │  │  ├─ run.py        # EvaluationRun：逐 Trial 状态和合法迁移
 │  │  │  │  └─ result.py     # 确定性、Judge、人工复核的分层结果
 │  │  │  ├─ application\
 │  │  │  │  # 用例层，只依赖 domain 与 ports
 │  │  │  │  ├─ ports\
 │  │  │  │  │  # 外部能力的小接口；Adapter 的替换 seam
 │  │  │  │  │  ├─ task_source.py  # Task Catalog port
-│  │  │  │  │  ├─ agent_runner.py # Agent Runner port
-│  │  │  │  │  ├─ sandbox.py      # Sandbox Controller port
+│  │  │  │  │  ├─ execution.py    # 深 ExecutionBackend port；隐藏 Harbor 类型
 │  │  │  │  │  ├─ evaluator.py    # Patch Evaluator port
 │  │  │  │  │  ├─ repositories.py # PostgreSQL Repository ports
 │  │  │  │  │  ├─ artifacts.py    # MinIO Artifact Store port
 │  │  │  │  │  └─ judge.py        # Failure Judge port
-│  │  │  │  ├─ submit_run.py  # 校验并创建 QUEUED 运行
-│  │  │  │  ├─ execute_run.py # 深模块：一次完整评测的 Orchestrator
+│  │  │  │  ├─ submit_job.py  # 校验矩阵并创建 QUEUED Job + PENDING runs
+│  │  │  │  ├─ execute_job.py # 深模块：Harbor 执行、逐题判卷和 Job 汇总
 │  │  │  │  └─ review_run.py  # 人工抽检与版本化复核流程
 │  │  │  ├─ adapters\
 │  │  │  │  # 把真实上游接口翻译为 application ports
 │  │  │  │  ├─ tasks\swe_gym.py
 │  │  │  │  │  # Adapter：SWE-Gym 字段 → EvaluationTask
 │  │  │  │  ├─ agents\
-│  │  │  │  │  # Factory/Registry + 四类 Agent Adapter
-│  │  │  │  │  ├─ registry.py       # 只从允许列表选择 Adapter/配置
-│  │  │  │  │  ├─ custom_process.py # 自研 Agent/Mock 统一进程 Adapter
-│  │  │  │  │  ├─ codex.py          # Codex exec JSONL Adapter
-│  │  │  │  │  ├─ aider.py          # Aider message-file/Git diff Adapter
-│  │  │  │  │  └─ claude_code.py    # Claude stream-json Adapter
-│  │  │  │  ├─ sandbox\docker.py
-│  │  │  │  │  # Adapter：容器、挂载、资源、网络、终止和清理
+│  │  │  │  │  # 已审核 Agent 配置与提交 manifest 的安全转换
+│  │  │  │  │  ├─ registry.py # 已登记配置 → Harbor AgentConfig；不接收任意命令
+│  │  │  │  │  └─ manifest.py # 静态解析 agent-exam.yaml；审核前不执行仓库代码
+│  │  │  │  ├─ execution\
+│  │  │  │  │  ├─ harbor\
+│  │  │  │  │  │  # HarborExecutionAdapter 内部实现；外部只见 ExecutionBackend
+│  │  │  │  │  │  ├─ adapter.py       # Job 生命周期与项目结果汇总
+│  │  │  │  │  │  ├─ config_mapper.py # 项目 Job → Harbor JobConfig
+│  │  │  │  │  │  ├─ result_mapper.py # TrialResult/异常 → ExecutionTrialResult
+│  │  │  │  │  │  └─ artifacts.py     # patch/ATIF/原始结果校验和导入
+│  │  │  │  │  └─ process.py
+│  │  │  │  │     # 后备 Adapter：只在 Harbor 原型未过门槛时实现统一进程协议
 │  │  │  │  ├─ evaluation\swe_bench.py
 │  │  │  │  │  # Adapter：prediction JSONL → 固定 Fork CLI → 规范化结果
 │  │  │  │  ├─ persistence\postgres.py
@@ -260,8 +291,9 @@ E:\9.1实训\
 │  │  │  │  └─ routes\
 │  │  │  │     ├─ tasks.py    # Task API
 │  │  │  │     ├─ agents.py   # Agent Configuration API
-│  │  │  │     ├─ runs.py     # Run API
-│  │  │  │     ├─ artifacts.py# Trajectory/Artifact API
+│  │  │  │     ├─ jobs.py      # Job 创建、列表、详情和取消 API
+│  │  │  │     ├─ runs.py      # Job 内逐题运行只读 API
+  │  │  │  │     ├─ artifacts.py # Trajectory/Artifact API
 │  │  │  │     ├─ reviews.py  # Human Review API
 │  │  │  │     └─ reports.py  # Report/Leaderboard API
 │  │  │  └─ worker\main.py
@@ -278,14 +310,16 @@ E:\9.1实训\
 │        ├─ app\
 │        │  # App Router 页面/布局，不直接实现后端业务
 │        │  ├─ layout.tsx       # 全站布局和导航
-│        │  ├─ page.tsx         # 运行概览
-│        │  ├─ tasks\           # 任务浏览/发起运行
+│        │  ├─ page.tsx         # Job 概览
+│        │  ├─ tasks\           # 任务浏览与选择
+│        │  ├─ jobs\            # 发起 Job、总进度和组合结果
 │        │  ├─ runs\            # 运行、轨迹和证据详情
 │        │  ├─ leaderboard\     # Agent 配置排行
 │        │  └─ reviews\         # 人工抽检工作台
 │        ├─ features\
 │        │  # 与路由解耦的视图模型和交互
 │        │  ├─ tasks\
+│        │  ├─ jobs\
 │        │  ├─ runs\
 │        │  ├─ leaderboard\
 │        │  └─ reviews\
@@ -301,7 +335,7 @@ E:\9.1实训\
 │     ├─ worker.Dockerfile  # Worker 镜像候选
 │     └─ web.Dockerfile     # Next.js 镜像
 ├─ tests\e2e\
-│  # 从创建运行到报告展示的单机端到端测试
+  │  # 从创建 Job 到逐题报告展示的单机端到端测试
 └─ docs\
    ├─ dependencies\
    │  └─ DEPENDENCIES.md       # 依赖来源、固定版本、恢复方式与入库策略的唯一事实源
@@ -310,9 +344,10 @@ E:\9.1实训\
    │  ├─ MODULE_CONTRACTS.md  # 内部模块输入输出
    │  └─ DATA_MODEL.md        # PostgreSQL/MinIO
    ├─ interfaces\
-   │  ├─ RUNNER_PROTOCOL.md      # 统一 Agent 进程协议
-   │  ├─ HTTP_API.md             # Web/API 契约
-   │  └─ FRAMEWORK_INTERFACES.md # 真实上游接口映射
+   │  ├─ HARBOR_EXECUTION.md      # ExecutionBackend 与 Harbor Job/Trial 映射
+   │  ├─ RUNNER_PROTOCOL.md       # 自研 Agent/后备进程协议
+   │  ├─ HTTP_API.md              # Web/API 契约
+   │  └─ FRAMEWORK_INTERFACES.md  # 真实上游接口映射
    ├─ research\  # 官方资料和相似项目的查证记录
    ├─ actions\   # 每次修改的行动和验证记录
    └─ adr\       # 仅记录难以逆转且已作出的架构决定
@@ -322,10 +357,10 @@ E:\9.1实训\
 
 | 模式 | 参与路径 | 角色关系 | 目的 |
 |---|---|---|---|
-| Adapter | `application/ports/*.py` + `adapters/**` | port 定义内部小接口；具体 Adapter 翻译 SWE-Gym、Agent CLI、Docker、存储、Judge | 隔离真实上游差异和版本变化 |
-| Factory/Registry | `adapters/agents/registry.py` + `adapters/agents/*.py` | Registry 只根据已登记配置构造对应 Adapter | 避免任意命令执行和 Orchestrator 条件分支 |
+| Adapter | `ports/execution.py` + `adapters/execution/harbor/**` + `adapters/execution/process.py` | `ExecutionBackend` 定义小 interface；Harbor 为主 Adapter，Process 为验收失败时的替代 Adapter | Harbor 复杂性只集中在一个 seam，替换不波及业务 |
+| Factory/Registry | `adapters/agents/registry.py` + `adapters/agents/manifest.py` | Registry 只把审核通过的配置转换为 Harbor AgentConfig；manifest 解析不执行代码 | 避免任意命令执行和 Orchestrator 条件分支 |
 | Repository | `ports/repositories.py` + `adapters/persistence/postgres.py` | 应用层依赖持久化接口；PostgreSQL 实现事务和领取 | 测试可用 Fake，SQL 不散落 |
-| State | `domain/run.py` + PostgreSQL 状态约束 | 统一规定允许的运行迁移；API/Worker/数据库复用 | 防止各层对状态各自解释 |
+| State | `domain/job.py` + `domain/run.py` + PostgreSQL 状态约束 | 统一规定允许的 Job/运行迁移；API/Worker/数据库复用 | 防止各层对状态各自解释 |
 | Composition Root | `delivery/http/app.py` | 唯一位置组装 ports 与生产 Adapters | 依赖构造不散落在业务逻辑 |
 
 暂不引入装饰器、事件总线、CQRS、微服务或 Kubernetes。若未来出现真实变化点，再通过 ADR 和行动文档讨论。
@@ -339,22 +374,26 @@ E:\9.1实训\
 | 任务镜像占磁盘、构建慢 | 一次加载大题库不可行 | 首月只登记少量任务，显式缓存策略和磁盘证据 |
 | 云端 Agent 必须联网，而公开题目的原 PR 也可能在线 | 闭卷可能被运行时查答案，开卷工具能力也可能不等价 | 闭卷仅放行模型端点并禁用 Web 工具；开卷单列实验榜并记录网络/工具配置，精确代理待实测 |
 | 不可信仓库和 Agent 代码 | 主机与凭据泄漏 | 固定登记 Agent、双沙箱、最小挂载、秘密脱敏，不接受任意仓库执行 |
+| Harbor `TrialResult` 没有标准 `model_patch` | 无法把 Agent 结果交给固定 Fork | 原型必须在清理前提取并校验 patch artifact；缺失即失败，不猜补丁 |
+| Harbor 接口升级或 Job 目录格式变化 | Adapter 漂移、历史不可复现 | 固定完整 commit；原始 config/result 入 MinIO；升级重跑契约测试 |
+| 多 Agent×多任务导致 Job 很长 | 笔电运行数小时且磁盘增长 | 创建前显示 Trial 数；预设小批量；并发 1；耗时只按真实历史估计 |
 | Aider 无结构化工具事件 | 过程指标不能完全同口径 | 缺失标为“不支持/未知”，不伪造 0 |
 | Codex/Claude/Aider 外部接口和许可会更新 | Adapter 漂移、费用或认证变化 | 固定版本、官方核验、四层测试、历史配置不覆盖 |
 | LLM Judge 随机和有偏 | 归因不可当测试事实 | 保存模型/Prompt/证据/原始响应，人工抽检，分层展示 |
-| 范围仍偏大 | 一个月可能闭环不足 | 先一条任务 + Mock/自研 + 真实 Codex，再逐个 Adapter 扩展 |
+| 范围仍偏大 | 一个月可能闭环不足 | Mock 只测软件分支；交付闭环优先一条真实任务 + 一个真实 Agent + 固定 Fork，再扩展 Agent |
 
 ## 11. 当前验证策略
 
 实现阶段按以下门槛推进：
 
-1. **框架门槛**：一条 SWE-Gym 任务，gold patch 得到通过；空/错误 patch 得到预期未解决。
-2. **Runner 门槛**：Mock/自研 Agent 通过 stdin/stdout、错误、超时、轨迹、patch 提取契约。
-3. **真实 Agent 门槛**：每个 Adapter 依次通过 Fake 契约、小仓库真实 CLI、SWE-Gym E2E。
-4. **隔离门槛**：验证 CPU/内存/PID/超时/网络/挂载/清理和秘密不泄漏。
-5. **持久化门槛**：双 Worker 不重复领取，Worker 异常不误报完成，MinIO/数据库故障不产生假报告。
-6. **产品门槛**：Web 创建运行后能用同一 `run_id` 查看状态、patch、轨迹、测试、Judge、人工复核和排行。
-7. **赛道门槛**：同一结果集按闭卷/开卷、网络策略和工具配置分组；查询与排行榜测试证明不会跨赛道混分。
+1. **本机门槛**：Docker/WSL 环境事实见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md)；真实任务继续并发 1。
+2. **Harbor 门槛**：固定提交运行一条真实 Trial，验证 patch、轨迹、资源/网络和清理；未通过则触发后备 Adapter 决策。
+3. **框架门槛**：同一 SWE-Gym 任务由固定 Fork 验证 gold、空和错误 patch；Harbor reward 不参与结论。
+4. **真实 Agent 门槛**：至少一个真实 Agent 完成 Issue→Harbor→patch→固定 Fork 的 E2E；Mock 结果不得进入交付证据。
+5. **隔离门槛**：验证 CPU/内存/PID/超时/网络/挂载/清理和秘密不泄漏。
+6. **持久化门槛**：双 Worker 不重复领取同一 Job，单机不同时执行两个重型 Job，部分 Trial 完成时证据不丢失。
+7. **产品门槛**：Web 创建 Job 后能按 `job_id` 看总进度，并按 `run_id` 看 patch、轨迹、测试、Judge 和人工复核。
+8. **赛道门槛**：闭卷/开卷、网络策略和工具配置不会跨赛道混分；`internal_test` 不进入任何正式排行。
 
 每次实际实现前使用 `action-document`；实际检查结果必须写回行动文档，不把“计划测试”描述成“已经通过”。
 
@@ -362,13 +401,13 @@ E:\9.1实训\
 
 按架构影响排序，一次讨论一个：
 
-1. Judge 是否进入总分，还是只做失败归因。
-2. 工具调用、token、耗时只展示，还是形成独立效率分；Aider 缺失口径怎样公平展示。
-3. 开卷实验榜采用统一的平台 Web 工具，还是允许各 Agent 的原生搜索工具；前者更公平，后者更贴近真实产品。
-4. 选择首批真实 SWE-Gym 数据 revision、split 和 1–3 条小任务。
-5. Worker 作为宿主 Python 进程还是挂载 Docker Socket 的容器；先用本机最小实验裁决。
-6. 自研 Agent 的版本载体：Git commit/目录快照/预构建镜像。
-7. 是否需要学生/教师/管理员登录和权限；题目目前没有明确业务规则。
+1. 选择首批真实 SWE-Gym 数据 revision、split 和 1–3 条小任务。
+2. 定义 `agent-exam.yaml` 的最小字段，确保提交者不必直接编写 Harbor 配置。
+3. Harbor/Worker 作为宿主 Python 进程还是挂载 Docker Socket 的容器；用本机原型裁决。
+4. 可信用户的最小登录实现，以及提交者、管理员、评审者的角色权限。
+5. Judge 是否进入总分，还是只做失败归因。
+6. 工具调用、token、耗时只展示，还是形成独立效率分；缺失口径怎样公平展示。
+7. 开卷实验榜采用统一的平台 Web 工具，还是允许各 Agent 原生搜索工具。
 
 ## 13. 变更记录
 
@@ -378,3 +417,4 @@ E:\9.1实训\
 - 2026-09-01：重构为清晰总览；把模块、Runner、HTTP、数据和真实上游接口拆为各自唯一事实源，并更新规划文件树和文档导航。
 - 2026-09-02：确认闭卷主排行榜和开卷实验榜；两者使用相同确定性判卷，但按赛道、网络和工具配置严格分开。
 - 2026-09-02：新增依赖唯一事实源；确认本地 `framework/` 不进入 AgentExam 主仓库，公开接口证据改用固定提交链接。
+- 2026-09-03：确认 PostgreSQL 平台 Job 队列 + Harbor Execution Backend + 固定 SWE-Bench-Fork 判卷；一个 Job 可含多 Agent×多任务，单机 Trial 并发固定 1，Mock 仅限内部测试，并记录 Harbor 原型退出条件。

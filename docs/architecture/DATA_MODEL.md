@@ -1,7 +1,8 @@
 # 数据模型与制品布局
 
-> 文档状态：候选 v0.1，讨论中，尚未实现  
-> 最后更新：2026-09-01  
+> 文档状态：Job/Run 架构已确认；字段契约 v0.2，尚未实现
+>
+> 最后更新：2026-09-03
 > 权威范围：本文件维护 PostgreSQL 实体、运行状态持久化、队列领取规则和 MinIO 对象布局。领域词义见 [`CONTEXT.md`](../../CONTEXT.md)，模块输入输出见 [`MODULE_CONTRACTS.md`](./MODULE_CONTRACTS.md)。
 
 ## 1. 给初学者的解释
@@ -20,7 +21,8 @@
 | 任务身份、仓库、固定提交、Issue 摘要 | ✅ | 可选原始任务快照 | 需要筛选和关联 |
 | gold patch、`test_patch`、隐藏测试 | 仅受限验证引用 | 可选受限制品 | 不得通过普通 API/Runner 泄漏 |
 | Agent 配置身份、版本、模型、配置指纹 | ✅ | 可选配置快照 | 排行榜与复现需要 |
-| 运行状态、时间、限制、Worker 租约 | ✅ | ❌ | 需要事务和并发领取 |
+| Agent 源码提交与审核状态 | ✅ | 可选审核附件 | 审核前不得进入执行链路 |
+| Job/运行状态、时间、限制、Worker 租约 | ✅ | ❌ | Job 需要事务领取，运行需要逐题追溯 |
 | 最终 patch | 元数据/摘要 | ✅ | 文件证据，不可覆盖 |
 | 原始 stdout/stderr、轨迹 JSONL | 索引/汇总 | ✅ | 体积大、适合流式读写 |
 | Harness 报告摘要 | ✅ | ✅ 原始报告/测试输出 | 查询与原始证据都需要 |
@@ -31,8 +33,11 @@
 
 ```mermaid
 erDiagram
+    AGENT_SOURCE_SUBMISSIONS ||--o| AGENT_CONFIGURATIONS : may_register_as
+    EVALUATION_JOBS ||--o{ EVALUATION_RUNS : contains
     EVALUATION_TASKS ||--o{ EVALUATION_RUNS : selected_for
     AGENT_CONFIGURATIONS ||--o{ EVALUATION_RUNS : executed_by
+    EVALUATION_JOBS ||--o{ JOB_STATE_EVENTS : records
     EVALUATION_RUNS ||--o{ RUN_STATE_EVENTS : records
     EVALUATION_RUNS ||--o| DETERMINISTIC_RESULTS : produces
     EVALUATION_RUNS ||--o{ JUDGE_ANALYSES : may_produce
@@ -52,24 +57,50 @@ erDiagram
     }
     AGENT_CONFIGURATIONS {
       string agent_configuration_id PK
+      string source_submission_id FK
       string agent_type
       string agent_version
       string model
       string configuration_fingerprint
       boolean enabled
     }
-    EVALUATION_RUNS {
-      string run_id PK
-      string task_id FK
-      string agent_configuration_id FK
-      string evaluation_track
-      string network_policy_id
-      string tool_profile_id
+    AGENT_SOURCE_SUBMISSIONS {
+      string submission_id PK
+      string git_url
+      string commit_sha
+      string manifest_sha256
       string status
+      string submitted_by
+      string reviewed_by
+    }
+    EVALUATION_JOBS {
+      string job_id PK
+      string evaluation_track
+      string result_scope
+      string status
+      int trial_count
       int row_version
       string claimed_by
       datetime lease_expires_at
+    }
+    EVALUATION_RUNS {
+      string run_id PK
+      string job_id FK
+      string task_id FK
+      string agent_configuration_id FK
+      int attempt_index
+      string status
+      string backend_kind
+      string backend_trial_ref
       boolean resolved_summary
+    }
+    JOB_STATE_EVENTS {
+      string event_id PK
+      string job_id FK
+      string from_status
+      string to_status
+      string reason_code
+      datetime occurred_at
     }
     RUN_STATE_EVENTS {
       string event_id PK
@@ -115,7 +146,7 @@ erDiagram
 
 ## 4. 表级契约
 
-字段是候选 v0.1 的最小集合；实现迁移文件前仍要确定数据库类型、索引名和长度限制。
+字段是候选 v0.2 的最小集合；实现迁移文件前仍要确定数据库类型、索引名和长度限制。
 
 ### 4.1 `evaluation_tasks`
 
@@ -138,13 +169,14 @@ erDiagram
 
 ### 4.2 `agent_configurations`
 
-用途：登记排行榜和 Runner 使用的完整可复现身份。
+用途：登记排行榜和 Execution Backend 使用的完整可复现身份。
 
 | 字段 | 约束/含义 |
 |---|---|
 | `agent_configuration_id` | 主键，不透明稳定 ID |
+| `source_submission_id` | 可空外键；自研 Agent 来自哪条已批准源码提交，内置 Agent 可空 |
 | `display_name` | 面向页面的名称，不参与唯一性判断 |
-| `agent_type` | `custom_process`、`codex`、`aider`、`claude_code` |
+| `agent_type` | `custom`、`codex`、`aider`、`claude_code`；执行方式另由受控 Adapter 映射 |
 | `agent_version` | 精确 Agent/CLI/代码 revision |
 | `model` | 精确模型身份；若无则明确 `none` |
 | `public_options` | JSONB；只含 Adapter schema 允许且可公开的行为配置 |
@@ -155,34 +187,79 @@ erDiagram
 
 秘密、宿主机路径和任意启动命令不能存入 `public_options`。具体启动模板属于受控部署配置，并且同样要版本化。
 
-### 4.3 `evaluation_runs`
+### 4.3 `agent_source_submissions`
 
-用途：既是评测运行主记录，也是首版 PostgreSQL 队列。
+用途：保存可信用户提交的固定 Agent 源码及管理员审核结果。提交记录不是可执行配置。
+
+| 字段 | 约束/含义 |
+|---|---|
+| `submission_id` | 主键，不透明 ID |
+| `git_url` | 规范化仓库 URL；只允许管理员策略支持的协议/来源 |
+| `commit_sha` | 完整不可变 commit；禁止分支名、tag 或 `latest` |
+| `manifest_path` | 首版固定仓库根 `agent-exam.yaml` |
+| `manifest_sha256` | 同一 commit 中 manifest 内容哈希 |
+| `status` | `PENDING_REVIEW`、`APPROVED`、`REJECTED`、`WITHDRAWN` |
+| `submitted_by` / `submitted_at` | 来自可信会话，不由正文伪造 |
+| `reviewed_by` / `reviewed_at` | 管理员会话与时间；待审核时为空 |
+| `review_notes` | 安全说明；不得写秘密 |
+
+审核前不得执行源码、构建镜像或生成 AgentConfiguration。审核通过也不覆盖原提交；另建配置并通过 `source_submission_id` 关联。
+
+### 4.4 `evaluation_jobs`
+
+用途：用户一次提交的批次主记录，也是首版 PostgreSQL 重型工作队列。
+
+| 字段 | 约束/含义 |
+|---|---|
+| `job_id` | 主键；批次、Job 事件和组合查询的追溯主线 |
+| `evaluation_track` | `closed_book` 或 `open_book_experimental`；Job 内不可切换 |
+| `result_scope` | `official`、`experimental` 或 `internal_test`；Mock 只能是 `internal_test` |
+| `limit_profile_id` / `limit_snapshot` | 已登记限制模板和创建时快照 |
+| `network_policy_id` / `network_policy_snapshot` | 实际网络规则的 ID 与不可变快照 |
+| `tool_profile_id` / `tool_profile_snapshot` | 实际工具集合、版本和关键限制 |
+| `harbor_revision` / `swe_gym_revision` / `swe_bench_fork_revision` | 本 Job 冻结的框架提交/数据版本 |
+| `trial_count` | 创建事务中生成的运行总数；等于去重任务数×去重 Agent 数×尝试数 |
+| `status` | 见第 5 节 Job 状态机 |
+| `row_version` | 乐观并发控制；每次更新递增 |
+| `claimed_by` / `claimed_at` | 当前 Worker 身份和领取时间 |
+| `heartbeat_at` / `lease_expires_at` | Worker 存活与恢复判断 |
+| `failure_code` / `failure_summary` | Job 级平台失败；部分 Trial 失败仍可保留完成证据 |
+| `created_by` | 来自可信会话的用户身份 |
+| `created_at` / `started_at` / `finished_at` | 生命周期时间 |
+| `idempotency_key_hash` | 创建请求幂等；不保存原始敏感 header |
+
+首版在同一事务创建 Job 及全部 Agent×任务运行，避免队列已可见但组合缺失。Job 的进度计数从运行状态查询或受控同步得出，不能由前端任意写入。
+
+### 4.5 `evaluation_runs`
+
+用途：保存一个 Job 内，一个 Agent×一个任务×一次尝试的逐题事实；它不是独立 PostgreSQL 队列项。
 
 | 字段 | 约束/含义 |
 |---|---|
 | `run_id` | 主键；所有制品和子记录的追溯主线 |
+| `job_id` | 必需外键；所属平台评测 Job |
 | `task_id` / `agent_configuration_id` | 外键；创建后不可更换 |
+| `attempt_index` | 首版固定 `1`；`(job_id, task_id, agent_configuration_id, attempt_index)` 唯一 |
 | `task_snapshot` / `agent_snapshot` | JSONB 公开快照；确保历史报告不随展示名修改而变化 |
-| `runner_protocol_version` | 例如 `0.1` |
-| `swe_gym_revision` / `swe_bench_fork_revision` | 固定上游提交 |
-| `evaluation_track` | `closed_book` 或 `open_book_experimental`；创建后不可切换 |
-| `network_policy_id` / `network_policy_snapshot` | 实际网络规则的登记 ID 与不可变快照 |
-| `tool_profile_id` / `tool_profile_snapshot` | 实际提供给 Agent 的工具集合、版本和关键限制 |
-| `limit_snapshot` | 实际应用的 CPU/内存/超时/网络等限制 |
+| `execution_contract_version` | Execution Backend interface 版本；后备进程另记录 Runner 协议版本 |
+| `backend_kind` / `backend_revision` | 首版 `harbor` 与固定 commit；内部测试可为 `mock` |
+| `backend_job_ref` / `backend_trial_ref` | Harbor Job/Trial 审计引用；不能替代项目 ID |
 | `status` | 见第 5 节状态机 |
 | `stage` | 可选的安全阶段摘要；不能代替状态历史 |
 | `row_version` | 乐观并发控制；每次更新递增 |
-| `claimed_by` / `claimed_at` | 当前 Worker 身份和领取时间 |
-| `heartbeat_at` / `lease_expires_at` | Worker 存活与恢复判断 |
 | `failure_code` / `failure_summary` | 仅平台失败时填写；不得写入秘密 |
 | `resolved_summary` | 只在确定性结果产生后镜像其布尔值；允许 `null` |
 | `created_at` / `started_at` / `finished_at` | 生命周期时间 |
-| `idempotency_key_hash` | 创建请求幂等；不保存未经处理的敏感 header |
 
 `resolved_summary` 是为了列表查询的受控冗余，权威值仍在 `deterministic_results.resolved`。写入必须在同一事务同步，不能各自更新。
 
-### 4.4 `run_state_events`
+### 4.6 `job_state_events`
+
+用途：追加式记录 Job 从排队、领取、执行、汇总到结束的状态变化。
+
+字段：`event_id`、`job_id`、`sequence`、`from_status`、`to_status`、`reason_code`、安全说明、`worker_id`、`occurred_at`。`(job_id, sequence)` 唯一。
+
+### 4.7 `run_state_events`
 
 用途：追加式记录每次状态变化，解决“现在是什么”和“怎样走到这里”两个问题。
 
@@ -190,13 +267,13 @@ erDiagram
 
 不变量：已经写入的状态事件不修改、不删除；错误更正通过新事件说明，当前状态由受控事务推进。
 
-### 4.5 `deterministic_results`
+### 4.8 `deterministic_results`
 
 用途：每次运行最多一条最终 SWE-Bench-Fork 判定摘要。
 
 | 字段 | 来源 |
 |---|---|
-| `patch_exists` | Runner patch 是否存在/非空 |
+| `patch_exists` | Execution Backend patch 是否存在/非空 |
 | `patch_successfully_applied` | Harness 报告 |
 | `resolved` | Harness 报告；唯一确定性通过事实 |
 | `tests_status_summary` | 从 `FAIL_TO_PASS`/`PASS_TO_PASS` 结果生成的可查询 JSONB 摘要 |
@@ -208,7 +285,7 @@ erDiagram
 
 若 Harness 因基础设施错误没有形成可信结果，不创建伪造的 `resolved=false`；运行进入 `FAILED` 并保存错误制品。
 
-### 4.6 `judge_analyses`
+### 4.9 `judge_analyses`
 
 用途：保存可能多次执行的 LLM 失败归因。多条记录允许 Prompt/模型升级后保留旧证据。
 
@@ -216,7 +293,7 @@ erDiagram
 
 不变量：Judge 不拥有 `resolved` 字段；结构化解析失败也保存原始响应和失败状态，不能丢弃证据。
 
-### 4.7 `human_reviews`
+### 4.10 `human_reviews`
 
 用途：保存人工对证据和 Judge 分析的确认、修正或补充。
 
@@ -224,7 +301,7 @@ erDiagram
 
 旧版本不覆盖；API 返回最高版本作为当前视图，同时允许查看历史。
 
-### 4.8 `artifact_records`
+### 4.11 `artifact_records`
 
 用途：把 PostgreSQL 记录与 MinIO 对象可靠关联。
 
@@ -242,20 +319,47 @@ erDiagram
 
 数据库记录只在对象成功写入并校验后标记可读；失败的半成品通过临时键清理，不能出现在正常报告中。
 
-## 5. 运行状态机
+## 5. Job 与运行状态机
+
+### 5.1 评测 Job
 
 ```mermaid
 stateDiagram-v2
     [*] --> QUEUED
     QUEUED --> PREPARING: Worker 原子领取
-    PREPARING --> RUNNING_AGENT: 任务与 Agent 沙箱就绪
-    RUNNING_AGENT --> VERIFYING: 补丁和 Runner 证据已固定
+    PREPARING --> EXECUTING: Harbor Job 已建立映射
+    EXECUTING --> FINALIZING: 所有 Trial 已终止
+    FINALIZING --> COMPLETED: 所有运行形成可信确定性结果
+    FINALIZING --> COMPLETED_WITH_ERRORS: 部分运行基础设施失败
+
+    QUEUED --> CANCELED
+    PREPARING --> CANCELED: 尚未启动或已安全停止
+    PREPARING --> FAILED
+    EXECUTING --> FAILED: 无法继续且无可汇总 Job 结果
+    FINALIZING --> FAILED
+
+    COMPLETED --> [*]
+    COMPLETED_WITH_ERRORS --> [*]
+    FAILED --> [*]
+    CANCELED --> [*]
+```
+
+`COMPLETED` 只表示重型执行和确定性判卷均已结束；其中的运行仍可以处于 `REVIEW_PENDING`，人工复核进度单独展示，不能因此长期占住单机重型队列。`COMPLETED_WITH_ERRORS` 允许保留已经完成的 Trial 证据，同时显式告诉用户有部分运行没有形成可信结果；它不能伪装成全部完成。
+
+### 5.2 逐题评测运行
+
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> PREPARING: 对应 Harbor Trial 开始
+    PREPARING --> RUNNING_AGENT: Harbor Agent 环境就绪
+    RUNNING_AGENT --> VERIFYING: 补丁和执行证据已固定
     VERIFYING --> ANALYZING: 确定性结果已固定
     ANALYZING --> REVIEW_PENDING: 命中抽检规则
     ANALYZING --> COMPLETED: 不需人工复核
     REVIEW_PENDING --> COMPLETED: 人工复核完成
 
-    QUEUED --> CANCELED
+    PENDING --> CANCELED
     PREPARING --> CANCELED: 已安全停止
     PREPARING --> FAILED
     RUNNING_AGENT --> FAILED
@@ -272,20 +376,21 @@ stateDiagram-v2
 - 只有列出的有向边允许执行；不允许 `COMPLETED → RUNNING_AGENT` 之类回退。
 - Agent 正常产生空补丁或错误补丁，但 Harness 正常完成时，运行最终可为 `COMPLETED` 且 `resolved=false`。
 - `FAILED` 表示平台链路没能形成可信最终结果，不是“题没做对”的同义词。
-- 重跑创建新 `run_id`，通过 `rerun_of_run_id`（候选字段）关联旧运行，不覆盖历史。
+- 重跑创建新 Job 和新 `run_id`，通过 `rerun_of_job_id` / `rerun_of_run_id`（候选字段）关联旧记录，不覆盖历史。
 - `review_status` 是 API 视图，可由当前状态与最高版本人工复核派生，不单独维护第二套冲突状态。
+- Harbor `TrialResult`、reward 或异常不会直接改数据库状态；必须先经 Execution Backend 错误/结果映射。
 
 ## 6. PostgreSQL 队列领取
 
-首版不引入 Redis/Celery。候选流程：
+首版不引入 Redis/Celery，也不把每条运行单独排队。候选流程：
 
-1. Worker 在短事务中选择最早的 `QUEUED` 记录并使用 PostgreSQL 行锁跳过已锁记录。
-2. 同一事务把状态改为 `PREPARING`，填写 `claimed_by`、租约时间并追加状态事件。
-3. 提交事务后再做耗时 Docker/Agent 工作，绝不长时间持有数据库锁。
+1. Worker 在短事务中选择最早的 `QUEUED` `evaluation_jobs` 记录，并使用 PostgreSQL 行锁跳过已锁记录。
+2. 同一事务确认当前不存在其他活跃重型 Job，把选中 Job 改为 `PREPARING`，填写租约并追加 Job 状态事件。
+3. 提交事务后才创建 Harbor Job 和执行 Trial，绝不在耗时 Docker/Agent 工作期间持有数据库锁。
 4. Worker 定期更新心跳和租约，但每次更新检查 `row_version` 和 `claimed_by`。
 5. 租约过期不自动宣判失败或直接重跑；恢复器先检查容器/制品，写明确状态事件后再决定失败或重新排队。
 
-实现候选使用 `SELECT ... FOR UPDATE SKIP LOCKED`，但精确 SQL、隔离级别和租约时长必须通过双 Worker 集成测试后固定。
+实现候选使用 `SELECT ... FOR UPDATE SKIP LOCKED`，并用 PostgreSQL 可验证约束或全局租约确保活跃重型 Job 不超过 1。精确 SQL、隔离级别、租约时长和崩溃后 Harbor Job 恢复方式必须通过双 Worker 集成测试后固定。
 
 ## 7. MinIO 制品
 
@@ -296,15 +401,15 @@ stateDiagram-v2
 对象键：
 
 ```text
-runs/{run_id}/{artifact_id}/{safe_filename}
+jobs/{job_id}/runs/{run_id}/{artifact_id}/{safe_filename}
 ```
 
 例：
 
 ```text
-runs/01J.../art_01J.../patch.diff
-runs/01J.../art_02J.../trajectory.jsonl
-runs/01J.../art_03J.../test-output.txt
+jobs/job_01J.../runs/run_01J.../art_01J.../patch.diff
+jobs/job_01J.../runs/run_01J.../art_02J.../trajectory.jsonl
+jobs/job_01J.../runs/run_01J.../art_03J.../test-output.txt
 ```
 
 使用 `artifact_id` 避免同名覆盖；`safe_filename` 只用于人类识别，不参与寻址。对象键中不包含 Agent prompt、仓库绝对路径、用户名或秘密。
@@ -313,11 +418,14 @@ runs/01J.../art_03J.../test-output.txt
 
 | `artifact_type` | 内容 | 默认可展示性 |
 |---|---|---|
-| `runner_patch` | 最终统一 patch | 可展示，仍需文本安全处理 |
+| `execution_patch` | Execution Backend 返回并校验的最终统一 patch | 可展示，仍需文本安全处理 |
 | `trajectory_normalized` | 脱敏 JSONL 轨迹 | 可展示/分页 |
 | `agent_stdout_raw` | 上游原始 stdout | 受限，先脱敏 |
 | `agent_stderr_raw` | 上游原始 stderr | 受限，先脱敏 |
-| `runner_result` | Runner `result.json` | 可展示摘要 |
+| `execution_result` | 规范化 `ExecutionTrialResult` | 可展示摘要 |
+| `harbor_job_config` | 脱敏后的 Harbor Job 配置/锁定输入 | 受限审计 |
+| `harbor_trial_result` | 脱敏后的 Harbor Trial 原始结果 | 受限审计 |
+| `harbor_artifact_manifest` | Harbor artifact 收集状态 | 受限审计；必需 patch 失败会阻止判卷 |
 | `harness_report` | SWE-Bench-Fork `report.json` | 可展示 |
 | `test_output` | 测试输出 | 可展示，限制大小 |
 | `judge_input` | Judge 实际输入证据 | 受限审计 |
@@ -335,9 +443,12 @@ runs/01J.../art_03J.../test-output.txt
 ## 8. 索引和约束候选
 
 - `evaluation_tasks(dataset_id, dataset_revision, split, instance_id)` 唯一。
+- `agent_source_submissions(git_url, commit_sha)` 唯一候选；审核状态另建索引。
 - `agent_configurations(configuration_fingerprint)` 唯一。
-- `evaluation_runs(status, created_at)`：Worker 领取。
-- `evaluation_runs(evaluation_track, agent_configuration_id, task_id, finished_at)`：分赛道报告和排行榜。
+- `evaluation_jobs(status, created_at)`：Worker 领取；活跃重型 Job 数必须受约束为 1。
+- `evaluation_runs(job_id, task_id, agent_configuration_id, attempt_index)` 唯一。
+- `evaluation_runs(agent_configuration_id, task_id, finished_at)`：与 Job 的赛道/策略联表生成报告和排行榜。
+- `job_state_events(job_id, sequence)` 唯一。
 - `run_state_events(run_id, sequence)` 唯一。
 - `judge_analyses(run_id, created_at)`。
 - `human_reviews(run_id, version)` 唯一。
@@ -349,11 +460,11 @@ runs/01J.../art_03J.../test-output.txt
 
 ```mermaid
 sequenceDiagram
-    participant W as Worker/Orchestrator
+    participant W as Worker/Job Orchestrator
     participant DB as PostgreSQL
     participant OBJ as MinIO
 
-    W->>DB: 创建/推进运行状态
+    W->>DB: 领取/推进 Job 与逐题运行状态
     W->>OBJ: 写临时对象并计算 SHA-256
     OBJ-->>W: 写入成功
     W->>DB: 登记 artifact_record
@@ -368,23 +479,25 @@ sequenceDiagram
 实现后至少验证：
 
 1. 同一任务版本和 Agent 配置可重复定位，配置修改会产生新指纹/新记录。
-2. 两个 Worker 并发时，同一运行只有一个领取成功。
-3. 非法状态迁移、错误 `row_version` 和错误 Worker 租约更新被拒绝。
-4. `resolved=false` 与平台 `FAILED` 的查询/统计分开。
-5. 不同 Agent 配置在排行榜中分开聚合，基础设施错误单列；闭卷与开卷、不同网络/工具配置不得混分。
-6. 制品覆盖被拒绝；对象键、大小和 SHA-256 可核对。
-7. MinIO 或 PostgreSQL 任一侧故障不会让 API 返回一份假完整报告。
-8. 普通 Task/Run API 无法读取 gold patch、隐藏测试、秘密和未脱敏日志。
-9. Judge 和人工复核新增记录不修改确定性结果和旧版本证据。
+2. 一个 Job 的 Agent×任务矩阵生成正确数量且无重复的运行；首版 `attempt_index=1`。
+3. 两个 Worker 并发时，同一 Job 只有一个领取成功，而且全局最多一个重型 Job 活跃。
+4. 非法 Job/运行状态迁移、错误 `row_version` 和错误 Worker 租约更新被拒绝。
+5. `resolved=false`、运行 `FAILED`、Job `COMPLETED_WITH_ERRORS` 的查询/统计分开。
+6. 不同 Agent 配置在排行榜中分开聚合；闭卷/开卷、不同网络/工具配置以及 `internal_test` 不得混分。
+7. 制品覆盖被拒绝；对象键、大小和 SHA-256 可核对；Harbor 必需 patch 收集失败不能进入 Evaluator。
+8. MinIO 或 PostgreSQL 任一侧故障不会让 API 返回一份假完整报告。
+9. 普通 Task/Job/Run API 无法读取 gold patch、隐藏测试、秘密和未脱敏日志。
+10. 未审核 Agent 源码提交不能创建 Agent 配置或 Job；审核事件可追溯。
+11. Judge 和人工复核新增记录不修改确定性结果和旧版本证据。
 
 ## 11. 待确认/待实测
 
-1. PostgreSQL/MinIO 的具体版本和本机磁盘预算。
+1. PostgreSQL/MinIO 的具体版本；本机 Docker 磁盘现状见环境事实源。
 2. 任务 Issue 原文直接存 PostgreSQL，还是连同原始任务快照作为受控制品。
-3. 租约时长、心跳间隔、恢复器策略和是否首版实现自动恢复。
+3. Job 租约时长、心跳间隔、Harbor Job 恢复策略和是否首版实现自动恢复。
 4. 轨迹、原始日志、Judge 输入/响应的保留期限和删除权限。
 5. 是否允许二进制 patch 及单制品大小上限。
-6. 身份/角色未确认，因此 `reviewer_id` 的可信来源仍待设计。
+6. 已确认只允许可信用户，但登录实现及提交者/管理员/评审者角色仍待设计。
 7. 开卷实验榜的 `tool_profile` 采用平台统一 Web 工具还是各 Agent 原生工具。
 8. Docker Desktop 下怎样强制模型端点白名单、怎样证明容器没有绕过代理。
 
@@ -392,3 +505,4 @@ sequenceDiagram
 
 - 2026-09-01：创建候选 v0.1；定义 8 张核心表、运行状态、PostgreSQL 队列领取、MinIO 对象键、不可变制品和验证规则。
 - 2026-09-02：在运行记录中冻结评测赛道、网络策略和工具配置，支持闭卷主榜与开卷实验榜严格分组。
+- 2026-09-03：新增 Agent 源码提交、平台评测 Job 和 Job 状态事件；PostgreSQL 只领取 Job，逐题运行映射 Harbor Trial，并新增 Harbor 制品和 `internal_test` 隔离规则。
