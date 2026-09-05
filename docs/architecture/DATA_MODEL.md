@@ -1,8 +1,8 @@
 # 数据模型与制品布局
 
-> 文档状态：Job/Run 架构已确认；字段契约 v0.2，尚未实现
+> 文档状态：Job/Run 架构已确认；字段契约 v0.3，尚未实现
 >
-> 最后更新：2026-09-03
+> 最后更新：2026-09-05
 > 权威范围：本文件维护 PostgreSQL 实体、运行状态持久化、队列领取规则和 MinIO 对象布局。领域词义见 [`CONTEXT.md`](../../CONTEXT.md)，模块输入输出见 [`MODULE_CONTRACTS.md`](./MODULE_CONTRACTS.md)。
 
 ## 1. 给初学者的解释
@@ -22,7 +22,7 @@
 | gold patch、`test_patch`、隐藏测试 | 仅受限验证引用 | 可选受限制品 | 不得通过普通 API/Runner 泄漏 |
 | Agent 配置身份、版本、模型、配置指纹 | ✅ | 可选配置快照 | 排行榜与复现需要 |
 | Agent 源码提交与审核状态 | ✅ | 可选审核附件 | 审核前不得进入执行链路 |
-| Job/运行状态、时间、限制、Worker 租约 | ✅ | ❌ | Job 需要事务领取，运行需要逐题追溯 |
+| Job/运行状态、所有者批准/拒绝、时间、限制、Worker 租约 | ✅ | ❌ | Job 需要先审计所有者决定再事务领取，运行需要逐题追溯 |
 | 最终 patch | 元数据/摘要 | ✅ | 文件证据，不可覆盖 |
 | 原始 stdout/stderr、轨迹 JSONL | 索引/汇总 | ✅ | 体积大、适合流式读写 |
 | Harness 报告摘要 | ✅ | ✅ 原始报告/测试输出 | 查询与原始证据都需要 |
@@ -80,6 +80,8 @@ erDiagram
       string status
       int trial_count
       int row_version
+      string owner_decided_by
+      datetime owner_decided_at
       string claimed_by
       datetime lease_expires_at
     }
@@ -100,6 +102,7 @@ erDiagram
       string from_status
       string to_status
       string reason_code
+      string actor_user_id
       datetime occurred_at
     }
     RUN_STATE_EVENTS {
@@ -146,7 +149,7 @@ erDiagram
 
 ## 4. 表级契约
 
-字段是候选 v0.2 的最小集合；实现迁移文件前仍要确定数据库类型、索引名和长度限制。
+字段是候选 v0.3 的最小集合；实现迁移文件前仍要确定数据库类型、索引名和长度限制。
 
 ### 4.1 `evaluation_tasks`
 
@@ -221,6 +224,8 @@ erDiagram
 | `trial_count` | 创建事务中生成的运行总数；等于去重任务数×去重 Agent 数×尝试数 |
 | `status` | 见第 5 节 Job 状态机 |
 | `row_version` | 乐观并发控制；每次更新递增 |
+| `owner_decided_by` / `owner_decided_at` | 评测机所有者的可信会话身份和最终决定时间；待批准时为空，不由请求正文填写 |
+| `owner_decision_reason` | 可选安全说明；不得包含凭据、Token 或宿主秘密路径 |
 | `claimed_by` / `claimed_at` | 当前 Worker 身份和领取时间 |
 | `heartbeat_at` / `lease_expires_at` | Worker 存活与恢复判断 |
 | `failure_code` / `failure_summary` | Job 级平台失败；部分 Trial 失败仍可保留完成证据 |
@@ -228,7 +233,7 @@ erDiagram
 | `created_at` / `started_at` / `finished_at` | 生命周期时间 |
 | `idempotency_key_hash` | 创建请求幂等；不保存原始敏感 header |
 
-首版在同一事务创建 Job 及全部 Agent×任务运行，避免队列已可见但组合缺失。Job 的进度计数从运行状态查询或受控同步得出，不能由前端任意写入。
+首版在同一事务创建 `AWAITING_OWNER_APPROVAL` Job 及全部 Agent×任务运行，避免待审记录已可见但组合缺失。批准事务只允许把状态推进到 `QUEUED` 并追加事件，不能修改已冻结组合；拒绝事务把 Job 改为 `REJECTED`，并把其全部 `PENDING` 运行改为 `CANCELED`。Job 的进度计数从运行状态查询或受控同步得出，不能由前端任意写入。
 
 ### 4.5 `evaluation_runs`
 
@@ -255,9 +260,9 @@ erDiagram
 
 ### 4.6 `job_state_events`
 
-用途：追加式记录 Job 从排队、领取、执行、汇总到结束的状态变化。
+用途：追加式记录 Job 从远端提交、所有者决定、排队、领取、执行、汇总到结束的状态变化。
 
-字段：`event_id`、`job_id`、`sequence`、`from_status`、`to_status`、`reason_code`、安全说明、`worker_id`、`occurred_at`。`(job_id, sequence)` 唯一。
+字段：`event_id`、`job_id`、`sequence`、`from_status`、`to_status`、`reason_code`、安全说明、可选 `actor_user_id`、可选 `worker_id`、`occurred_at`。所有者批准/拒绝事件写 `actor_user_id`；Worker 生命周期事件写 `worker_id`。`(job_id, sequence)` 唯一。
 
 ### 4.7 `run_state_events`
 
@@ -325,7 +330,10 @@ erDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> QUEUED
+    [*] --> AWAITING_OWNER_APPROVAL
+    AWAITING_OWNER_APPROVAL --> QUEUED: 评测机所有者批准
+    AWAITING_OWNER_APPROVAL --> REJECTED: 评测机所有者拒绝
+    AWAITING_OWNER_APPROVAL --> CANCELED: 提交者或所有者取消
     QUEUED --> PREPARING: Worker 原子领取
     PREPARING --> EXECUTING: Harbor Job 已建立映射
     EXECUTING --> FINALIZING: 所有 Trial 已终止
@@ -342,9 +350,10 @@ stateDiagram-v2
     COMPLETED_WITH_ERRORS --> [*]
     FAILED --> [*]
     CANCELED --> [*]
+    REJECTED --> [*]
 ```
 
-`COMPLETED` 只表示重型执行和确定性判卷均已结束；其中的运行仍可以处于 `REVIEW_PENDING`，人工复核进度单独展示，不能因此长期占住单机重型队列。`COMPLETED_WITH_ERRORS` 允许保留已经完成的 Trial 证据，同时显式告诉用户有部分运行没有形成可信结果；它不能伪装成全部完成。
+`AWAITING_OWNER_APPROVAL` 不属于可执行队列，不能被 Worker 领取。`REJECTED` 是所有者作出的终态，不等同于平台失败；对应的 `PENDING` 运行在同一决定事务中改为 `CANCELED`，且不产生真实执行证据。`COMPLETED` 只表示重型执行和确定性判卷均已结束；其中的运行仍可以处于 `REVIEW_PENDING`，人工复核进度单独展示，不能因此长期占住单机重型队列。`COMPLETED_WITH_ERRORS` 允许保留已经完成的 Trial 证据，同时显式告诉用户有部分运行没有形成可信结果；它不能伪装成全部完成。
 
 ### 5.2 逐题评测运行
 
@@ -390,7 +399,7 @@ stateDiagram-v2
 4. Worker 定期更新心跳和租约，但每次更新检查 `row_version` 和 `claimed_by`。
 5. 租约过期不自动宣判失败或直接重跑；恢复器先检查容器/制品，写明确状态事件后再决定失败或重新排队。
 
-实现候选使用 `SELECT ... FOR UPDATE SKIP LOCKED`，并用 PostgreSQL 可验证约束或全局租约确保活跃重型 Job 不超过 1。精确 SQL、隔离级别、租约时长和崩溃后 Harbor Job 恢复方式必须通过双 Worker 集成测试后固定。
+所有者批准与 Worker 领取是两个事务：批准只做 `AWAITING_OWNER_APPROVAL → QUEUED`，不创建 Harbor Job；Worker 查询条件只包含 `status = 'QUEUED'`。实现候选使用 `SELECT ... FOR UPDATE SKIP LOCKED`，并用 PostgreSQL 可验证约束或全局租约确保活跃重型 Job 不超过 1。精确 SQL、隔离级别、租约时长和崩溃后 Harbor Job 恢复方式必须通过双 Worker 集成测试后固定。
 
 ## 7. MinIO 制品
 
@@ -458,6 +467,29 @@ jobs/job_01J.../runs/run_01J.../art_03J.../test-output.txt
 
 ## 9. 数据写入顺序
 
+### 9.1 远端提交与所有者决定
+
+```mermaid
+sequenceDiagram
+    participant C as 远端协作者
+    participant API as FastAPI/Application
+    participant DB as PostgreSQL
+    participant O as 评测机所有者
+    participant W as 本机 Worker
+
+    C->>API: 提交冻结的 Job 选择
+    API->>DB: 事务创建 AWAITING_OWNER_APPROVAL Job + PENDING runs + 事件
+    O->>API: 以可信会话批准或拒绝
+    alt 批准
+        API->>DB: 事务写 QUEUED + 所有者决定字段 + 事件
+        W->>DB: 原子领取最早 QUEUED Job
+    else 拒绝
+        API->>DB: 事务写 REJECTED + CANCELED runs + 所有者决定字段 + 事件
+    end
+```
+
+### 9.2 执行制品与结果
+
 ```mermaid
 sequenceDiagram
     participant W as Worker/Job Orchestrator
@@ -489,6 +521,8 @@ sequenceDiagram
 9. 普通 Task/Job/Run API 无法读取 gold patch、隐藏测试、秘密和未脱敏日志。
 10. 未审核 Agent 源码提交不能创建 Agent 配置或 Job；审核事件可追溯。
 11. Judge 和人工复核新增记录不修改确定性结果和旧版本证据。
+12. 创建 Job 后状态必为 `AWAITING_OWNER_APPROVAL`；提交者不能批准；所有者批准/拒绝并发时只有一个决定成功，决定者和时间可审计。
+13. Worker 对 `AWAITING_OWNER_APPROVAL` 和 `REJECTED` 的 Job 永远领取不到；只有批准产生的 `QUEUED` Job 可以进入 `PREPARING`。
 
 ## 11. 待确认/待实测
 
@@ -497,7 +531,7 @@ sequenceDiagram
 3. Job 租约时长、心跳间隔、Harbor Job 恢复策略和是否首版实现自动恢复。
 4. 轨迹、原始日志、Judge 输入/响应的保留期限和删除权限。
 5. 是否允许二进制 patch 及单制品大小上限。
-6. 已确认只允许可信用户，但登录实现及提交者/管理员/评审者角色仍待设计。
+6. 已确认只允许可信用户，且只有评测机所有者能批准正式真实 Job；登录实现、所有者身份绑定/恢复及其他角色仍待设计。
 7. 开卷实验榜的 `tool_profile` 采用平台统一 Web 工具还是各 Agent 原生工具。
 8. Docker Desktop 下怎样强制模型端点白名单、怎样证明容器没有绕过代理。
 
@@ -506,3 +540,4 @@ sequenceDiagram
 - 2026-09-01：创建候选 v0.1；定义 8 张核心表、运行状态、PostgreSQL 队列领取、MinIO 对象键、不可变制品和验证规则。
 - 2026-09-02：在运行记录中冻结评测赛道、网络策略和工具配置，支持闭卷主榜与开卷实验榜严格分组。
 - 2026-09-03：新增 Agent 源码提交、平台评测 Job 和 Job 状态事件；PostgreSQL 只领取 Job，逐题运行映射 Harbor Trial，并新增 Harbor 制品和 `internal_test` 隔离规则。
+- 2026-09-05：新增 `AWAITING_OWNER_APPROVAL` 与 `REJECTED`、所有者决定审计字段和事务；Worker 只领取经所有者批准后形成的 `QUEUED` Job。

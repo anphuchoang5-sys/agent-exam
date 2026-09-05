@@ -1,8 +1,8 @@
 # Web 与后端 HTTP API 契约
 
-> 文档状态：Job/Run 资源边界已确认；HTTP 契约 v0.2，尚未实现
+> 文档状态：Job/Run 资源边界已确认；HTTP 契约 v0.3，尚未实现
 >
-> 最后更新：2026-09-03
+> 最后更新：2026-09-05
 > 权威范围：本文件只维护 Next.js Web 与 FastAPI 交付层之间的 HTTP 契约。内部模块行为见 [`MODULE_CONTRACTS.md`](../architecture/MODULE_CONTRACTS.md)，存储字段见 [`DATA_MODEL.md`](../architecture/DATA_MODEL.md)。
 
 ## 1. 给初学者的解释
@@ -19,7 +19,7 @@
 | 时间 | ISO 8601 UTC，例如 `2026-09-01T10:00:00Z` |
 | 分页 | `limit` + 不透明 `cursor`；默认 20，候选上限 100 |
 | 创建幂等 | 写请求支持 `Idempotency-Key`；相同键和相同请求不得创建两条记录 |
-| 长任务 | `POST /jobs` 只创建平台 Job 和逐题运行后立即返回 `202`，不等待 Harbor/Agent 完成 |
+| 长任务 | `POST /jobs` 只创建待所有者批准的 Job 和逐题运行后立即返回 `202`；批准请求只排队，也不等待 Harbor/Agent 完成 |
 | 状态刷新 | 首版候选用前端轮询；不先引入 WebSocket/SSE |
 | 字段命名 | JSON 使用 `snake_case`，与后端 schema 保持一致 |
 | 未知字段 | 写请求默认拒绝，防止拼写错误被静默忽略 |
@@ -44,6 +44,8 @@
 | HTTP 状态 | 使用场景 | 示例 `error.code` |
 |---:|---|---|
 | `400` | 请求语义无效 | `INVALID_REQUEST`、`LIMIT_OUT_OF_RANGE` |
+| `401` | 没有可信登录会话 | `AUTHENTICATION_REQUIRED` |
+| `403` | 已登录但没有操作权限 | `OWNER_APPROVAL_REQUIRED`、`FORBIDDEN` |
 | `404` | 资源不存在 | `TASK_NOT_FOUND`、`JOB_NOT_FOUND`、`RUN_NOT_FOUND` |
 | `409` | 状态或幂等冲突 | `JOB_STATE_CONFLICT`、`RUN_STATE_CONFLICT`、`IDEMPOTENCY_CONFLICT` |
 | `422` | JSON 字段/schema 不合格 | `VALIDATION_ERROR` |
@@ -95,6 +97,8 @@
   "evaluation_track": "closed_book",
   "result_scope": "official",
   "status": "EXECUTING",
+  "owner_decision": "approved",
+  "owner_decided_at": "2026-09-03T10:00:02Z",
   "trial_count": 15,
   "completed_count": 4,
   "failed_count": 0,
@@ -105,7 +109,7 @@
 }
 ```
 
-`estimated_finish_at=null` 表示没有足够真实历史数据，不能理解成“马上完成”。
+`estimated_finish_at=null` 表示没有足够真实历史数据，不能理解成“马上完成”。`owner_decision` 是由 Job 状态/决定事件生成的安全视图，不在数据库另建一套可能冲突的状态；待批准时为 `pending`，批准后为 `approved`，拒绝后为 `rejected`。
 
 ### 4.4 `RunSummary`
 
@@ -246,12 +250,12 @@ Header：`Idempotency-Key: <客户端生成的不透明值>`。
 ```json
 {
   "job_id": "job_01J...",
-  "status": "QUEUED",
+  "status": "AWAITING_OWNER_APPROVAL",
   "evaluation_track": "closed_book",
   "trial_count": 6,
   "run_ids": ["run_01J1...", "run_01J2...", "run_01J3...", "run_01J4...", "run_01J5...", "run_01J6..."],
   "estimated_finish_at": null,
-  "created_at": "2026-09-03T10:00:00Z"
+  "created_at": "2026-09-05T10:00:00Z"
 }
 ```
 
@@ -267,6 +271,8 @@ Header：`Idempotency-Key: <客户端生成的不透明值>`。
 - `400 EVALUATION_TRACK_NOT_ALLOWED`。
 
 任务和 Agent 列表必须非空、去重，并且所有 Agent 已审核启用。首版每个组合只尝试一次，所以 `trial_count = task 数 × Agent 数`。预设规模：`demo` 为 1–3 题、`quick` 为 5 题、`standard` 为 10–20 题；首版 Agent 选择上限约 3 个，精确校验值实现前再锁定为配置。
+
+创建事务会冻结配置并生成 `PENDING` runs，但初始 Job 必须是 `AWAITING_OWNER_APPROVAL`。这一步既不创建 Harbor Job，也不唤起 Codex。协作者能通过远程入口到达页面，不代表拥有批准权限；网络准入与应用授权是两层不同控制，远程拓扑见 [`REMOTE_TEAM_ACCESS.md`](../operations/REMOTE_TEAM_ACCESS.md)。
 
 前端不能提交任意 CPU/内存/网络值、Harbor 并发数、代理地址、工具命令或启动命令。后端固定单机 `n_concurrent_trials=1`，根据赛道与登记配置冻结网络策略和工具配置。
 
@@ -286,13 +292,44 @@ Header：`Idempotency-Key: <客户端生成的不透明值>`。
 - 冻结的任务 ID 和 Agent 配置 ID 列表；
 - Job limits；
 - 评测赛道、网络策略和工具配置的安全快照；
+- 所有者决定状态和时间；只有有权查看审计信息的角色才返回决定者身份；
 - 当前阶段、最近一次 Job 状态说明和 Harbor 后端安全摘要；
 - 分页的 `RunSummary` 或运行列表链接；
 - 完成、失败、待运行、已解决等聚合计数。
 
 错误：`404 JOB_NOT_FOUND`。
 
-### 7.4 取消 Job
+### 7.4 评测机所有者批准 Job
+
+`POST /api/v1/jobs/{job_id}/approve`
+
+Header：`Idempotency-Key: <客户端生成的不透明值>`。请求：
+
+```json
+{"reason":"已检查任务、Agent、赛道和运行数量"}
+```
+
+- 只接受可信登录会话中的评测机所有者；`owner_id` 不得放在请求正文中。
+- 只有 `AWAITING_OWNER_APPROVAL` 可批准。成功 `200` 在一个短事务中写入 `QUEUED`、决定者、决定时间和状态事件，然后立即返回更新后的 `JobSummary`。
+- 批准只开放排队资格，不读取 `auth.json`、不启动 Docker/Harbor，也不等待 Worker。评测机本地 Worker 下一次轮询时才可能领取。
+- 非所有者返回 `403 OWNER_APPROVAL_REQUIRED`；Job 已被批准、拒绝或取消返回 `409 JOB_STATE_CONFLICT`；相同幂等键和相同决定返回同一结果。
+
+### 7.5 评测机所有者拒绝 Job
+
+`POST /api/v1/jobs/{job_id}/reject`
+
+Header：`Idempotency-Key: <客户端生成的不透明值>`。请求：
+
+```json
+{"reason":"当前不批准本次真实资源消耗"}
+```
+
+- 只接受可信登录会话中的评测机所有者；只有 `AWAITING_OWNER_APPROVAL` 可拒绝。
+- 成功 `200` 在同一事务中把 Job 写为 `REJECTED`、把其 `PENDING` runs 写为 `CANCELED`，并保存决定者、时间和状态事件。
+- `REJECTED` 是授权决定，不是 Agent 失败或平台故障，不能进入 Worker 队列，也不能产生正式运行证据。
+- 权限、状态冲突和幂等规则与批准接口相同。
+
+### 7.6 取消 Job
 
 `POST /api/v1/jobs/{job_id}/cancel`
 
@@ -303,7 +340,7 @@ Header：`Idempotency-Key: <客户端生成的不透明值>`。
 ```
 
 - 成功 `202`：返回更新后的 `JobSummary`。
-- `QUEUED` 可直接取消；执行中取消必须由 Harbor 原型证明能安全停止当前 Trial 并标记剩余运行，未证明前只实现取消 `QUEUED`。
+- `AWAITING_OWNER_APPROVAL` 与 `QUEUED` 可直接取消；执行中取消必须由 Harbor 原型证明能安全停止当前 Trial 并标记剩余运行，未证明前只实现取消这两个尚未执行状态。具体哪些已登录角色可取消仍随登录/角色方案确定。
 - 已完成、已失败或已取消时返回 `409 JOB_STATE_CONFLICT`。
 
 ## 8. Run API（逐题只读）
@@ -451,6 +488,7 @@ Header：`Idempotency-Key`。
 | `/agent-submissions` | Agent Source Review；批准/拒绝只允许管理员 |
 | `POST /jobs` | Job Submission |
 | `GET /jobs*` | Reporting / Job Repository 只读查询 |
+| `POST /jobs/{id}/approve`、`POST /jobs/{id}/reject` | Owner Approval；只允许评测机所有者 |
 | `POST /jobs/{id}/cancel` | Job lifecycle 用例 |
 | `GET /runs*` | Reporting / Run Repository 只读查询；不存在普通用户创建接口 |
 | `/trajectory`、`/artifacts` | Reporting + Artifact Store 只读读取 |
@@ -467,15 +505,17 @@ FastAPI route 文件只做 schema、HTTP 状态和用例调用，不能直接启
 2. Next.js 使用由 OpenAPI 生成或同步的 TypeScript 类型，避免手写两套字段。
 3. 每个端点覆盖成功、资源不存在、schema 错误和状态冲突。
 4. 确认 Task/Agent/Submission 接口不泄漏 gold patch、隐藏测试、启动命令和秘密；未审核源码不能执行。
-5. 创建 Job 响应不等待 Worker；任务×Agent 生成正确 `trial_count` 和 `run_id`；轮询能观察 Job 与运行状态。
+5. 创建 Job 响应不等待 Worker；任务×Agent 生成正确 `trial_count` 和 `run_id`，初始状态只能是 `AWAITING_OWNER_APPROVAL`。
 6. 排行榜按完整 Agent 配置分组并单列基础设施错误；`internal_test` 永远被排除。
 7. 原始制品下载不暴露 MinIO 管理凭据，轨迹默认已脱敏。
 8. 创建 Job 冻结赛道/网络/工具/Harbor/Fork 版本；闭卷和开卷查询不会跨赛道混分。
 9. 普通用户无法 `POST /runs`、设置 Harbor 并发或提交任意资源值；单机并发 1 由后端配置。
+10. 提交者不能批准自己的正式真实 Job；只有绑定的评测机所有者会话能批准/拒绝，并发决定只有一个成功，决定者和时间可审计。
+11. 批准只产生 `QUEUED`，不会在 HTTP 请求中运行 Harbor；拒绝后 Worker 永远领取不到，批准后轮询可观察后续状态。
 
 ## 14. 仍待确认
 
-1. 已确认只允许可信用户；仍需选择最小登录方式并细化提交者、管理员、评审者权限。
+1. 已确认只允许可信用户，且只有评测机所有者能批准正式真实 Job；仍需选择最小登录方式、绑定/恢复所有者身份，并细化其他提交者、管理员、评审者权限。
 2. 执行中 Harbor Job 的安全取消待原型；未验证前只取消 `QUEUED`。
 3. Judge 和过程指标的最终计分规则，决定报告是否增加独立评分字段。
 4. 开卷实验榜使用平台统一 Web 工具，还是允许 Agent 原生搜索工具。
@@ -487,3 +527,4 @@ FastAPI route 文件只做 schema、HTTP 状态和用例调用，不能直接启
 - 2026-09-01：创建候选 v0.1；定义任务、Agent 配置、运行、轨迹、制品、报告、排行榜和人工复核接口，并明确错误、幂等、防泄漏和模块映射。
 - 2026-09-02：创建运行与排行榜加入评测赛道；闭卷主榜、开卷实验榜及不同网络/工具配置禁止混合聚合。
 - 2026-09-03：以 `/jobs` 作为批量提交与排队主资源，`/runs` 改为逐题只读资源；加入可信 Agent 源码提交审核、Job 报告、组合规模与 `internal_test` 隔离规则。
+- 2026-09-05：远端提交改为创建 `AWAITING_OWNER_APPROVAL`；新增评测机所有者批准/拒绝接口，只有批准才进入 `QUEUED`，网络成员身份不替代应用授权。

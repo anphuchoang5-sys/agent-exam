@@ -1,8 +1,8 @@
 # 模块职责与输入输出契约
 
-> 文档状态：架构边界已确认；字段契约 v0.2，尚未实现
+> 文档状态：架构边界已确认；字段契约 v0.3，尚未实现
 >
-> 最后更新：2026-09-03
+> 最后更新：2026-09-05
 > 权威范围：本文件只维护项目内部模块的职责、输入、输出、错误、不变量和依赖。全局组成见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)，字段级边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)、[`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](./DATA_MODEL.md)。
 
 ## 1. 先用小白能懂的话解释
@@ -57,6 +57,7 @@ flowchart LR
 | `EvaluationTask` | `instance_id`、数据集身份/版本、`repo`、`base_commit`、`problem_statement`、验证引用 | 不向 Agent 暴露 gold `patch`、`test_patch`、隐藏测试答案 | Task Catalog → Job Submission、Job Orchestrator、Patch Evaluator |
 | `AgentConfiguration` | 登记 ID、Agent 类型/版本、模型、关键配置、Adapter 类型、配置指纹 | 明文 API key、临时登录 token | Agent Registry → Job Submission、Job Orchestrator、Execution Backend |
 | `EvaluationJobSpec` | `job_id`、选中的任务/Agent 配置、赛道、限制模板、预计运行数、结果范围 | Harbor `JobConfig`、用户任意命令/路径 | Job Submission → Job Repository、Job Orchestrator |
+| `JobApprovalDecision` | `job_id`、批准或拒绝、可选安全说明、可信会话中的所有者身份、预期 `row_version` | Codex 凭据、任意资源覆盖、请求正文伪造的批准人 | Owner Approval → Job Repository |
 | `EvaluationPolicy` | `evaluation_track`（`closed_book`/`open_book_experimental`）、已登记网络策略、已登记工具配置及其版本 | 按模型国别猜测的能力、用户任意代理/网址配置 | Job Submission → Job Orchestrator、Execution Backend、Reporting |
 | `RunLimits` | 墙钟超时、CPU、内存、PID、输出大小、Agent 特有限制 | 用户可随意提交的宿主机权限 | Job Submission → Job Orchestrator、Execution Backend |
 | `ExecutionJobRequest` | Job 身份、逐题 `run_id` 映射、任务、Agent 配置、策略、限制、后端版本 | 判分答案、gold patch、Harbor 外的任意执行命令 | Job Orchestrator → Execution Backend |
@@ -76,7 +77,8 @@ flowchart LR
 | HTTP Delivery | 把浏览器请求翻译为应用用例 | HTTP 请求 | HTTP 响应/错误 | 运行 Agent、写 SQL |
 | Task Catalog | 从固定 SWE-Gym 数据取得任务 | 数据集版本 + `instance_id` | `EvaluationTask` | 运行或判题 |
 | Agent Registry | 只提供已审核 Agent 配置 | 配置 ID/筛选条件 | `AgentConfiguration` | 下载任意仓库 |
-| Job Submission | 校验矩阵并创建排队 Job | 任务 ID[] + Agent 配置 ID[] + 赛道/限制模板 | `job_id`、`run_id[]`、Trial 数和初始状态 | 执行评测 |
+| Job Submission | 校验矩阵并创建等待所有者批准的 Job | 任务 ID[] + Agent 配置 ID[] + 赛道/限制模板 | `job_id`、`run_id[]`、Trial 数和 `AWAITING_OWNER_APPROVAL` | 执行评测、替所有者批准 |
+| Owner Approval | 由评测机所有者批准或拒绝冻结的 Job | `JobApprovalDecision` + 待批准 Job | `QUEUED` 或 `REJECTED` Job + 审计事件 | 运行 Agent、读取 Codex 凭据、修改冻结配置 |
 | Job/Run Repository | 保存、领取、推进和查询 Job/运行 | Job/运行状态命令 | 持久化结果/查询视图 | 保存大制品正文、调度 Harbor Trial |
 | Job Orchestrator | 编排一个 Job 的执行和逐题判卷 | 已领取 Job | Job 汇总与逐题完整结果 | 理解 Harbor 类型或具体 CLI |
 | Execution Backend | 执行一批 Agent×任务并返回逐题补丁/证据 | `ExecutionJobRequest` | `ExecutionTrialResult[]` | 判断补丁正确性、管理业务队列 |
@@ -135,25 +137,37 @@ flowchart LR
 |---|---|
 | 调用方 | HTTP Delivery |
 | 输入 | `task_ids[]`、`agent_configuration_ids[]`、`evaluation_track`、登记的规模预设与 `limit_profile_id` |
-| 输出 | 新 `job_id`、`QUEUED` Job、交叉组合产生的 `run_id[]`、`trial_count`、创建时间 |
+| 输出 | 新 `job_id`、`AWAITING_OWNER_APPROVAL` Job、交叉组合产生的 `run_id[]`、`trial_count`、创建时间 |
 | 错误 | 任务/Agent 不存在、配置禁用、限制越界、重复幂等键冲突 |
-| 不变量 | 任务与 Agent 列表非空且去重；首版每组合尝试一次；创建时冻结任务/Agent/后端/策略/限制；不接收任意 shell 命令或资源值；Mock Job 必须隔离为 `internal_test` |
+| 不变量 | 任务与 Agent 列表非空且去重；首版每组合尝试一次；创建时冻结任务/Agent/后端/策略/限制；新 Job 不得直接排队；不接收任意 shell 命令或资源值；Mock Job 必须隔离为 `internal_test` |
 | 依赖 | Task Catalog、Agent Registry、Job/Run Repository |
 | 验证 | 合法矩阵生成正确数量的运行；越权限制被拒绝；重复幂等请求不产生两个 Job；超出规模预设在执行前拒绝 |
 
-### 6.5 Job/Run Repository
+### 6.5 Owner Approval
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
-| 调用方 | Job Submission、Worker Shell、Job Orchestrator、Review、Reporting |
-| 输入 | 创建 Job/运行、原子领取一个 Job、合法状态迁移、附加结果、查询命令 |
+| 调用方 | HTTP Delivery；调用身份必须来自可信会话 |
+| 输入 | `JobApprovalDecision` 与当前 `AWAITING_OWNER_APPROVAL` Job 的冻结摘要 |
+| 输出 | 批准时为 `QUEUED` Job；拒绝时为 `REJECTED` Job；两者都追加包含决定者和时间的状态事件 |
+| 错误 | 非所有者身份、Job 不存在、并发版本冲突、Job 已被决定、数据库暂不可用 |
+| 不变量 | 只有评测机所有者角色可决定；不能由正文指定决定者；不能在批准时改任务/Agent/赛道/限制；不读取凭据、不启动 Docker；同一 Job 只接受一次最终决定 |
+| 依赖 | Job/Run Repository |
+| 验证 | 提交者批准返回禁止；所有者批准只发生一次且进入 `QUEUED`；拒绝后永不被 Worker 领取；并发批准/拒绝只有一个成功 |
+
+### 6.6 Job/Run Repository
+
+| 项目 | 候选 v0.1 契约 |
+|---|---|
+| 调用方 | Job Submission、Owner Approval、Worker Shell、Job Orchestrator、Review、Reporting |
+| 输入 | 创建 Job/运行、所有者批准/拒绝、原子领取一个已批准 Job、合法状态迁移、附加结果、查询命令 |
 | 输出 | 当前 Job/运行、领取结果、版本号或只读查询视图 |
 | 错误 | 状态冲突、并发版本冲突、记录不存在、数据库暂不可用 |
-| 不变量 | 状态迁移只按 `DATA_MODEL.md`；一个排队 Job 只被一个 Worker 领取；单机最多一个重型 Job 活跃；运行不独立从 PostgreSQL 抢队；大制品只存引用 |
+| 不变量 | 状态迁移只按 `DATA_MODEL.md`；待批准/已拒绝 Job 不能被领取；一个 `QUEUED` Job 只被一个 Worker 领取；单机最多一个重型 Job 活跃；运行不独立从 PostgreSQL 抢队；大制品只存引用 |
 | 依赖 | PostgreSQL Adapter |
-| 验证 | 并发领取测试；非法回退状态测试；事务回滚测试 |
+| 验证 | 并发批准/拒绝测试；并发领取测试；待批准/已拒绝 Job 不可领取；非法回退状态测试；事务回滚测试 |
 
-### 6.6 Job Orchestrator
+### 6.7 Job Orchestrator
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -167,7 +181,7 @@ flowchart LR
 
 这是一个“深模块”：对外只有“执行一个 Job”，内部隐藏逐 Trial 判卷、部分失败、证据保存和汇总，不让 Worker 参与编排细节。
 
-### 6.7 Execution Backend
+### 6.8 Execution Backend
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -181,7 +195,7 @@ flowchart LR
 
 Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
 
-### 6.8 Agent Source Review
+### 6.9 Agent Source Review
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -193,7 +207,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 依赖 | Agent Registry、PostgreSQL；manifest schema 待下一轮确认 |
 | 验证 | 未审核提交无法创建 Job；分支/`latest` 被拒绝；审核事件可追溯；秘密和任意命令不进入公开配置 |
 
-### 6.9 Patch Evaluator
+### 6.10 Patch Evaluator
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -207,7 +221,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 
 注意：补丁“可应用但测试未通过”是一次正常完成的确定性评测；Harness 无法完成才是基础设施错误。
 
-### 6.10 Trajectory Recorder
+### 6.11 Trajectory Recorder
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -219,7 +233,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 依赖 | Artifact Store；各 CLI 的官方事件格式 |
 | 验证 | 预制事件样本契约测试；坏行容错；脱敏、顺序和汇总一致性检查 |
 
-### 6.11 Artifact Store
+### 6.12 Artifact Store
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -231,7 +245,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 依赖 | MinIO；PostgreSQL 中的 `artifact_records` 索引 |
 | 验证 | 同内容校验、覆盖拒绝、断流、缺失对象和大文件流式测试 |
 
-### 6.12 Failure Judge
+### 6.13 Failure Judge
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -243,7 +257,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 依赖 | LLM Provider Adapter、Artifact Store |
 | 验证 | 固定证据集上的 schema/分类测试；模型失败不丢失确定性结果；Prompt 版本可追溯 |
 
-### 6.13 Human Review
+### 6.14 Human Review
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -255,7 +269,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 依赖 | Run Repository、Reporting |
 | 验证 | 领取冲突、重复提交、修正 Judge 而不改测试事实、审计字段完整性测试 |
 
-### 6.14 Reporting
+### 6.15 Reporting
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -267,7 +281,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 依赖 | Run Repository、Artifact Store |
 | 验证 | 聚合样例测试；同 Agent 不同模型分行；缺失 Judge 时仍能展示确定性结果 |
 
-### 6.15 Worker Shell
+### 6.16 Worker Shell
 
 | 项目 | 候选 v0.1 契约 |
 |---|---|
@@ -275,7 +289,7 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 输入 | `worker_id`、轮询间隔、固定重型 Job 并发 1、优雅停止信号 |
 | 输出 | 心跳、Job 领取记录、一次 Job Orchestrator 调用结果 |
 | 错误 | 数据库不可用、失去租约、进程停止 |
-| 不变量 | 只负责循环和进程生命周期；业务流程只调用 Job Orchestrator；任何配置下都不得同时执行两个重型 Job |
+| 不变量 | 只负责循环和进程生命周期；只领取 `QUEUED` Job；业务流程只调用 Job Orchestrator；任何配置下都不得同时执行两个重型 Job；不拥有批准权限 |
 | 依赖 | Job/Run Repository、Job Orchestrator |
 | 验证 | 双 Worker 不重复领取同一 Job且不产生两个活跃 Job；停止时不误报完成；超期租约由明确恢复流程处理 |
 
@@ -291,6 +305,8 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 8. 每次运行冻结 `evaluation_track`、网络策略和工具配置；闭卷与开卷使用相同确定性判卷，但成绩严格分榜。
 9. 模型来源国家不能推导网络能力；只以该次运行实际登记并验证的工具和网络策略为准。
 10. Mock 只允许 `internal_test`，报告和排行榜必须从查询层排除。
+11. 远端提交只创建 `AWAITING_OWNER_APPROVAL`；只有可信会话中的评测机所有者能把它推进到 `QUEUED`，Worker 对待批准和已拒绝 Job 必须不可见。
+12. 远程接入的网络成员身份只决定“能否到达 Web”，不能替代应用中的所有者授权。
 
 ## 8. 尚待继续讨论
 
@@ -299,10 +315,11 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 3. 开卷实验榜使用统一的平台 Web 工具，还是各 Agent 原生搜索工具；以及相应的公平性标注。
 4. Harbor/Worker 是宿主机进程还是挂载 Docker Socket 的容器；必须先做本机最小实验。
 5. `agent-exam.yaml` 的最小字段和自研 Agent 到 Harbor 的转换方式。
-6. 已确认只允许可信用户，但具体登录方案和提交者/管理员/评审者权限仍待确定。
+6. 已确认只允许可信用户，且只有评测机所有者能批准正式真实 Job；具体登录方案、所有者身份绑定/恢复和其他提交者/管理员/评审者权限仍待确定。
 
 ## 9. 变更记录
 
 - 2026-09-01：创建候选 v0.1；明确公共对象、15 个模块的职责/输入/输出/错误/不变量/依赖/验证，以及跨模块保密和证据规则。
 - 2026-09-02：同步闭卷主榜/开卷实验榜决定；新增评测策略对象，并要求 Run、Runner、Sandbox 和 Reporting 冻结赛道、网络及工具配置。
 - 2026-09-03：用 Job Submission、Job Orchestrator 和深 `ExecutionBackend` 取代逐运行自研 Runner/Sandbox 主路径；Harbor 为主 Adapter，固定 Fork 独立判卷，并新增受控 Agent 源码审核模块。
+- 2026-09-05：新增 Owner Approval 用例；远端提交初始为 `AWAITING_OWNER_APPROVAL`，只有评测机所有者批准后进入 `QUEUED`，Worker 不得绕过批准。

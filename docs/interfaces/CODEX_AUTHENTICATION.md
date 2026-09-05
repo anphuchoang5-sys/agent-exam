@@ -1,6 +1,6 @@
 # Codex 认证与协作凭据约定
 
-> 状态：已确认（2026-09-04）
+> 状态：认证政策已确认（2026-09-04）；远端提交/所有者批准边界已同步（2026-09-05）
 > 权威范围：Codex 原型认证方式、多人协作时的凭据所有权与安全边界。
 >
 > 反向导航：[`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) 只维护全局决定，[`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 只维护版本状态，[`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md) 只维护执行映射，[`FRAMEWORK_INTERFACES.md`](./FRAMEWORK_INTERFACES.md) 只维护上游 CLI 接口；认证事实发生变化时必须回到本文更新。
@@ -58,7 +58,7 @@ OpenAI 的个人账户供创建者本人使用，不能把账户凭据交给其�
 
 有两种允许的方式：
 
-1. **只在统一评测机执行真实评测**：协作者正常开发和提交代码；需要真实 Codex Trial 时，由评测机所有者在自己的机器上运行。协作者不需要取得评测机所有者的凭据。
+1. **只在统一评测机执行真实评测**：协作者可以远端提交冻结的评测选择，但 Job 初始必须为 `AWAITING_OWNER_APPROVAL`；评测机所有者通过可信会话批准后才进入本机 `QUEUED`，随后只能由本机 Worker 执行。远端提交和批准都不携带或读取 `auth.json`，协作者不需要取得评测机所有者的凭据。
 2. **协作者在自己机器执行**：协作者使用自己的 ChatGPT 账号运行 `codex login`，或使用自己获授权的 API Key；本机路径只放在本机未跟踪的环境配置中。
 
 项目当前为单机架构，因此第 1 种方式是默认方案。
@@ -83,6 +83,7 @@ codex-deepseek-api
 - 不把凭据文件复制进镜像层，不提交 Git，不写入 PostgreSQL 或 MinIO。
 - `CODEX_AUTH_JSON_PATH` 只保存在执行节点本机、未跟踪的秘密配置中；执行节点在启动受控 Codex Trial 时解析它，既不把真实路径写入 Job，也不返回给对外接口。
 - 公开 Job 请求、`ExecutionJobRequest` 和 PostgreSQL 只保存非秘密的认证类型与 Agent Configuration 身份，不接收凭据文件、文件内容或真实宿主路径。
+- 所有者批准只授予该 Job 进入本机执行队列的资格；它不把凭据附加到 Job，也不在 HTTP 请求生命周期内启动 Codex。Worker 真正建立受控 Trial 时才从本机秘密配置解析凭据引用。
 - Trial 使用临时容器；结束后销毁容器及其可写层。
 - 制品收集明确排除 `$CODEX_HOME`、Harbor secrets 目录和任何 `auth.json`。
 - stdout、stderr、轨迹和异常信息进入存储前执行凭据脱敏。

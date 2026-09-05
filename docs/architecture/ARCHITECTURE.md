@@ -1,7 +1,7 @@
 # AI Coding Agent 评测平台总架构
 
 > 文档状态：总体方案已确认，细节持续讨论；尚无业务代码
-> 最后更新：2026-09-04
+> 最后更新：2026-09-05
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
 ## 1. 从哪里开始读
@@ -20,6 +20,7 @@
 | PostgreSQL/MinIO 保存什么 | [`DATA_MODEL.md`](./DATA_MODEL.md) |
 | SWE-Gym、SWE-Bench-Fork 和各 Agent 的真实接口 | [`FRAMEWORK_INTERFACES.md`](../interfaces/FRAMEWORK_INTERFACES.md) |
 | Codex 怎样认证、凭据归谁以及协作时怎样隔离秘密 | [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md) |
+| 协作者怎样从校园网外提交、VPN 会不会冲突、哪些端口不能开放 | [`REMOTE_TEAM_ACCESS.md`](../operations/REMOTE_TEAM_ACCESS.md) |
 | 外部事实如何查证 | [`docs/research`](../research/) |
 | 每次修改的措施和验证证据 | [`docs/actions`](../actions/) |
 
@@ -35,13 +36,14 @@
 
 一次完整使用动线：
 
-1. 可信用户从已登记列表选择一个或多个固定 Agent 配置、一个或多个 SWE-Gym 任务和一个评测赛道。
-2. 平台创建一个评测 Job，在 PostgreSQL 排队，并预先冻结 Agent×任务组合对应的逐题评测运行。
-3. 单机 Worker 一次只领取一个 Job；Execution Backend Adapter 把它转换为一个 Harbor Job，并固定 `n_concurrent_trials=1`。
-4. Harbor 把 Agent×任务展开为 Trial，运行真实 Agent、管理 Docker 环境并保存过程事件、原始输出和制品。
-5. Adapter 为每个 Trial 校验并返回最终 patch；SWE-Bench-Fork 在新的干净验证环境中独立应用 patch 和执行测试。
-6. 页面展示 Job 总进度，并对每条运行分别展示确定性结果、过程指标、LLM Judge 失败归因和人工复核。
-7. 排行榜按完整的“Agent + 模型 + 关键配置”统计，原始证据能从 `job_id` 追溯到每个 `run_id`。
+1. 可信协作者通过私有远程入口，从已登记列表选择一个或多个固定 Agent 配置、一个或多个 SWE-Gym 任务和一个评测赛道。
+2. 平台创建 `AWAITING_OWNER_APPROVAL` Job，并预先冻结 Agent×任务组合对应的逐题评测运行；提交本身不启动真实评测。
+3. 评测机所有者检查冻结配置并明确批准后，Job 才进入 PostgreSQL 的 `QUEUED` 队列；拒绝则终止，不交给 Worker。
+4. 评测机本地的单机 Worker 一次只领取一个已批准 Job；Execution Backend Adapter 把它转换为一个 Harbor Job，并固定 `n_concurrent_trials=1`。
+5. Harbor 把 Agent×任务展开为 Trial，运行真实 Agent、管理 Docker 环境并保存过程事件、原始输出和制品。
+6. Adapter 为每个 Trial 校验并返回最终 patch；SWE-Bench-Fork 在新的干净验证环境中独立应用 patch 和执行测试。
+7. 页面展示 Job 总进度，并对每条运行分别展示确定性结果、过程指标、LLM Judge 失败归因和人工复核。
+8. 排行榜按完整的“Agent + 模型 + 关键配置”统计，原始证据能从 `job_id` 追溯到每个 `run_id`。
 
 ## 3. 已确认决定
 
@@ -70,16 +72,20 @@
 | C-21 | 首个真实端到端原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道真实任务 | 先验证小而真的闭环；不下载完整 2.4K 任务，也不把 Lite 冒充为最终正式题库范围 |
 | C-22 | 首个真实原型 Agent 使用 Codex | 优先复用 Harbor 内置 Codex Adapter；先跑通一个 Agent，再扩展 Aider、Claude Code 和自研 Agent |
 | C-23 | 首个 Codex 原型使用评测机所有者本人通过 ChatGPT Pro 登录产生的 `auth.json` | 认证政策已经确认；凭据只由执行节点临时注入，不得共享、提交或持久化；容器内运行仍待实测 |
-| C-24 | 当前只有用户这一台笔电是正式真实评测节点 | 协作者可开发完整项目，但默认由机器所有者触发真实 Codex Trial；协作者不得取得所有者凭据 |
+| C-24 | 当前只有用户这一台笔电是正式真实评测节点 | 协作者可开发并远端提交；只有机器所有者批准后，本机 Worker 才能触发真实 Codex Trial；协作者不得取得所有者凭据 |
 | C-25 | Kimi 与 DeepSeek 以后只作为独立 Agent Configuration | 一次 Trial 不得从 Codex/OpenAI 静默切换提供方；切换必须产生独立配置与运行证据 |
+| C-26 | 协作者提交正式真实 Job 后必须等待评测机所有者批准 | 新 Job 初始为 `AWAITING_OWNER_APPROVAL`；只有所有者批准才能进入 `QUEUED`，Worker 不能领取待批准 Job |
+| C-27 | 协作者使用平台时，评测机和本机平台必须在线 | 当前不增加云端常驻控制面或第二执行节点；评测机离线时私有远程入口不可用，恢复在线后继续接收请求 |
 
 ## 4. 总体架构
 
 ```mermaid
 flowchart TB
-    USER[用户 / 人工评审] --> WEB[Next.js 15 + React 19]
+    COLLAB[远端可信协作者] --> PRIVATE[私有远程入口\n具体产品待确认]
+    OWNER[评测机所有者] --> WEB[Next.js 15 + React 19]
 
     subgraph HOST[单台物理计算机]
+        PRIVATE --> WEB
         WEB --> API[FastAPI HTTP Delivery]
         API --> APP[应用用例 / 模块化单体]
         APP --> PG[(PostgreSQL\n元数据 + Job 队列)]
@@ -107,9 +113,11 @@ flowchart TB
 
 边界规则：
 
+- 私有远程入口只把 Next.js Web 暴露给获准成员；FastAPI 绑定本机回环地址并由 Web 同源转发。PostgreSQL、MinIO、Docker、Worker 和宿主凭据路径不得成为远程入口。
 - Web 只走 HTTP API，不直连 PostgreSQL、MinIO 或 Docker。
 - FastAPI 负责短请求、校验和查询，不亲自等待 Agent/Harness。
-- Worker 原子领取排队 Job，再调用一个深的 Job Orchestrator；Job 内的逐题运行由 Harbor Trial 顺序执行。
+- Job Submission 只创建 `AWAITING_OWNER_APPROVAL` Job；Owner Approval 以可信会话中的所有者身份批准或拒绝。只有批准事务写成 `QUEUED` 后，Worker 才能领取。
+- Worker 只在正式评测机本地运行，原子领取 `QUEUED` Job，再调用一个深的 Job Orchestrator；Job 内的逐题运行由 Harbor Trial 顺序执行。
 - Orchestrator 只依赖小型 `ExecutionBackend` interface，不直接理解 Harbor `JobConfig`、Trial 目录或异常。
 - Harbor 负责 Agent 环境，不替代 PostgreSQL 业务队列、MinIO 长期制品、SWE-Bench-Fork 判卷、Judge 或人工复核。
 - Web、公开 Job 请求、FastAPI、PostgreSQL 和 MinIO 不接收 `auth.json` 内容或真实宿主路径；只保存非秘密的认证类型和逻辑配置身份。执行节点仅在启动受控 Codex Trial 时，从本机秘密配置解析凭据引用；这条秘密路径不属于业务数据流，完整约束见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)。
@@ -119,7 +127,8 @@ flowchart TB
 
 ```mermaid
 sequenceDiagram
-    actor U as 用户
+    actor C as 远端可信协作者
+    actor O as 评测机所有者
     participant W as Next.js Web
     participant A as FastAPI
     participant D as PostgreSQL
@@ -130,11 +139,15 @@ sequenceDiagram
     participant E as SWE-Bench-Fork
     participant J as LLM Judge
 
-    U->>W: 选择多个任务和多个 Agent 配置
+    C->>W: 通过私有入口选择任务和 Agent 配置
     W->>A: POST /api/v1/jobs
-    A->>D: 创建 QUEUED Job + PENDING runs
-    A-->>W: 202 + job_id + trial_count
-    K->>D: 原子领取一个 Job
+    A->>D: 创建 AWAITING_OWNER_APPROVAL Job + PENDING runs
+    A-->>W: 202 + job_id + trial_count + 待批准
+    O->>W: 检查冻结配置并批准
+    W->>A: POST /api/v1/jobs/{job_id}/approve
+    A->>D: AWAITING_OWNER_APPROVAL → QUEUED + 审计事件
+    A-->>W: 200 + QUEUED
+    K->>D: 只原子领取 QUEUED Job
     K->>T: 读取 Job 中冻结的任务
     T-->>K: EvaluationTask[]
     K->>H: ExecutionJobRequest（不含隐藏答案）
@@ -159,7 +172,7 @@ sequenceDiagram
     A-->>W: 分层结果与制品索引
 ```
 
-图中没有画出 `auth.json`，因为它不是 Job 输入或业务制品：只有执行节点能从本机秘密配置中解析它，并在受控 Codex Trial 的最小生命周期内临时使用。
+图中没有画出 `auth.json`，因为它不是 Job 输入或业务制品：只有执行节点能从本机秘密配置中解析它，并在受控 Codex Trial 的最小生命周期内临时使用。远端协作者只提交冻结的公开评测选择，批准接口也不能读取或返回凭据。
 
 关键输入输出的字段、错误和保密边界不在本文重复，分别见：
 
@@ -266,7 +279,8 @@ E:\9.1agent_exam\
 │  │  │  │  │  ├─ repositories.py # PostgreSQL Repository ports
 │  │  │  │  │  ├─ artifacts.py    # MinIO Artifact Store port
 │  │  │  │  │  └─ judge.py        # Failure Judge port
-│  │  │  │  ├─ submit_job.py  # 校验矩阵并创建 QUEUED Job + PENDING runs
+│  │  │  │  ├─ submit_job.py  # 校验矩阵并创建待所有者批准 Job + PENDING runs
+│  │  │  │  ├─ approve_job.py # 所有者批准/拒绝待审 Job；批准后才进入 QUEUED
 │  │  │  │  ├─ execute_job.py # 深模块：Harbor 执行、逐题判卷和 Job 汇总
 │  │  │  │  └─ review_run.py  # 人工抽检与版本化复核流程
 │  │  │  ├─ adapters\
@@ -300,9 +314,9 @@ E:\9.1agent_exam\
 │  │  │  │  └─ routes\
 │  │  │  │     ├─ tasks.py    # Task API
 │  │  │  │     ├─ agents.py   # Agent Configuration API
-│  │  │  │     ├─ jobs.py      # Job 创建、列表、详情和取消 API
+│  │  │  │     ├─ jobs.py      # Job 创建、所有者批准/拒绝、列表、详情和取消 API
 │  │  │  │     ├─ runs.py      # Job 内逐题运行只读 API
-  │  │  │  │     ├─ artifacts.py # Trajectory/Artifact API
+│  │  │  │     ├─ artifacts.py # Trajectory/Artifact API
 │  │  │  │     ├─ reviews.py  # Human Review API
 │  │  │  │     └─ reports.py  # Report/Leaderboard API
 │  │  │  └─ worker\main.py
@@ -314,14 +328,14 @@ E:\9.1agent_exam\
 │  └─ web\
 │     # Next.js 15 + React 19 展示应用
 │     ├─ package.json      # 固定前端依赖与命令
-│     ├─ next.config.ts    # Next.js 构建配置
+│     ├─ next.config.ts    # Next.js 构建配置；候选同源转发到回环 FastAPI
 │     └─ src\
 │        ├─ app\
 │        │  # App Router 页面/布局，不直接实现后端业务
 │        │  ├─ layout.tsx       # 全站布局和导航
 │        │  ├─ page.tsx         # Job 概览
 │        │  ├─ tasks\           # 任务浏览与选择
-│        │  ├─ jobs\            # 发起 Job、总进度和组合结果
+│        │  ├─ jobs\            # 发起 Job、待所有者批准队列、总进度和组合结果
 │        │  ├─ runs\            # 运行、轨迹和证据详情
 │        │  ├─ leaderboard\     # Agent 配置排行
 │        │  └─ reviews\         # 人工抽检工作台
@@ -344,7 +358,7 @@ E:\9.1agent_exam\
 │     ├─ worker.Dockerfile  # Worker 镜像候选
 │     └─ web.Dockerfile     # Next.js 镜像
 ├─ tests\e2e\
-  │  # 从创建 Job 到逐题报告展示的单机端到端测试
+│  # 从创建 Job 到逐题报告展示的单机端到端测试
 └─ docs\
    ├─ dependencies\
    │  └─ DEPENDENCIES.md       # 依赖来源、固定版本、恢复方式与入库策略的唯一事实源
@@ -359,6 +373,9 @@ E:\9.1agent_exam\
    │  ├─ HTTP_API.md              # Web/API 契约
    │  └─ FRAMEWORK_INTERFACES.md  # 真实上游接口映射
    ├─ research\  # 官方资料和相似项目的查证记录
+   ├─ operations\
+   │  ├─ LOCAL_DOCKER_ENVIRONMENT.md # 本机 Docker/WSL 的已测环境事实
+   │  └─ REMOTE_TEAM_ACCESS.md       # 私有远程入口、校园网/VPN共存和最小暴露面
    ├─ actions\   # 每次修改的行动和验证记录
    └─ adr\       # 仅记录难以逆转且已作出的架构决定
 ```
@@ -371,6 +388,7 @@ E:\9.1agent_exam\
 | Factory/Registry | `adapters/agents/registry.py` + `adapters/agents/manifest.py` | Registry 只把审核通过的配置转换为 Harbor AgentConfig；manifest 解析不执行代码 | 避免任意命令执行和 Orchestrator 条件分支 |
 | Repository | `ports/repositories.py` + `adapters/persistence/postgres.py` | 应用层依赖持久化接口；PostgreSQL 实现事务和领取 | 测试可用 Fake，SQL 不散落 |
 | State | `domain/job.py` + `domain/run.py` + PostgreSQL 状态约束 | 统一规定允许的 Job/运行迁移；API/Worker/数据库复用 | 防止各层对状态各自解释 |
+| Command | `application/submit_job.py` + `application/approve_job.py` | 提交命令只冻结请求；批准命令只作所有者决定并排队；两者都不执行 Harbor | 权限决定和重型执行之间有明确 seam，Worker 无法绕过批准 |
 | Composition Root | `delivery/http/app.py` | 唯一位置组装 ports 与生产 Adapters | 依赖构造不散落在业务逻辑 |
 
 暂不引入装饰器、事件总线、CQRS、微服务或 Kubernetes。若未来出现真实变化点，再通过 ADR 和行动文档讨论。
@@ -392,6 +410,9 @@ E:\9.1agent_exam\
 | Codex/Claude/Aider 外部接口和许可会更新 | Adapter 漂移、费用或认证变化 | 固定版本、官方核验、四层测试、历史配置不覆盖 |
 | LLM Judge 随机和有偏 | 归因不可当测试事实 | 保存模型/Prompt/证据/原始响应，人工抽检，分层展示 |
 | 范围仍偏大 | 一个月可能闭环不足 | Mock 只测软件分支；交付闭环优先一条真实任务 + 一个真实 Agent + 固定 Fork，再扩展 Agent |
+| 校园网 CGNAT/防火墙不允许入站端口 | 协作者无法通过公网地址稳定访问评测机 | 不做路由器端口映射；采用只需出站连接的私有覆盖网络候选，入口只到 Web，实测直连/中继 |
+| 现有外网 VPN 与私有覆盖网络冲突 | Tailscale 地址或流量被全隧道、kill switch、防火墙拦截 | 不启用 Tailscale exit node；优先让现有 VPN 排除 Tailscale 应用/`100.64.0.0/10`，用 `tailscale netcheck/status` 双机实测；不兼容才评估 Cloudflare Tunnel |
+| 远端成员越权批准或直接触发 Worker | 消耗所有者账号、费用和本机资源 | 网络准入不代替应用授权；只有所有者角色能批准，Job 审计记录决定者和时间，Worker 仅领取 `QUEUED` |
 
 ## 11. 当前验证策略
 
@@ -403,8 +424,9 @@ E:\9.1agent_exam\
 4. **真实 Agent 门槛**：首先由真实 Codex 完成 Issue→Harbor→patch→固定 Fork 的 E2E；Mock 结果不得进入交付证据，其他 Agent 在此后扩展。
 5. **隔离门槛**：验证 CPU/内存/PID/超时/网络/挂载/清理和秘密不泄漏；首次真实 Codex Trial 前后人工检查容器、可写层、日志、轨迹、MinIO 和 PostgreSQL 均无凭据内容或真实路径。
 6. **持久化门槛**：双 Worker 不重复领取同一 Job，单机不同时执行两个重型 Job，部分 Trial 完成时证据不丢失。
-7. **产品门槛**：Web 创建 Job 后能按 `job_id` 看总进度，并按 `run_id` 看 patch、轨迹、测试、Judge 和人工复核。
+7. **产品门槛**：远端可信协作者创建 Job 后只能看到 `AWAITING_OWNER_APPROVAL`；所有者拒绝后不能执行，批准后才进入 `QUEUED`；随后能按 `job_id` 看总进度，并按 `run_id` 看 patch、轨迹、测试、Judge 和人工复核。
 8. **赛道门槛**：闭卷/开卷、网络策略和工具配置不会跨赛道混分；`internal_test` 不进入任何正式排行。
+9. **远程接入门槛**：在评测机 VPN 开启和关闭两种情况下做双机测试；确认获准成员只能访问 Web，同源 API 可用，非成员以及 PostgreSQL、MinIO、Docker/Worker 端口不可达；记录连接是 direct 还是 relay。
 
 每次实际实现前使用 `action-document`；实际检查结果必须写回行动文档，不把“计划测试”描述成“已经通过”。
 
@@ -416,10 +438,11 @@ E:\9.1agent_exam\
 2. 读取并固定 `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个具体任务；这是技术核验，不让用户猜字段。
 3. 定义 `agent-exam.yaml` 的最小字段，确保提交者不必直接编写 Harbor 配置。
 4. Harbor/Worker 作为宿主 Python 进程还是挂载 Docker Socket 的容器；用本机原型裁决。
-5. 可信用户的最小登录实现，以及提交者、管理员、评审者的角色权限。
+5. 可信用户的最小登录实现，以及提交者、评测机所有者、管理员、评审者的角色权限；尤其要固定所有者身份怎样绑定和恢复。
 6. Judge 是否进入总分，还是只做失败归因。
 7. 工具调用、token、耗时只展示，还是形成独立效率分；缺失口径怎样公平展示。
 8. 开卷实验榜采用统一的平台 Web 工具，还是允许各 Agent 原生搜索工具。
+9. 私有远程入口是否最终采用 Tailscale Serve；先取得现用 VPN 产品/模式并完成校园网双机共存测试，失败时再评估 Cloudflare Tunnel + Access。
 
 ## 13. 变更记录
 
@@ -434,3 +457,4 @@ E:\9.1agent_exam\
 - 2026-09-04：确认 Codex 为首个真实原型 Agent；认证采用评测机所有者的 ChatGPT Pro `auth.json`，当前仅该笔电作为正式真实评测节点；CLI 项目版本、模型、端点和容器运行仍待固定或实测。
 - 2026-09-04：确认个人凭据不得共享、进入业务请求、数据库或制品；Kimi/DeepSeek 只作为独立 Agent Configuration，不得在 Trial 内静默回退。
 - 2026-09-04：工作区由含中文路径迁移至 `E:\9.1agent_exam`；项目内容、Git 状态和远程仓库保持不变。
+- 2026-09-05：确认远端协作者提交的正式真实 Job 必须先处于 `AWAITING_OWNER_APPROVAL`，只有评测机所有者批准才能进入 `QUEUED`；当前单机平台只在评测机在线时可用，并新增校园网/VPN私有接入候选与验证门槛。
