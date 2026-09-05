@@ -2,7 +2,7 @@
 
 > 文档状态：已建立；三项上游源代码身份及本机 Docker/WSL 运行时已核验，项目版本基线与外部制品版本仍待确认
 >
-> 最后更新：2026-09-04；上游与 CLI 最后核验：2026-09-04
+> 最后更新：2026-09-05；上游与 CLI 最后核验：2026-09-04
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
 
 ## 1. 文档边界
@@ -32,14 +32,17 @@
 | Next.js | Web 框架 | `15.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 Next.js 15 |
 | React | Web 视图框架 | `19.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 React 19 |
 | Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | 本机 Windows + WSL2 部署和无网络冒烟测试已验证；Compose 与 SWE-Bench-Fork 集成未验证，详见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
-| PostgreSQL | 结构化业务数据存储与首版平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
+| PostgreSQL | 结构化业务数据存储与 MVP 平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；M0 本机脚本原型不依赖；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
-| Codex CLI | 首个真实原型 Agent 执行器 | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；本机 `codex-cli 0.142.0` 的版本与帮助命令已通过只读探针，但这不是项目固定版本，容器版本、模型、端点和运行兼容性仍待固定或实测 |
-| Aider CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；尚未安装或固定版本 |
-| Claude Code CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；尚未安装或固定版本 |
-| 本地自研 Agent | 目标 Agent 执行器 | 待实现 | 是，由 AgentExam 项目维护 | 已确认接入目标；进程接口和版本载体未确定 |
+| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；本机 `codex-cli 0.142.0` 的版本与帮助命令已通过只读探针，但这不是项目固定版本，容器版本、模型、端点和运行兼容性仍待固定或实测 |
+| Aider CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
+| Claude Code CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
+| 本地自研 Agent | P2 扩展 Agent | 待实现 | 是，由提交者固定 Git commit 提交，审核后登记 | 只保留扩展接缝；P2 首版只支持 Python 和固定进程 Interface，完整 manifest、Python 版本、依赖锁格式与 Harbor 包装不阻塞 MVP |
+| DeepSeek / Kimi 模型接口 | P2 自研 Agent 唯一允许的外部模型提供方 | 精确模型与接口版本待确认 | 否 | 提供方范围和本机 Key 所有权已确认；Key 不进入被测 Agent，外部协议、受控访问部署和真实调用留到 P2 核验，见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md) |
 
 “待确认”不等于推荐使用最新版；在版本被确认并写入本文件前，不得把本机偶然安装的版本当成团队基线。
+
+依赖恢复与验证必须服从顺序：M0 只恢复 Harbor、SWE-Gym Lite 单题所需数据/镜像、SWE-Bench-Fork 和 Codex；M1 再加入 Web、PostgreSQL、MinIO；M1 通过后才处理 Aider/Claude Code；自研 Agent 与 DeepSeek/Kimi 为 P2。不得因为 P2 依赖未定而推迟 Codex 闭环。
 
 ## 3. 第三方框架源码策略
 
@@ -201,9 +204,10 @@ Harbor 当前尚未恢复到本机，所以对它执行上述命令会因目录�
 3. Python、FastAPI、Node.js、Next.js 15、React 19、Docker/Compose、PostgreSQL、MinIO 的精确版本和部署形态；
 4. SWE-Bench-Fork 未固定 Python 依赖的项目级锁定版本；
 5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；Codex 认证政策已经确认，不再作为待选择项，但项目固定版本、模型 ID、端点和容器兼容性仍待固定或实测；
-6. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
-7. Harbor 的安装方式、项目隔离环境、完整依赖锁、Job 目录位置及原型验收结果；
-8. 恢复脚本、依赖缓存和供应链校验流程。
+6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；
+7. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
+8. Harbor 的安装方式、项目隔离环境、完整依赖锁、Job 目录位置及原型验收结果；
+9. 恢复脚本、依赖缓存和供应链校验流程。
 
 ## 10. 本次核验证据摘要
 

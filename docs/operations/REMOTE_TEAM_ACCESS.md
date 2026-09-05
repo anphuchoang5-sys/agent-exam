@@ -1,10 +1,10 @@
 # 远端协作者接入评测机
 
-> 文档状态：所有者在线与批准流程已确认；Tailscale 接入为推荐候选，尚未双机实测或最终确认
+> 文档状态：两类角色、所有者在线批准与私有网络原则已确认；Tailscale 为实施方案，尚未安装和双机实测
 >
 > 最后更新：2026-09-05
 >
-> 权威范围：本文件只维护远端协作者怎样到达单机平台、校园网/VPN共存、最小网络暴露面、配置和诊断步骤。Job 权限与状态见 [`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](../architecture/DATA_MODEL.md)；Codex 凭据边界见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)。
+> 权威范围：本文件只维护远端协作者怎样到达单机平台、校园网/VPN共存、最小网络暴露面、配置和诊断步骤。Job 权限与状态见 [`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](../architecture/DATA_MODEL.md)；Codex 与自研 Agent 的模型凭据边界见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)。
 
 ## 1. 先说结论
 
@@ -40,14 +40,14 @@ flowchart LR
 
 ## 3. 启用前的安全前置条件
 
-当前架构中的可信登录和角色实现仍待确定。因此分两阶段：
+应用角色已经固定，但登录技术尚未实现，因此分两阶段：
 
 1. **连通性实验阶段**：只用无秘密测试页，或只允许所有者自己的第二台设备访问；不要让协作者连接带真实 Job 批准能力的页面。
-2. **正式协作阶段**：应用已经能识别登录用户，并把唯一评测机所有者角色绑定到所有者账户；之后才邀请协作者使用真实提交页面。
+2. **正式协作阶段**：评测机本地引导已经建立唯一 `owner`，由其在应用内邀请 `collaborator`；没有公开注册，也不依赖邮件服务。应用能识别这两类登录用户后，协作者才使用真实提交页面。
 
-Tailscale 成员身份只负责网络准入，不能代替应用层授权。即使协作者是 tailnet 成员，`POST /jobs/{id}/approve` 也必须返回 `403 OWNER_APPROVAL_REQUIRED`。
+Tailscale 成员身份只负责网络准入，不能代替应用层授权。即使协作者是 tailnet 成员，`POST /jobs/{id}/approve` 也必须返回 `403 OWNER_APPROVAL_REQUIRED`。账户、密码哈希、邀请和会话的具体落点要先核实现有代码；如果需要新增顶层模块、接口或表，另行说明并确认。
 
-## 4. 推荐候选配置：Tailscale Serve
+## 4. 采用的实施配置：Tailscale Serve
 
 ### 4.1 评测机所有者配置
 
@@ -106,7 +106,9 @@ Tailscale 当前建议新配置使用 `grants`。下面只是需要替换邮箱�
 2. 确认客户端显示已连接到项目 tailnet。
 3. 先执行 `tailscale ping agentexam-host`，再打开所有者提供的 `https://...ts.net` 地址。
 4. 在 AgentExam 页面使用自己的应用账户登录、创建 Job；提交成功应看到 `AWAITING_OWNER_APPROVAL`，而不是 `QUEUED`。
-5. 协作者不安装或复制所有者的 Codex `auth.json`，也不需要直连 Docker、PostgreSQL 或 MinIO。
+5. 协作者不安装、复制或填写所有者的 Codex `auth.json`、DeepSeek/Kimi Key，也不需要直连 Docker、PostgreSQL 或 MinIO。
+
+队友的“账号名字”分两层：Tailscale grant 需要他们实际用于加入 tailnet 的准确账户标识（通常是邮箱）；AgentExam 需要所有者创建/邀请的应用账户名。两者可以对应，但不能互相替代，也不能只凭一个显示昵称授予权限。
 
 ## 5. FlClash 会不会影响
 
@@ -168,7 +170,9 @@ FlClash 不同版本的基本设置会重新生成 TUN 配置，而且其桌面�
 
 ### 5.3 Docker/Codex 另行验证
 
-无论采用哪种模式，都要在 FlClash 开启时于 Docker/Codex Trial 内单独验证模型端点可达。宿主浏览器能上网不等于 Docker 容器一定继承同一代理路径；这项属于 Agent 闭卷网络策略实测，不由 Tailscale 连通结果替代。
+2026-09-05 已完成**通用 Docker 容器代理通路**验证：Docker Desktop 系统代理、内部代理、新 Docker CLI 容器的自动代理变量、无凭据 OpenAI HTTPS 和固定摘要镜像拉取均已形成证据，唯一事实源见 [`LOCAL_DOCKER_ENVIRONMENT.md`](./LOCAL_DOCKER_ENVIRONMENT.md)。FlClash 继续保持系统代理开启、TUN 与 Allow LAN 关闭；没有为校园网开放代理端口。
+
+这不等于 Harbor/Codex Trial 已跑通。Harbor 动态创建的 Trial 仍须由执行节点把已登记代理配置映射到 `AgentConfig.env`，并用真实容器检查结果；普通用户不能提交代理地址。实测还发现容器可以通过 Docker Desktop 的宿主转发访问本机 FlClash，因此闭卷策略必须额外阻断宿主入口和任意直连，只允许平台登记的受控模型访问路径及其必需端点。Tailscale 双机连通也仍须单独验收，不能由本次出站代理结果替代。
 
 ## 6. 校园网与连接速度怎样判断
 
@@ -194,7 +198,7 @@ tailscale ping agentexam-host
 - FlClash 停止时可用、启动后失败：若开启 TUN，先检查最终运行配置中的路由排除；若只开系统代理，检查 `*.ts.net` 是否在“排除域名”。
 - 两种状态都失败：先只分享无秘密测试页，排除 AgentExam 本身尚未启动；不要因此开放校园网路由器端口。
 
-中继不影响端到端加密，但会影响时延和吞吐。首版不为追求 `direct` 而申请学校开放入站端口；页面/JSON可用即可，真实速度写入双机实测记录。
+中继不影响端到端加密，但会影响时延和吞吐。MVP 不为追求 `direct` 而申请学校开放入站端口；页面/JSON可用即可，真实速度写入双机实测记录。评测机必须开 FlClash 才能访问外网并不妨碍这一架构：优先保持系统代理开启、TUN 关闭；若将来必须开 TUN，再按第 5.2 节排除 Tailscale 路由并重做双机测试。
 
 ## 7. 网络暴露面
 
@@ -206,7 +210,7 @@ tailscale ping agentexam-host
 | MinIO API/Console | ❌ | 仅后端访问；制品由受权 HTTP interface 流式返回 |
 | Docker daemon/socket | ❌ | 只由本机受控进程使用 |
 | Worker/Harbor | ❌ | 无远端监听；只轮询本机 PostgreSQL 中的 `QUEUED` |
-| Codex `auth.json`/秘密目录 | ❌ | 只在执行节点最小临时注入；不进 HTTP、数据库、制品或 Git |
+| Codex `auth.json`、DeepSeek/Kimi Key/秘密目录 | ❌ | 只由执行节点可信配置使用；P2 自研 Agent 不取得真实 Key；不进远端 HTTP、数据库、制品或 Git |
 
 ## 8. 备选：什么时候才评估 Cloudflare Tunnel
 
@@ -227,7 +231,9 @@ Cloudflare Tunnel 也由评测机主动向外建立连接，通常不需要公�
 5. 所有者拒绝后 Job 为 `REJECTED`，其 `PENDING` runs 为 `CANCELED`，Worker 永不领取。
 6. 远端扫描/连接 FastAPI 原始端口、PostgreSQL、MinIO、Docker 和 Worker 均失败。
 7. 评测机 Web 或 Tailscale 停止后远端不可用；恢复后已有数据库状态仍存在。
-8. 首次真实 Codex Trial 前后按认证文档检查 HTTP、数据库、MinIO、日志和轨迹均无凭据正文或真实秘密路径。
+8. 没有公开注册；协作者不能管理成员/配置、清理制品或人工复核；唯一所有者可在本机恢复身份且无需邮件服务。
+9. 执行中取消后不再启动新 Trial，当前 Trial 最多运行到冻结超时；断网、VPN切换、Worker/Harbor 中断不会自动重试旧 Job。
+10. M1 首次真实 Codex Trial 前后按认证文档检查 HTTP、数据库、MinIO、被测容器、日志和轨迹均无不应出现的凭据正文或真实秘密路径；P2 自研 Agent 另行确认没有 DeepSeek/Kimi Key，不阻塞 MVP。
 
 ## 10. 官方依据
 

@@ -2,7 +2,7 @@
 
 > 交接时间：2026-09-05
 >
-> 当前阶段：架构讨论；远端提交、评测机所有者批准和私有接入候选已完成文档对账，尚未开始业务代码实现
+> 当前阶段：MVP 业务规则已对账；下一步是 M0 本机 Codex 技术原型，尚未开始业务代码实现
 >
 > 用途：帮助从 `E:\9.1agent_exam` 打开的下一条 Codex 任务恢复上下文
 >
@@ -16,35 +16,39 @@
 E:\9.1实训  →  E:\9.1agent_exam
 ```
 
-文件系统迁移、Git 状态和远程仓库完整性已经验证，但 Windows 默认沙箱的 `setup refresh had errors` 后来在英文路径重新出现，因此不能再把迁移视为故障根治。Codex 认证与单机协作方式已在 2026-09-04 对账；2026-09-05 又确认“协作者远端提交 → 评测机所有者批准 → 本机 Worker 执行”，并明确评测机必须在线。Tailscale Serve 是校园网/VPN场景的推荐候选，尚未最终确认或双机实测。
+文件系统迁移、Git 状态和远程仓库完整性已经验证，但 Windows 默认沙箱的 `setup refresh had errors` 后来在英文路径重新出现，因此不能再把迁移视为故障根治。Codex 认证与单机协作方式已在 2026-09-04 对账；2026-09-05 又确认“协作者远端提交 → 评测机所有者批准 → 本机 Worker 执行”，并明确评测机必须在线。同日已实测 Docker Desktop 内部代理经 FlClash 完成通用容器 HTTPS 和固定摘要镜像拉取；这不等于 Harbor/Codex Trial 或闭卷防绕过已通过。Tailscale Serve 已作为校园网/VPN下的私有接入实施方案，仍须安装和双机实测。
+
+最新范围收敛为：M0 先用本机脚本跑通 Codex→Harbor→patch→SWE-Bench-Fork 单题真实闭环，不先做 Web/数据库；M1 再接 Web、PostgreSQL、MinIO、两类角色和所有者批准，完成 Codex-only MVP；之后接 Aider、Claude Code；自研 Agent 降为 P2，只保留 Python 进程 Interface 和 DeepSeek/Kimi 安全接缝。Quality Judge 的触发、清洗、四项 rubric、匿名反序双评和循环赛已经固定；过程指标只展示；MVP 只闭卷；取消/中断不自动重试；任务原始 JSON、制品保留和大小上限也已确认。最新行动记录见 [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md)。
 
 迁移证据见 [`docs/actions/2026-09-04-workspace-path-migration.md`](docs/actions/2026-09-04-workspace-path-migration.md)。
 
 ## 2. 恢复任务时先做什么
 
 1. 确认工作区是 `E:\9.1agent_exam`，不要再使用旧路径。
-2. 运行 `git status --short`，保留 2026-09-05 的审批/远程接入文档改动，不得重置或覆盖。
+2. 运行 `git status --short`，保留 2026-09-05 的 Docker/FlClash 代理实测文档改动，不得重置或覆盖。
 3. 按下面的层级阅读，不要只看总架构就开始修改。
-4. 第 6 节的认证与审批流程冲突已经同步；网络下一步只做 Tailscale + 现用 VPN 的无秘密双机连通实验，业务下一项技术核验仍是 SWE-Gym-Lite 的不可变 revision、真实 split 和候选任务。
-5. 对仍需人类选择的架构问题，一次只和用户讨论一个；先用通俗语言解释，再给出专业名称和推荐方案。
+4. 第 6 节所列业务规则已经同步；通用 Docker 出站代理已验证，下一步先固定 SWE-Gym-Lite revision/split/单题与 Codex/Harbor 版本，再执行 M0。
+5. 当前遗留项是技术核验，不得把已经确认的业务规则重新列成待决定；若实现发现必须新增顶层 Module、Interface、数据库表或目录，先说明现有职责为何不能承载并取得确认。
 
 ### 2.1 第一批：开始任何修改前必须完整阅读
 
 | 顺序 | 文档 | 下一窗口必须了解什么 | 阅读时的注意事项 |
 |---:|---|---|---|
 | 1 | 本文 `HANDOFF.md` | 中断原因、对话确认事实、文档滞后点、未决问题和安全红线 | 本文是交接快照，不替代专题事实源 |
-| 2 | [`docs/actions/2026-09-04-architecture-document-reconciliation.md`](docs/actions/2026-09-04-architecture-document-reconciliation.md) | 本轮对账的实际改动、CLI 探针、沙箱偏差和验证结果 | 这是当前结果记录；原计划仍保存在 `2026-09-04-handoff-document.md` |
-| 3 | [`CONTEXT.md`](CONTEXT.md) | AgentExam 的领域词汇及其统一含义 | 只维护领域语言，不应从这里推断框架接口 |
-| 4 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 系统目标、模块边界、数据流、决定表、规划文件树和待讨论队列 | 认证与单机评测节点已经同步；版本、模型和容器运行仍保持待实测 |
-| 5 | [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | 已确认的 ChatGPT Pro `auth.json` 方案、凭据所有权、协作方式和安全边界 | 认证政策已确认；容器运行、Token 刷新和清理仍未实测 |
-| 6 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | SWE-Gym、SWE-Bench-Fork、Harbor 的固定提交和本地恢复方式 | 认证政策已同步；宿主 `codex-cli 0.142.0` 只是探针，不是项目固定版本 |
-| 7 | [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | 平台 Job、Harbor Job、Trial、patch、轨迹和错误映射 | 认证输入/输出边界已同步；本机 Harbor、Token 生命周期和清理仍未实测 |
-| 8 | [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | SWE-Gym 字段、SWE-Bench-Fork Harness、Harbor 与 Agent CLI 的真实接口入口 | 旧失败已降为历史记录；宿主 CLI 探针成功不等于容器 E2E 通过 |
-| 9 | [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | 当前笔电的 Docker/WSL 内存、磁盘位置、容量和单机限制 | 数据是 2026-09-03 快照；磁盘余量等易变值引用前重查 |
-| 10 | [`docs/adr/0001-use-harbor-as-execution-backend.md`](docs/adr/0001-use-harbor-as-execution-backend.md) | 为什么 PostgreSQL 管平台队列、Harbor 只管执行、固定 Fork 负责最终判卷 | 这是已接受的架构决定；只有 Harbor 原型触发退出条件时才重新讨论 |
-| 11 | [`docs/actions/2026-09-04-codex-authentication-policy.md`](docs/actions/2026-09-04-codex-authentication-policy.md) | 认证决定产生的实际修改范围与验证结果 | 已收尾；未把宿主探针扩大为 Harbor 容器或真实 Trial 结论 |
-| 12 | [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md) | 远端提交、所有者批准和网络候选的实际修改与验证结果 | Tailscale 仍是候选；文档检查不等于双机连通 |
-| 13 | [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) | 校园网/VPN下的推荐拓扑、最小暴露面、配置顺序和诊断 | 应用登录完成前不能把真实批准页面开放给协作者 |
+| 2 | [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md) | 本轮确认的 MVP 顺序、两角色、Judge、闭卷、取消/恢复、任务快照与制品规则 | 当前最新对账记录；没有业务代码修改 |
+| 3 | [`docs/actions/2026-09-04-architecture-document-reconciliation.md`](docs/actions/2026-09-04-architecture-document-reconciliation.md) | 本轮对账的实际改动、CLI 探针、沙箱偏差和验证结果 | 这是当前结果记录；原计划仍保存在 `2026-09-04-handoff-document.md` |
+| 4 | [`CONTEXT.md`](CONTEXT.md) | AgentExam 的领域词汇及其统一含义 | 只维护领域语言，不应从这里推断框架接口 |
+| 5 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 系统目标、模块边界、数据流、决定表、规划文件树和待讨论队列 | 业务规则已同步；版本、模型和容器运行仍保持待实测 |
+| 6 | [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | 已确认的 ChatGPT Pro `auth.json` 方案、凭据所有权、协作方式和安全边界 | Codex 为 M0/M1；DeepSeek/Kimi 自研路径为 P2 |
+| 7 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | SWE-Gym、SWE-Bench-Fork、Harbor 的固定提交和本地恢复方式 | 宿主 `codex-cli 0.142.0` 只是探针，不是项目固定版本 |
+| 8 | [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1、平台 Job、Harbor Trial、patch、轨迹和错误映射 | 本机 Harbor、Token 生命周期和清理仍未实测 |
+| 9 | [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | SWE-Gym 字段、SWE-Bench-Fork Harness、Harbor 与 Agent CLI 的真实接口入口 | 宿主 CLI 探针成功不等于容器 E2E 通过 |
+| 10 | [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | 当前笔电的 Docker/WSL、FlClash/Docker 代理、磁盘和单机限制 | 代理证据核验于 2026-09-05；磁盘余量等易变值仍须引用前重查 |
+| 11 | [`docs/adr/0001-use-harbor-as-execution-backend.md`](docs/adr/0001-use-harbor-as-execution-backend.md) | 为什么 PostgreSQL 管平台队列、Harbor 只管执行、固定 Fork 负责最终判卷 | 这是已接受的架构决定；只有 Harbor 原型触发退出条件时才重新讨论 |
+| 12 | [`docs/actions/2026-09-04-codex-authentication-policy.md`](docs/actions/2026-09-04-codex-authentication-policy.md) | 认证决定产生的实际修改范围与验证结果 | 已收尾；未把宿主探针扩大为 Harbor 容器或真实 Trial 结论 |
+| 13 | [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md) | 远端提交、所有者批准和网络方案形成过程 | 历史行动记录中的“候选”已被后续实施决定取代；双机仍未实测 |
+| 14 | [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) | 校园网/VPN下的推荐拓扑、最小暴露面、配置顺序和诊断 | 应用登录完成前不能把真实批准页面开放给协作者 |
+| 15 | [`docs/actions/2026-09-05-docker-flclash-container-proxy.md`](docs/actions/2026-09-05-docker-flclash-container-proxy.md) | Docker/FlClash 本机配置变化、验证证据、失败尝试与剩余风险 | 通用代理通过不等于 Harbor/Codex 或闭卷网络策略通过 |
 
 ### 2.2 第二批：修改对应架构或接口前阅读
 
@@ -70,10 +74,20 @@ E:\9.1实训  →  E:\9.1agent_exam
 
 项目名为 **AgentExam**。它不是普通聊天机器人，而是一个“给 Coding Agent 出软件修复题并留下可审计成绩”的单机评测平台。
 
-当前认可的主流程是：
+实现先分成两道门槛。M0 是不带产品外壳的本机技术闭环：
 
 ```text
-协作者通过私有入口选择 Agent、任务和赛道
+固定 SWE-Gym-Lite 单题 + Codex 配置
+  → 本机脚本调用 Harbor，顺序运行一个 Trial
+  → 在清理前取得完整文本 patch、哈希、轨迹和日志
+  → 固定 SWE-Bench-Fork 在干净环境判卷
+  → 证据写受控本机目录，仅标为技术原型，不进入正式排行
+```
+
+M0 通过后，M1 的平台主流程才是：
+
+```text
+受邀协作者通过 Tailscale 私有入口登录并选择已登记 Agent、任务和闭卷赛道
   → FastAPI 创建 AWAITING_OWNER_APPROVAL Job
   → 评测机所有者检查冻结配置并批准
   → PostgreSQL 改为 QUEUED
@@ -82,7 +96,8 @@ E:\9.1实训  →  E:\9.1agent_exam
   → Agent 在 Docker 环境中阅读 Issue、修改代码并产生 patch
   → 固定 SWE-Bench-Fork 在新的干净环境中应用 patch 并运行测试
   → PostgreSQL 保存状态和索引，MinIO 保存 patch、轨迹、日志与报告
-  → LLM Judge 只做失败归因，人工页面负责抽检
+  → 失败运行按人工请求/固定抽样触发 Failure Judge；批次严格确定性并列时才触发匿名双向 Quality Judge
+  → 评测所有者复核分层结果；只能确认/作废 Quality 结论，不能手工指定胜者
   → Next.js 展示报告和排行榜
 ```
 
@@ -93,6 +108,7 @@ E:\9.1实训  →  E:\9.1agent_exam
 - **Trial / Evaluation Run**：某个 Agent 做某一道题的一次独立尝试。
 - **patch / model_patch**：Agent 对仓库造成的代码差异；判卷时应用到固定的干净仓库，而不是相信 Agent 自己声称测试通过。
 - **SWE-Bench-Fork Harness**：真正运行规定测试、产生 `resolved` 等确定性结果的判卷程序。
+- **MVP**：M1 的 Codex-only 产品闭环；M0 只是技术原型，Aider/Claude Code 和 P2 自研 Agent 都不是 MVP 完成条件。
 
 ## 4. 对话中已经确认的架构决定
 
@@ -120,6 +136,7 @@ E:\9.1实训  →  E:\9.1agent_exam
 - 只有一台物理评测机，不设计 Kubernetes、多机调度或分布式存储。
 - 后端采用 Python + FastAPI 的模块化单体；Next.js 15 + React 19 作为 Web。
 - PostgreSQL 保存业务元数据并承担平台 Job 队列；不以 Harbor Job 代替平台队列。
+- PostgreSQL 保存标准化任务字段；MinIO 还按内容 SHA-256 保存不可变的原始任务 JSON。两者在同一数据同步动作中冻结。
 - MinIO 保存不可变的大文件制品，例如 patch、轨迹、stdout/stderr、测试日志和 Judge 原始响应。
 - 一个平台 Job 对应一个 Harbor Job；一条平台运行对应一个 Harbor Trial。
 - 同时只运行一个重型平台 Job，Harbor `n_concurrent_trials=1`，Trial 顺序执行。
@@ -129,16 +146,18 @@ E:\9.1实训  →  E:\9.1agent_exam
 
 - 正式演示、报告和排行必须来自真实 Agent、真实 Docker 执行和真实 SWE-Bench-Fork 测试。
 - Mock 只允许验证平台自身的状态与错误分支，并标为 `internal_test`；不得进入正式结果。
-- 主榜为闭卷赛道 `closed_book`：只放行模型服务所需网络，不开放一般 Web 搜索。
-- 实验榜为开卷赛道 `open_book_experimental`：允许登记过的网络/搜索能力，但与闭卷严格分榜。
-- patch、轨迹、日志、测试、Judge 与人工复核均需关联同一 `run_id`。
-- 工具调用次数可以作为过程证据，但是否参与评分尚未决定；缺失数据不能伪造为 0。
+- MVP 只启用闭卷赛道 `closed_book`：只放行模型服务所需网络，不开放一般 Web 搜索。
+- 数据模型保留 `open_book_experimental` 接缝，但 MVP 禁止创建；未来启用时只使用平台统一 Web 工具并与闭卷严格分榜。
+- patch、轨迹、日志、测试和运行级 Failure Judge/复核关联同一 `run_id`；跨候选 Quality Judge/复核关联 `job_id` 与不可变比较键，并引用参与的运行证据。
+- 工具调用、token、耗时等过程指标只展示、不参与排序；缺失显示未知，不能伪造为 0。
+- patch 超过 256 KiB 警告；超过 1 MiB 或包含二进制变更时明确判为无效输出，不得静默截断。
+- 单个大体积原始日志/轨迹/Judge 制品最多 50 MiB，每运行原始制品总额 200 MiB；核心结果长期保留，大体积原始证据保留 30 天后由所有者本机命令清理，删除后仍保留哈希、大小和审计。
 
 ### 4.5 第一个真实原型
 
-- 使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道真实任务。
+- M0 使用 `SWE-Gym/SWE-Gym-Lite` 的 1 道真实任务起步，必要时扩至 3 道。
 - 首个真实 Agent 使用 Codex，优先复用 Harbor 内置 Codex Adapter。
-- 先跑通 Issue → Harbor → patch → 固定 SWE-Bench-Fork 的单题闭环，再扩展 Aider、Claude Code 和自研 Agent。
+- M0 先用本机脚本跑通 Issue → Harbor → patch → 固定 SWE-Bench-Fork，不先实现 Web/PostgreSQL/MinIO/审批；M1 再完成 Codex 平台闭环，之后依次扩展 Aider、Claude Code，最后才是 P2 自研 Agent。
 - Lite 的不可变 revision、真实 split 和具体 `instance_id` 尚未核验，不能猜。
 
 ### 4.6 Codex 认证与多人协作
@@ -150,18 +169,29 @@ E:\9.1实训  →  E:\9.1agent_exam
 - 正式真实 Trial 默认只在用户这一台评测机上触发；协作者可以完整开发项目，但不需要取得用户凭据，也不必在各自电脑上运行真实 Codex Trial。
 - 协作者可以远端创建 Job，但初始状态只能是 `AWAITING_OWNER_APPROVAL`；只有评测机所有者批准后才进入 `QUEUED`，本机 Worker 不得领取待批准/已拒绝 Job。
 - 协作者使用平台时，评测机和本机平台必须在线；离线时当前架构不提供云端常驻入口。
-- 私有远程入口只暴露 Web，不暴露 FastAPI 原始端口、PostgreSQL、MinIO、Docker、Worker 或凭据路径。Tailscale Serve 是推荐候选，需与现用 VPN 双机实测后再确认。
-- 如果协作者要在自己的机器运行，必须使用自己的 ChatGPT 登录或自己获授权的 API Key。
-- 用户持有的 Kimi、DeepSeek API 可以在以后作为独立 Agent Configuration 接入；不能在同一次 Trial 中作为 Codex/OpenAI 的静默回退。
+- 平台只有 `collaborator` 与唯一 `owner` 两类人员角色；不开放公共注册，所有者通过评测机本地引导建立/恢复账号，再在应用内邀请协作者，不接入邮件服务。
+- 协作者只能提交和查看非秘密结果；所有者兼任批准者、成员/配置管理员、制品清理者和人工复核者。角色来自应用可信会话，不来自请求正文或 Tailscale 设备身份。
+- 私有远程入口只暴露 Web，不暴露 FastAPI 原始端口、PostgreSQL、MinIO、Docker、Worker 或凭据路径。Tailscale Serve 已选为实施方案，需与 FlClash/VPN 双机实测；评测机必须开代理上外网不会改变该拓扑。
+- 如果协作者要在自己的机器做非正式开发/冒烟验证，必须使用自己的 ChatGPT 登录或自己获授权的 API Key；其结果不进入正式排行。
+- P2 自研 Agent 的模型提供方只允许 DeepSeek 或 Kimi，二者必须形成独立 Agent Configuration；真实 Key 只由正式评测机所有者的本机可信配置持有，不进入被测 Agent，且不能在同一次 Trial 中作为 Codex/OpenAI 的静默回退。该路径不阻塞 MVP。
 - 权威专题文档为 [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md)。
 - 远端接入权威运维文档为 [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md)。
+
+### 4.7 Judge、取消与恢复
+
+- Failure Judge 只解释失败证据，不参与排名，也不改变 `resolved`。
+- Quality Judge 只有在完整可比条件一致、逐题 `resolved` 向量完全相同，并且至少存在一道共同通过且有有效 patch 的题时才触发。
+- Quality 输入只取共同通过题的任务需求、最终 patch、测试摘要和必要轨迹摘要，并先裁剪、脱敏、去重、限量；不向 Judge 暴露 Agent 身份或 A/B 映射。
+- 每对候选按任务匹配与最小修改、可读性与可维护性、稳健性、副作用风险四项比较；A/B 与 B/A 各跑一次，两次一致才有胜者，否则该对并列。多 Agent 循环赛胜 1、平 0.5、负 0。
+- 所有者可确认或作废 Quality 结论；作废恢复并列，不能手工选择胜者。
+- `AWAITING_OWNER_APPROVAL`/`QUEUED` 可直接取消；执行中进入 `CANCEL_REQUESTED`，停止后续 Trial，当前 Trial 最多运行到冻结超时。Worker、宿主或 Harbor 中断不自动续跑/重试；重试创建新 Job 和新证据链。
 
 ## 5. 已验证的本机和仓库事实
 
 - 当前工作区：`E:\9.1agent_exam`。
 - 旧工作区 `E:\9.1实训` 已不存在。
 - Git 分支：`main`。
-- 当前 HEAD：`a2e85bb docs: reconcile evaluation architecture records`；这是用户要求在本轮更新前创建的本地检查点，未推送。
+- 当前 HEAD：`ef6f22e docs: add owner-approved remote evaluation flow`；`main` 与 `origin/main` 当前都指向该提交，本轮 Judge、自研 Agent、凭据和 Docker/FlClash 文档同步尚未提交。
 - 远程仓库：`https://github.com/anphuchoang5-sys/agent-exam.git`。
 - 工作区迁移后默认沙箱曾短暂通过，但本窗口在英文路径连续重现 `setup refresh had errors`；路径迁移不能视为根治，详见路径迁移行动记录的后续复核。
 - 同一窗口提升权限后的只读探针中，`codex --version` 返回 `codex-cli 0.142.0`，`codex exec --help` 退出码为 0；这只证明当前宿主 CLI 能启动，不代表项目版本已固定或 Harbor 容器已可用。
@@ -170,67 +200,79 @@ E:\9.1实训  →  E:\9.1agent_exam
 
 ## 6. 文档对账完成状态
 
-2026-09-04 已完成认证对账，实际过程见 [`docs/actions/2026-09-04-architecture-document-reconciliation.md`](docs/actions/2026-09-04-architecture-document-reconciliation.md)。2026-09-05 的审批与远程接入对账见 [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md)。
+2026-09-04 已完成认证对账，实际过程见 [`docs/actions/2026-09-04-architecture-document-reconciliation.md`](docs/actions/2026-09-04-architecture-document-reconciliation.md)。2026-09-05 的审批与远程接入对账见 [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md)；Judge、自研 Agent 与凭据形成过程见 [`docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md`](docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md)；本轮最终收敛与全量同步见 [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md)。后者优先于历史行动记录中的旧“首版/待确认”措辞。
 
 | 文件 | 已完成的同步 | 仍保留的边界 |
 |---|---|---|
-| [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 已有认证 C-23～C-25，并新增 C-26～C-27、所有者批准流、私有入口、风险和验证门槛 | CLI 项目版本、模型、端点、容器运行及 Tailscale/VPN共存仍待固定或实测 |
-| [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | Codex 行区分已确认认证政策与宿主 CLI 探针 | `0.142.0` 不是项目基线；Harbor 容器兼容性未验证 |
-| [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | 公共输入、执行节点解析、制品排除和首次 Trial 安全检查已写明 | Token 刷新、脱敏、清理、patch 和 Trial E2E 未验证 |
-| [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | 旧 CLI 启动失败降为历史；记录新路径宿主探针和退出码 | 默认沙箱仍故障；真实账号和 Harbor 容器运行未验证 |
-| [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | 保持为认证唯一事实源，并明确远端提交/批准不携带凭据，只有本机 Trial 解析 | 不记录真实凭据路径、内容或 Token |
+| [`CONTEXT.md`](CONTEXT.md) | 新增协作者、评测所有者、MVP 和取消请求；保留 Agent Configuration 与 Failure/Quality Judge 词义 | 不承载实现和部署细节 |
+| [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 已固定 M0→M1→Aider/Claude→P2、自研降级、两角色、闭卷、Judge、任务快照、取消/恢复与制品策略 | CLI/模型版本、Harbor/Codex Trial 及 Tailscale/VPN 仍待技术实测 |
+| [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | 依赖恢复按 M0/M1/后续/P2 分层；P2 DeepSeek/Kimi 不阻塞 Codex | 精确 Python/锁文件、模型 ID 和 Harbor 容器兼容性未验证 |
+| [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1 验收、patch/制品上限、取消/中断和 P2 接缝已写明 | Codex Token、脱敏、清理、patch 和 Trial E2E 未验证 |
+| [`docs/interfaces/RUNNER_PROTOCOL.md`](docs/interfaces/RUNNER_PROTOCOL.md) | 明确是 P2/后备协议；固定文本 patch、二进制拒绝、大小和日志限额 | P2 完整 schema、Python/依赖锁和包装不阻塞 MVP |
+| [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | 已记录真实上游入口、任务双层存储、M0/M1 顺序和过程指标只展示 | 默认沙箱仍故障；Harbor/Codex 容器运行未验证 |
+| [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | 凭据事实源区分 M0/M1 Codex `auth.json` 与 P2 自研受控访问 | 不记录真实凭据路径、内容或 Token；P2 宿主/侧车不阻塞 MVP |
 | [`docs/actions/2026-09-04-codex-authentication-policy.md`](docs/actions/2026-09-04-codex-authentication-policy.md) | 实际文件树和验证结果已补齐 | 历史行动记录只说明本次政策落盘，不替代认证事实源 |
-| [`docs/architecture/MODULE_CONTRACTS.md`](docs/architecture/MODULE_CONTRACTS.md) | Job Submission 与 Owner Approval 分开；Worker 只领取 `QUEUED` | 可信登录及所有者账户绑定仍待设计 |
-| [`docs/architecture/DATA_MODEL.md`](docs/architecture/DATA_MODEL.md) | 新增 `AWAITING_OWNER_APPROVAL`、`REJECTED`、决定审计字段与领取约束 | 精确 SQL、并发事务和恢复策略仍待实现验证 |
-| [`docs/interfaces/HTTP_API.md`](docs/interfaces/HTTP_API.md) | 创建 Job 返回待批准；新增所有者批准/拒绝契约 | 应用登录未实现，接口尚不能安全远程开放 |
-| [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) | 记录校园网/VPN下的最小暴露面、Tailscale 推荐配置和验收清单 | VPN 产品未知；Tailscale/Cloudflare 都未安装、确认或双机实测 |
+| [`docs/architecture/MODULE_CONTRACTS.md`](docs/architecture/MODULE_CONTRACTS.md) | 两角色、双用途 Judge、取消/恢复、制品策略、闭卷 MVP 和 P2 自研职责已同步 | 登录技术落点、Judge 模型/Prompt 与 P2 访问部署仍待实测 |
+| [`docs/architecture/DATA_MODEL.md`](docs/architecture/DATA_MODEL.md) | 任务原始快照、审批/取消状态、Job 级 Quality、保留/删除审计和大小规则已同步 | 账户现有承载点、精确 SQL/索引/租约仍待实现验证 |
+| [`docs/interfaces/HTTP_API.md`](docs/interfaces/HTTP_API.md) | 两角色权限、MVP 禁用自研/开卷、取消、Judge、指标和制品删除语义已同步 | 账户/会话的精确路由和现有承载位置仍待核验，接口尚未实现 |
+| [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | 通用 Docker/FlClash 出站证据、M0 优先和 P2 Key 边界已记录 | Harbor/Codex 与闭卷阻断未实测；P2 受控访问不阻塞 MVP |
+| [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) | Tailscale 实施方案、FlClash/VPN 共存、两角色和双层账户标识已记录 | Tailscale 尚未安装/双机实测；应用登录未实现，真实页面不能开放 |
 | [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md) | 记录本轮范围、实际变更和文档验证证据 | 不把文档验证写成网络或真实 Trial 已通过 |
-| 根目录 `AGENTS.md` | 本轮未修改；当前任务上下文明确把它作为项目协作规则提供 | 后续若用户要求删除、清空或重写，必须作为单独选择处理 |
-| 2026-09-04 的若干文档 | 已包含在本地检查点提交 `a2e85bb` | 该提交未推送；2026-09-05 新改动继续保留为可审阅 diff |
+| [`docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md`](docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md) | 记录本次同步范围、文件树、偏差和验证证据 | 不替代各专题权威事实源 |
+| [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md) | 记录本轮最终决策、最小修改范围和验证结果 | 本轮最新行动记录；不把文档同步写成代码或真实 Trial 已完成 |
+| 根目录 `AGENTS.md` | 已加入最小修改原则和新增顶层架构元素前的确认纪律 | 后续若用户要求删除、清空或重写，必须作为单独选择处理 |
+| 2026-09-04/05 的已提交审批与远程接入文档 | 已包含在 `a2e85bb` 与 `ef6f22e` | 两个提交已推送到 `origin/main`；本轮同步仍是新的本地可审阅 diff |
 
 历史行动文档中的 `E:\9.1实训` 是当时真实路径，不应为了表面一致而批量改写。只有描述“当前工作区”的活动文档需要使用新路径。
 
 ## 7. 当前 Git 工作区，禁止误删
 
-交接时本地 HEAD 为 `a2e85bb`，本轮以下审批/远程接入文档仍保留为尚未提交的可审阅修改：
+当前本地 HEAD 为 `ef6f22e`，与 `origin/main` 一致。本轮以下文档仍保留为尚未提交的可审阅修改：
 
 ```text
+ M AGENTS.md
+ M CONTEXT.md
  M HANDOFF.md
  M docs/architecture/ARCHITECTURE.md
  M docs/architecture/DATA_MODEL.md
  M docs/architecture/MODULE_CONTRACTS.md
+ M docs/dependencies/DEPENDENCIES.md
  M docs/interfaces/CODEX_AUTHENTICATION.md
+ M docs/interfaces/FRAMEWORK_INTERFACES.md
+ M docs/interfaces/HARBOR_EXECUTION.md
  M docs/interfaces/HTTP_API.md
-?? docs/actions/2026-09-05-remote-submission-owner-approval.md
-?? docs/operations/REMOTE_TEAM_ACCESS.md
+ M docs/interfaces/RUNNER_PROTOCOL.md
+ M docs/operations/LOCAL_DOCKER_ENVIRONMENT.md
+ M docs/operations/REMOTE_TEAM_ACCESS.md
+?? docs/actions/2026-09-05-docker-flclash-container-proxy.md
+?? docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md
+?? docs/actions/2026-09-05-mvp-priority-product-decisions.md
 ```
 
-列表应在交接前用实际 `git status --short` 复核；这些文件都是本轮架构对账和恢复上下文所需内容。不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。
+列表已经用实际 `git status --short` 复核；其中 Docker/FlClash 代理与 Judge/自研决定的改动来自紧邻的前序工作，本次完整保留并继续同步最新 MVP 决定。不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。
 
-## 8. 仍未决定或尚未实测
+## 8. 待技术核验
 
-以下不能因为 Handoff 存在就擅自定稿：
+业务范围和产品行为已经确认。以下只能用查代码/配置、原型和测试补齐，不能重新解释成业务待决定：
 
-1. SWE-Gym-Lite 的不可变 revision、真实 split、首批 1～3 个任务及镜像 digest。
-2. Harbor 在本机的实际安装与运行方式，以及 patch 在环境清理前的可靠提取方式。
-3. Worker 作为 Windows/WSL 宿主进程运行，还是作为挂载 Docker Socket 的容器运行。
-4. 单 Trial 的 CPU、内存、PID、磁盘和超时限制。
-5. 容器内 Codex CLI 固定版本、模型 ID、端点白名单以及 `auth.json` Token 刷新和销毁路径。
-6. `agent-exam.yaml` 的最小提交字段。
-7. 可信用户的登录方式、评测机所有者账户绑定/恢复，以及提交者、管理员、评审者的其余权限。
-8. LLM Judge 是否进入总分；当前只确认它不能覆盖确定性测试结果。
-9. 工具调用、token、耗时是否计分，以及不同 Agent 缺失指标的公平处理。
-10. 开卷实验榜统一平台 Web 工具，还是允许 Agent 各自的原生搜索工具。
-11. 已知现用代理客户端是 FlClash，且用户确认虚拟网卡/TUN 当前关闭；仍需确认版本、系统代理状态、Docker/Codex 外网路径，并实测 Tailscale 在校园网下是直连还是中继。未双机实测前不能宣称远程入口已可用。
-12. 私有入口是否最终确认 Tailscale Serve；只有共存实验失败时才评估 Cloudflare Tunnel + Access。
+1. SWE-Gym-Lite 的不可变 revision、真实 split、首个任务及镜像 digest。
+2. Harbor 在本机的安装/隔离环境、patch 在清理前的可靠提取和 Trial→运行映射。
+3. Worker 的 Windows/WSL 载体，以及 Job 租约/心跳和 `INFRASTRUCTURE_INTERRUPTED` 的幂等收束；行为固定为不自动续跑或重试。
+4. 单 Trial 的 CPU、内存、PID、磁盘和超时模板，以及 256 KiB/1 MiB/50 MiB/200 MiB 制品阈值的真实边界测试。
+5. 容器内 Codex CLI 固定版本、模型 ID、端点白名单以及 `auth.json` Token 刷新、脱敏和销毁路径。
+6. 账户、密码哈希、无邮件邀请、本地所有者恢复和会话的现有承载位置；如果必须新增顶层模块、接口、表或目录，先说明并确认。
+7. Quality Judge 的具体模型、Prompt 与结构化响应 Schema；触发、输入清洗、四项 rubric、反序一致性、循环赛和所有者复核权限已经固定。
+8. Tailscale + FlClash 在 VPN 关/开两种状态的双机 `direct`/`relay`、DNS、HTTPS 和权限正反测试。
+9. P2 `agent-exam.yaml`、Python/依赖锁、DeepSeek/Kimi 受控访问与网络防绕过；全部不阻塞 M0/M1。
 
 ## 9. 推荐的下一步顺序
 
-1. 先读本 Handoff 与本轮 [`远端提交/所有者审批行动记录`](docs/actions/2026-09-05-remote-submission-owner-approval.md)，不要把已经确认的等待批准状态改回直接排队。
-2. 以 [`CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) 为认证唯一事实源，不从历史行动记录推断当前政策。
-3. 远程连通下一步先取得用户现用 VPN 产品和模式，再按 [`REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) 用无秘密测试页执行“VPN 关/开”双机验收；应用登录未实现前不开放真实批准页面。
-4. 业务下一步由 Codex 自行核验 SWE-Gym-Lite 的真实 revision、split 和候选任务，再让用户决定需要业务判断的部分。
-5. 只有用户明确结束讨论并授权原型实现后，才安装 Harbor、下载任务或编写业务代码。
+1. 先读本 Handoff 与最新 [`MVP 决策同步行动记录`](docs/actions/2026-09-05-mvp-priority-product-decisions.md)，不要把历史行动记录里的“首版自研/开卷待定/角色待定”恢复为当前事实。
+2. 只读核验 SWE-Gym-Lite revision/split/首个候选任务、Harbor 安装约束、Codex 固定版本和本机磁盘余量；把精确值写回各自事实源。
+3. 用户明确授权实现后，创建新的实现行动文档，先做不含 Web/PostgreSQL/MinIO 的 M0 本机脚本；真实成功标准是 Codex→Harbor→完整 patch→固定 SWE-Bench-Fork 单题结果和可检查证据。
+4. M0 通过后才实现 M1：两类应用账户、协作者提交、所有者批准、本机 Worker、PostgreSQL/MinIO 和正式报告。登录完成前不向协作者开放真实批准页面。
+5. M1 完成后接 Aider、Claude Code；P2 自研 Agent 的问题保留接缝但不抢占当前优先级。
+6. Tailscale/FlClash 双机实验可以与 M0 技术准备独立进行，但不能把通用 Docker 代理或 Tailscale 连通写成 Harbor/Codex E2E 已通过。
 
 ## 10. 安全红线
 

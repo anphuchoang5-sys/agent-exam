@@ -2,8 +2,8 @@
 
 > 文档状态：持续维护；上游事实已核验，Harbor 架构映射已确认，运行能力仍待分层实测
 >
-> 最后更新：2026-09-04
-> 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 认证政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
+> 最后更新：2026-09-05
+> 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 与自研 Agent 凭据政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
 
 ## 1. 先把最容易混淆的事说清楚
 
@@ -78,9 +78,10 @@ SWE-Gym README 说明任务数据在 Hugging Face，环境常量位于 SWE-Bench
 映射规则：
 
 1. 导入/登记时校验必需字段和内容哈希，不在每次运行时盲目下载会漂移的数据。
-2. 内部对象分成 Agent 可见视图和 Evaluator 受限视图。
-3. 普通 HTTP API 和 Runner 永远不返回 gold patch 与判分测试答案。
-4. 首个原型数据集 ID 已确认为 `SWE-Gym/SWE-Gym-Lite`；revision、split 和具体实例必须在实际读取数据元信息后记录，本文不凭 README 猜 split 名称。
+2. 标准化字段写 PostgreSQL，同时把完整原始任务 JSON 以内容 SHA-256 寻址写入 MinIO；两者在同一同步动作中冻结。
+3. 内部对象分成 Agent 可见视图和 Evaluator 受限视图；原始快照中的隐藏字段不能因为存入 MinIO 就暴露给 Agent/API。
+4. 普通 HTTP API 和 Runner 永远不返回 gold patch 与判分测试答案。
+5. 首个原型数据集 ID 已确认为 `SWE-Gym/SWE-Gym-Lite`；revision、split 和具体实例必须在实际读取数据元信息后记录，本文不凭 README 猜 split 名称。
 
 ## 5. SWE-Bench-Fork Patch Evaluator
 
@@ -312,14 +313,11 @@ Runner RunEnvelope
 
 当前状态：官方接口证明理论可接入；本机没有检测到可运行 `claude`，尚未通过 Adapter 或真实账号测试。
 
-## 10. 本地自研 Agent 接口
+## 10. P2 本地自研 Agent 接口
 
-本地自研 Agent 没有上游接口需要猜。它有两种合规方式：
+自研 Agent 已降为 P2，不是 MVP 完成条件；当前只保留扩展接缝。P2 首版只支持 Python，并直接实现 [`RUNNER_PROTOCOL.md`](./RUNNER_PROTOCOL.md) 的 stdin JSON → stdout patch 进程 Interface。平台拥有的包装负责把审核后的 Python 模块接入 Harbor；提交者不直接实现 Harbor `BaseAgent`，也不提交 shell 命令。完整 manifest 字段、Python 版本、依赖锁格式和 Harbor 包装 extension point 留待 P2 确认/实测。
 
-1. 直接实现 [`RUNNER_PROTOCOL.md`](./RUNNER_PROTOCOL.md) 的 stdin JSON → stdout patch；
-2. 保留自己的真实接口，由一个专用 Adapter 转成统一协议。
-
-两种方式都必须：固定 Git commit/镜像版本、登记模型和关键配置、在 Agent 沙箱运行、保存轨迹/日志、从干净工作区生成 patch，并由同一个 SWE-Bench-Fork Evaluator 判分。它不能因为是“自己写的”就绕过沙箱或看到隐藏答案。
+P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键配置、在 Agent 沙箱运行、保存轨迹/日志、生成 patch，并由同一个 SWE-Bench-Fork Evaluator 判分。提供方只允许 DeepSeek/Kimi，二者形成独立 Agent Configuration；真实 Key 由评测机可信配置持有，不进入被测进程。它不能因为是“自己写的”就绕过沙箱、取得提供方 Key 或看到隐藏答案。
 
 ## 11. 统一能力差异
 
@@ -334,7 +332,7 @@ Runner RunEnvelope
 | 真实账号/模型已测试 | 待自研 | ❌ | ❌ | ❌ |
 | SWE-Gym E2E 已通过 | ❌ | ❌ | ❌ | ❌ |
 
-因此页面不能把“工具调用数”当成所有 Agent 天然等价的指标。缺失值必须显示为“不支持/未知”，不能记成 0；是否计分仍待用户确认。
+因此页面不能把“工具调用数”当成所有 Agent 天然等价的指标。过程指标只展示、不参与排序；缺失值必须显示为“不支持/未知”，不能记成 0。
 
 ## 12. Adapter 错误映射
 
@@ -345,6 +343,8 @@ Runner RunEnvelope
 | 外层达到墙钟超时 | `timed_out` | ❌ |
 | 触发路径/网络/资源策略 | `sandbox_violation` | ❌ |
 | Agent 正常结束，提取 diff 失败 | `patch_extraction_failed` | ❌ |
+| 文本 patch 超过 1 MiB | `PATCH_TOO_LARGE` 无效 Agent 输出 | ❌ |
+| 二进制 patch | `BINARY_PATCH_NOT_ALLOWED` 无效 Agent 输出 | ❌ |
 | Agent 正常结束，补丁为空 | `completed` | ✅，记录 empty patch/unresolved |
 | Agent 正常结束，有补丁 | `completed` | ✅ |
 
@@ -352,14 +352,14 @@ Runner RunEnvelope
 
 ## 13. 接入验证顺序
 
-每类 Agent 按同样四层推进：
+每类 Agent 按同样四层推进，但进入开发的先后固定：
 
 1. **官方接口/源码核验**：本文当前覆盖的级别。
 2. **Adapter 契约测试**：用 Fake executable 验证参数、事件、退出、超时、patch 和脱敏，不消耗模型额度。
 3. **真实 CLI 小仓库测试**：固定版本和真实凭据，在极小仓库完成一次修改。
 4. **SWE-Gym E2E**：一条固定任务，保存 Runner 证据并由固定 SWE-Bench-Fork 判卷。
 
-建议实现顺序改为：Mock 只验证内部状态/错误分支 → Harbor 固定提交 + 真实 Codex 跑通单题 → 再验证其余真实 Agent。Mock 不属于正式 Agent 接入，也不产生展示或排行证据。
+实现顺序为：Mock 只验证内部状态/错误分支 → M0 本机脚本用 Harbor 固定提交 + 真实 Codex 跑通单题 → M1 加入 Web/数据库/所有者批准形成 Codex 平台 MVP → Aider → Claude Code → P2 自研 Agent。Mock 和 M0 都不产生正式排行证据；P2 未定不阻塞 MVP。
 
 ## 14. 升级维护清单
 
@@ -381,7 +381,8 @@ Runner RunEnvelope
 4. 固定 Codex 项目 CLI 版本、模型 ID 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；当前宿主 `0.142.0` 只是一条环境探针，不是已选基线。
 5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
 6. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
-7. `agent-exam.yaml` 的 schema，以及自研 Agent 使用 Harbor `BaseAgent` 还是后备进程协议。
+7. P2 `agent-exam.yaml` 的完整 schema、Python 版本、依赖锁格式，以及平台怎样把已确认进程 Interface 包装进 Harbor；不再待选 Harbor `BaseAgent` 或进程协议，且不阻塞 MVP。
+8. P2 DeepSeek/Kimi 的精确模型/外部接口、受控访问部署和 Docker 网络防绕过；不得把“架构已确认”写成真实调用已通过。
 
 ## 16. 变更记录
 
@@ -391,3 +392,5 @@ Runner RunEnvelope
 - 2026-09-04：确认首个真实原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道任务；其 revision、split 和具体实例仍待真实元数据核验。
 - 2026-09-04：确认首个真实原型 Agent 为 Harbor 内置 Codex；认证政策采用评测机所有者的 ChatGPT Pro `auth.json`，容器 CLI、模型、Token 生命周期和网络能力仍待实测。
 - 2026-09-04：在新路径复测宿主 `codex --version` 与 `codex exec --help` 均成功；记录本机 `codex-cli 0.142.0`，但不将其自动固定为项目版本，也不据此宣称 Harbor 容器 E2E 通过。
+- 2026-09-05：确认首版自研 Agent 只支持 Python stdin JSON → stdout patch 进程 Interface，由平台包装进 Harbor；模型提供方限 DeepSeek/Kimi，真实 Key 不进入被测进程，具体外部接口和隔离待实测。
+- 2026-09-05：固定 M0 Codex 本机脚本→M1 Codex 平台 MVP→Aider/Claude Code→P2 自研 Agent 的验证顺序；过程指标改为只展示，并补充任务原始快照与无效 patch 映射。

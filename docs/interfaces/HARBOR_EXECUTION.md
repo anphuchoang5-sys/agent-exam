@@ -2,10 +2,10 @@
 
 > 文档状态：架构已确认；固定提交接口已静态核验；本机运行待原型验收
 >
-> 最后更新：2026-09-04
+> 最后更新：2026-09-05
 >
 > Harbor 固定版本：以 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 中的完整提交为唯一事实源
-> 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；Codex 认证、凭据所有权与秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
+> 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；Codex 与自研 Agent 的凭据所有权和秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
 
 ## 1. 先用小白能懂的话解释
 
@@ -19,6 +19,8 @@
 ```
 
 Harbor 负责“让 Agent 做题并留下过程证据”，固定 SWE-Bench-Fork 负责“在干净环境判卷”。Harbor 自带的 reward 不能替代本项目最终判卷。
+
+实现顺序固定为：先用本机脚本跑通一个 Codex 的真实 Harbor→patch→SWE-Bench-Fork 技术闭环；再接入 Web、PostgreSQL、所有者批准和正式报告，形成 Codex-only MVP；随后登记 Harbor 已有的 Aider、Claude Code；P2 最后才接自研 Agent。脚本原型不创建正式 Job、不进入排行榜，也不要求先实现 Web/数据库。
 
 ## 2. 模块 seam
 
@@ -45,14 +47,16 @@ flowchart LR
 |---|---|---|
 | `job_id` | 平台评测 Job ID | 全链路追溯；不可复用 |
 | `runs[]` | 待执行的逐题运行 | 每项固定 `run_id`、一个任务、一个 Agent 配置和 `attempt_index=1` |
-| `evaluation_policy` | 闭卷/开卷、网络和工具策略 | Job 内首版使用同一赛道；每条运行保存快照 |
-| `limit_profile` | CPU、内存、超时、PID、输出限制模板 | 只能来自管理员登记模板，不能接受用户任意 Docker 参数 |
+| `evaluation_policy` | 赛道、网络和工具策略 | MVP 固定 `closed_book`；`open_book_experimental` 只保留接缝且禁用；每条运行保存快照 |
+| `limit_profile` | CPU、内存、超时、PID、输出限制模板 | 只能来自所有者登记模板，不能接受用户任意 Docker 参数 |
 | `backend_revision` | Harbor 固定提交 | 必须等于依赖事实源中已允许版本 |
 | `artifact_contract_version` | 必需制品约定版本 | 不支持时在启动前失败 |
 
-公开 Job 请求、`ExecutionJobRequest` 和 PostgreSQL 只保存非秘密的认证类型与 Agent Configuration 身份；它们不接收 `auth.json` 内容，也不保存真实宿主路径。
+公开 Job 请求、`ExecutionJobRequest` 和 PostgreSQL 只保存非秘密的模型提供方、认证类型与 Agent Configuration 身份；它们不接收 `auth.json`、DeepSeek/Kimi Key 内容，也不保存真实宿主路径。
 
 `CODEX_AUTH_JSON_PATH` 只存在于执行节点本机、未跟踪的秘密配置中。执行节点在启动受控 Codex Trial 时解析它，路径和值都不进入上表的业务请求。
+
+P2 自研 Agent 的 DeepSeek/Kimi 真实 Key 同样只存在于评测机所有者控制的本机可信秘密配置中，但与 Codex 不同：Key 不直接交给被测 Agent 容器。Agent 只能使用运行时受限、可撤销的模型访问能力；该能力由现有 Execution Backend/LLM Provider Implementation 提供，具体采用宿主进程还是可信侧车以及 Docker 网络怎样防绕过留到 P2 原型裁决，不阻塞 MVP。
 
 每个 `runs[]` 项只包含 Agent 可见任务视图；gold patch、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS` 和其他运行答案不得进入 Harbor Agent instruction。
 
@@ -93,11 +97,11 @@ Harbor 固定提交已核验字段包括 `name`、`import_path`、`model_name`�
 
 映射纪律：
 
-- 内置 Codex/Claude Code/Aider 优先复用 Harbor 已有 Agent 名称与实现，不再为同一能力另写一套 Adapter。
-- 自研 Agent 通过经管理员审核的项目适配方式转换为 Harbor `name` 或 `import_path`；普通用户不能直接提交 Python import path、shell 命令或环境变量。
+- 内置 Agent 依次接入：Codex MVP 完成后再接 Harbor 已有的 Aider、Claude Code；不为同一能力另写一套 Adapter。
+- P2 自研 Agent 只支持 Python，并实现 [`RUNNER_PROTOCOL.md`](./RUNNER_PROTOCOL.md) 的固定进程 Interface；平台拥有的包装实现把审核后的模块映射为 Harbor Agent，普通用户不能直接提交 Harbor `import_path`、shell 命令或环境变量。完整 manifest 字段、Python 版本、依赖锁格式和包装 extension point 留待 P2 确认/实测。
 - 公开 Job、数据库和对外接口只记录非秘密的认证类型，不接收凭据文件、内容或真实路径。
 - 对首个 Codex 原型，执行节点从本机 `CODEX_AUTH_JSON_PATH` 解析机器所有者的凭据，只在受控 Trial 的最小生命周期内交给 Harbor Codex Agent；具体 Token 刷新与清理仍待实测。
-- 其他模型密钥也只能由执行节点通过秘密引用在运行时注入；不得进入 Job JSON、数据库公开快照、命令行或制品。
+- P2 自研 Agent 只允许登记 `deepseek` 或 `kimi` 提供方；同一源码切换提供方必须生成独立 Agent Configuration。真实提供方 Key 只由执行节点可信实现读取，不直接注入被测 Agent 容器；提交者只能选择已登记配置，不能提供 Key、Base URL 或代理。
 - `n_concurrent` 不得超过 Job 的 `n_concurrent_trials=1`。
 
 ### 5.2 `TaskConfig`
@@ -144,9 +148,10 @@ Harbor 固定提交的 `TrialResult` 没有标准 `model_patch` 字段。Harbor 
 
 1. 在 Harbor 清理 Agent 环境前，由受控机制从固定 `base_commit` 的工作区提取 Git diff。
 2. 把 diff 写入约定 artifact，并记录字节数与 SHA-256。
-3. Harbor Adapter 读取后重新校验；制品缺失、越界或哈希不一致时返回 `patch_extraction_failed`。
+3. Harbor Adapter 读取后重新校验；制品缺失或哈希不一致时返回 `patch_extraction_failed`。超过 256 KiB 写警告；超过 1 MiB 返回 `PATCH_TOO_LARGE` 并拒绝进入 Harness，绝不截断。
 4. 空补丁是合法执行结果，但也必须有一个 0 字节 patch 制品和对应哈希。
-5. 同一字节内容保存到 MinIO，并作为 SWE-Bench-Fork prediction 的 `model_patch`。
+5. 二进制 patch 返回 `BINARY_PATCH_NOT_ALLOWED`，不进入 Harness；MVP 只接受文本统一 diff。
+6. 同一字节内容保存到 MinIO，并作为 SWE-Bench-Fork prediction 的 `model_patch`。
 
 “受控机制”究竟采用 Harbor Agent 包装、任务收尾脚本还是固定提交已支持的其他 extension point，尚未实测，不能在原型前写死。能否稳定完成这一步是采用 Harbor 的第一验收门槛。
 
@@ -170,13 +175,19 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 | `exception_info` 为 Agent/认证/超时错误 | 对应规范化失败 | ❌ |
 | 环境创建、资源或网络策略失败 | `sandbox_failed` / `policy_failed` | ❌ |
 | artifact manifest 报告必需 patch 失败 | `patch_extraction_failed` | ❌ |
+| 文本 patch 超过 1 MiB | `PATCH_TOO_LARGE` 无效 Agent 输出 | ❌ |
+| 二进制 patch | `BINARY_PATCH_NOT_ALLOWED` 无效 Agent 输出 | ❌ |
 | Trial 身份无法映射到 `run_id` | `backend_protocol_error` | ❌ |
 | Harbor Job 进程异常退出 | 未完成运行标记明确失败；保留已完成 Trial | 仅已取得可信 patch 的运行继续 |
 | Harbor reward/Verifier 输出 | 仅保存为调试证据或完全禁用 | ❌，不能作为最终事实 |
 
 平台 Job 可以“部分完成”：已经形成可信逐题结果的运行保留，其余运行明确失败；不得为了让 Job 看起来整齐而丢弃已完成证据或伪造结果。
 
-## 10. Agent 源码提交入口
+执行中收到取消请求时，Adapter 不再启动新的 Trial；当前 Trial 不强杀，只运行到 Job 创建时冻结的超时并保存真实结果。宿主机、Worker 或 Harbor 中断不能触发自动续跑或自动重试；可证明已经完成的 Trial 只做幂等收束，否则记录 `INFRASTRUCTURE_INTERRUPTED`，新尝试必须由所有者创建新 Job。
+
+## 10. P2 Agent 源码提交入口（MVP 禁用）
+
+本节只保存未来扩展接缝。MVP 的 Web、HTTP API 和 Agent Registry 不公开源码提交入口，只能选择项目预登记 Agent。
 
 可信参与者可以提交：
 
@@ -185,9 +196,9 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 - 仓库根目录中的 `agent-exam.yaml`；
 - 面向审核者的名称与说明。
 
-提交只创建 `PENDING_REVIEW` 记录，不会触发 Harbor、Docker build 或任意仓库代码执行。管理员审核来源、commit、manifest、依赖与权限后，才生成已登记 Agent 配置。分支名、`latest`、请求正文中的 shell 命令和未经审核的 `import_path` 均不能进入执行链路。
+P2 提交只创建 `PENDING_REVIEW` 记录，不会触发 Harbor、Docker build 或任意仓库代码执行。所有者审核来源、commit、manifest、依赖与权限后，才生成已登记 Agent 配置。分支名、`latest`、请求正文中的 shell 命令和未经审核的 `import_path` 均不能进入执行链路。
 
-`agent-exam.yaml` 的字段 schema 仍需单独确认；本次只确认“必须存在、固定在同一 commit、由平台解析并经管理员审核”，不臆造尚未讨论的启动字段。
+已确认 `agent-exam.yaml` 的 P2 首版只描述 Python 固定进程 Interface，并且必须存在、固定在同一 commit、由平台静态解析并经所有者审核。它不能携带 shell、API Key、自定义提供方/Base URL、代理、宿主路径或 Harbor 原生配置。完整字段、Python 版本和依赖锁格式留到 P2，不臆造尚未讨论的启动字段。
 
 ## 11. Mock 与正式结果
 
@@ -201,23 +212,36 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 - PostgreSQL 同时只允许一个平台重型 Job 处于执行状态。
 - Harbor `n_concurrent_trials` 固定为 `1`；不得因为 Job 中任务多就自动提高。
 - 具体 Trial 内存、CPU、磁盘和超时模板必须根据真实单题峰值确定。本机事实只在 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) 维护。
+- 单个轨迹、stdout、stderr 或 Judge 原始制品最多 50 MiB，超过只能显式标记截断；每运行原始制品总额最多 200 MiB。核心配置、确定性结果、最终 patch 和测试摘要优先完整保存，不能用静默丢失伪装证据完整。
 - Web 创建 Job 时必须显示组合产生的 Trial 数；耗时只能基于真实历史数据估算，没有历史数据时显示“未知”，不能承诺完成时间。
 
-## 13. 首个原型验收
+## 13. 分阶段验收
 
-从固定 revision 的 `SWE-Gym/SWE-Gym-Lite` 选择 1～3 道真实任务，并使用 Harbor 内置 Codex Agent 验证。认证政策已确认为评测机所有者的 ChatGPT Pro `auth.json`；Codex CLI 项目固定版本、模型 ID、端点白名单、Token 刷新、脱敏和清理仍须在运行前固定或实测，当前不能写成容器内已可用。
+### 13.1 M0：本机 Codex 技术原型
+
+从固定 revision 的 `SWE-Gym/SWE-Gym-Lite` 先选择 1 道真实任务，必要时扩至 3 道，并使用 Harbor 内置 Codex Agent 验证。认证政策已确认为评测机所有者的 ChatGPT Pro `auth.json`；Codex CLI 项目固定版本、模型 ID、端点白名单、Token 刷新、脱敏和清理仍须在运行前固定或实测，当前不能写成容器内已可用。
+
+M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批；证据写入受控本机临时目录，标为技术原型，不进入正式排行。验收项：
 
 1. Harbor 固定提交可在本机安装并创建 Docker Trial。
 2. `n_concurrent_trials=1` 与资源/网络策略实际生效。
 3. Agent 看不到 gold patch 和判分字段。
-4. 自动取得 patch（含新建/修改/删除文件和空补丁）并校验 SHA-256。
-5. ATIF/原始轨迹、Harbor config/result、stdout/stderr 可追溯到同一 `run_id`。
+4. 自动取得 patch（含新建/修改/删除文件和空补丁）、校验 SHA-256，并验证 256 KiB 警告、1 MiB/二进制拒绝且不截断。
+5. ATIF/原始轨迹、Harbor config/result、stdout/stderr 可追溯到同一次原型运行；日志限额有显式标记。
 6. `verifier.disable=true` 时 Harbor 不产生最终判卷，但 artifacts 仍可取得。
 7. 同一 patch 交给固定 SWE-Bench-Fork 后得到可信 `resolved` 和原始测试证据。
-8. 超时、认证失败、patch 缺失和清理失败均映射为明确平台错误。
-9. 首次真实 Trial 前后人工检查容器、可写层、日志、轨迹、MinIO 和 PostgreSQL；成功、失败、超时三条路径均不得遗留凭据内容、真实路径或可复用 Token。
+8. 超时、认证失败、patch 缺失和清理失败均映射为明确错误；脚本失败不伪装成正式结果。
+9. Trial 前后人工检查容器、可写层、日志、轨迹和本机证据目录；成功、失败、超时三条路径均不得遗留凭据内容、真实秘密路径或可复用 Token。
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
+
+### 13.2 M1：Codex 平台 MVP
+
+M0 通过后才接 Web、PostgreSQL 和 MinIO，并验证协作者提交 → 所有者批准 → 本机 Worker → Harbor → patch → SWE-Bench-Fork → 报告的完整真实闭环。还必须覆盖两类角色、无公开注册、任务原始快照、取消/中断不自动重试、制品保留/清理审计和确定性结果报告。只有 M1 通过才称为 MVP 完成。
+
+### 13.3 后续 Agent
+
+M1 通过后，先使用相同契约登记并验证 Harbor 已有的 Aider、Claude Code。P2 自研 Agent 再追加验证：固定 Python 进程 Interface 能由平台包装为 Harbor Agent；DeepSeek 与 Kimi 分别形成独立配置；被测容器、环境快照、日志、轨迹和制品均不出现真实提供方 Key；受控模型访问失败只影响该运行并留下明确错误。P2 未完成不阻塞 MVP，也不得提前把自研 Agent 写成已支持。
 
 ## 14. 固定提交来源
 
@@ -235,3 +259,5 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 - 2026-09-04：确认首个原型数据集为 `SWE-Gym/SWE-Gym-Lite`，范围为 1～3 道真实任务；revision、split 和具体实例保持待核验。
 - 2026-09-04：确认首个真实原型 Agent 为 Codex；认证采用评测机所有者的 ChatGPT Pro `auth.json`，个人凭据不得进入公共输入、数据库或制品。
 - 2026-09-04：Codex CLI 项目版本、模型、端点、Token 刷新、脱敏、清理和 Harbor 容器运行仍待固定或实测。
+- 2026-09-05：确认首版自研 Agent 为 Python 固定进程 Interface，由平台包装进 Harbor；只允许 DeepSeek/Kimi 独立配置，真实 Key 不直接进入被测容器，具体受控访问部署与网络隔离仍待原型。
+- 2026-09-05：固定 M0 本机 Codex 脚本原型、M1 Codex 平台 MVP、Aider/Claude Code、P2 自研 Agent 的顺序；补充闭卷限制、取消/中断不自动重试和 patch/原始制品限额。
