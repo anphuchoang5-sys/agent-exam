@@ -2,10 +2,10 @@
 
 > 文档状态：架构已确认；固定提交接口已静态核验；本机运行待原型验收
 >
-> 最后更新：2026-09-03
+> 最后更新：2026-09-04
 >
 > Harbor 固定版本：以 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 中的完整提交为唯一事实源
-> 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
+> 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；Codex 认证、凭据所有权与秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
 
 ## 1. 先用小白能懂的话解释
 
@@ -50,6 +50,10 @@ flowchart LR
 | `backend_revision` | Harbor 固定提交 | 必须等于依赖事实源中已允许版本 |
 | `artifact_contract_version` | 必需制品约定版本 | 不支持时在启动前失败 |
 
+公开 Job 请求、`ExecutionJobRequest` 和 PostgreSQL 只保存非秘密的认证类型与 Agent Configuration 身份；它们不接收 `auth.json` 内容，也不保存真实宿主路径。
+
+`CODEX_AUTH_JSON_PATH` 只存在于执行节点本机、未跟踪的秘密配置中。执行节点在启动受控 Codex Trial 时解析它，路径和值都不进入上表的业务请求。
+
 每个 `runs[]` 项只包含 Agent 可见任务视图；gold patch、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS` 和其他运行答案不得进入 Harbor Agent instruction。
 
 ## 4. Harbor `JobConfig` 映射
@@ -91,7 +95,9 @@ Harbor 固定提交已核验字段包括 `name`、`import_path`、`model_name`�
 
 - 内置 Codex/Claude Code/Aider 优先复用 Harbor 已有 Agent 名称与实现，不再为同一能力另写一套 Adapter。
 - 自研 Agent 通过经管理员审核的项目适配方式转换为 Harbor `name` 或 `import_path`；普通用户不能直接提交 Python import path、shell 命令或环境变量。
-- 模型密钥由秘密引用在运行时注入；不得进入 Job JSON、数据库公开快照、命令行或制品。
+- 公开 Job、数据库和对外接口只记录非秘密的认证类型，不接收凭据文件、内容或真实路径。
+- 对首个 Codex 原型，执行节点从本机 `CODEX_AUTH_JSON_PATH` 解析机器所有者的凭据，只在受控 Trial 的最小生命周期内交给 Harbor Codex Agent；具体 Token 刷新与清理仍待实测。
+- 其他模型密钥也只能由执行节点通过秘密引用在运行时注入；不得进入 Job JSON、数据库公开快照、命令行或制品。
 - `n_concurrent` 不得超过 Job 的 `n_concurrent_trials=1`。
 
 ### 5.2 `TaskConfig`
@@ -127,6 +133,8 @@ Harbor Job 目录会保存 Job/Trial 的 `config.json`、`result.json`、Agent �
 | `raw_config_ref` / `raw_result_ref` | 脱敏后的 Harbor 原始配置与结果制品 |
 | `usage` | Harbor/Agent 实际报告的 token、成本和时间；不支持的字段为未知，不写 0 |
 | `warnings` | artifact best-effort 失败、轨迹能力差异等可审计警告 |
+
+脱敏后的原始配置、结果、日志、轨迹和制品也必须明确排除 `auth.json`、`$CODEX_HOME`、Harbor secrets 目录、Token 和真实宿主凭据路径；MinIO 不得接收这些内容。
 
 `ExecutionBackend` 不返回 `resolved`。补丁正确与否只由后续 `PatchEvaluator` 返回。
 
@@ -197,7 +205,7 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 
 ## 13. 首个原型验收
 
-固定一个小型 SWE-Gym 任务和一个真实可用 Agent，验证：
+从固定 revision 的 `SWE-Gym/SWE-Gym-Lite` 选择 1～3 道真实任务，并使用 Harbor 内置 Codex Agent 验证。认证政策已确认为评测机所有者的 ChatGPT Pro `auth.json`；Codex CLI 项目固定版本、模型 ID、端点白名单、Token 刷新、脱敏和清理仍须在运行前固定或实测，当前不能写成容器内已可用。
 
 1. Harbor 固定提交可在本机安装并创建 Docker Trial。
 2. `n_concurrent_trials=1` 与资源/网络策略实际生效。
@@ -207,6 +215,7 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 6. `verifier.disable=true` 时 Harbor 不产生最终判卷，但 artifacts 仍可取得。
 7. 同一 patch 交给固定 SWE-Bench-Fork 后得到可信 `resolved` 和原始测试证据。
 8. 超时、认证失败、patch 缺失和清理失败均映射为明确平台错误。
+9. 首次真实 Trial 前后人工检查容器、可写层、日志、轨迹、MinIO 和 PostgreSQL；成功、失败、超时三条路径均不得遗留凭据内容、真实路径或可复用 Token。
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
@@ -223,3 +232,6 @@ run_id ↔ task_id + agent_configuration_id + attempt_index ↔ Harbor trial id/
 ## 15. 变更记录
 
 - 2026-09-03：创建；记录已确认的 Harbor 执行 seam、真实 Job/Trial 字段、固定单机并发、补丁出口缺口、Mock 隔离和原型退出条件。
+- 2026-09-04：确认首个原型数据集为 `SWE-Gym/SWE-Gym-Lite`，范围为 1～3 道真实任务；revision、split 和具体实例保持待核验。
+- 2026-09-04：确认首个真实原型 Agent 为 Codex；认证采用评测机所有者的 ChatGPT Pro `auth.json`，个人凭据不得进入公共输入、数据库或制品。
+- 2026-09-04：Codex CLI 项目版本、模型、端点、Token 刷新、脱敏、清理和 Harbor 容器运行仍待固定或实测。

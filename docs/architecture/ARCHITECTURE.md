@@ -1,7 +1,7 @@
 # AI Coding Agent 评测平台总架构
 
 > 文档状态：总体方案已确认，细节持续讨论；尚无业务代码
-> 最后更新：2026-09-03
+> 最后更新：2026-09-04
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
 ## 1. 从哪里开始读
@@ -19,6 +19,7 @@
 | Next.js 怎样调用 FastAPI | [`HTTP_API.md`](../interfaces/HTTP_API.md) |
 | PostgreSQL/MinIO 保存什么 | [`DATA_MODEL.md`](./DATA_MODEL.md) |
 | SWE-Gym、SWE-Bench-Fork 和各 Agent 的真实接口 | [`FRAMEWORK_INTERFACES.md`](../interfaces/FRAMEWORK_INTERFACES.md) |
+| Codex 怎样认证、凭据归谁以及协作时怎样隔离秘密 | [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md) |
 | 外部事实如何查证 | [`docs/research`](../research/) |
 | 每次修改的措施和验证证据 | [`docs/actions`](../actions/) |
 
@@ -66,6 +67,11 @@
 | C-18 | 单机同时只执行一个重型平台 Job，Harbor `n_concurrent_trials=1` | Job 中 Trial 顺序执行；不以增加并发换取演示速度 |
 | C-19 | 一个 Job 可选择多个 Agent 和多个任务，首版每组合尝试一次 | 创建前展示 Trial 总数；预设规模为演示 1–3 题、快速 5 题、标准 10–20 题，Agent 首版最多约 3 个 |
 | C-20 | 正式展示、报告和排行只接受真实执行证据 | Mock 结果必须隔离为 `internal_test`，不能冒充真实 Agent 或进入正式统计 |
+| C-21 | 首个真实端到端原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道真实任务 | 先验证小而真的闭环；不下载完整 2.4K 任务，也不把 Lite 冒充为最终正式题库范围 |
+| C-22 | 首个真实原型 Agent 使用 Codex | 优先复用 Harbor 内置 Codex Adapter；先跑通一个 Agent，再扩展 Aider、Claude Code 和自研 Agent |
+| C-23 | 首个 Codex 原型使用评测机所有者本人通过 ChatGPT Pro 登录产生的 `auth.json` | 认证政策已经确认；凭据只由执行节点临时注入，不得共享、提交或持久化；容器内运行仍待实测 |
+| C-24 | 当前只有用户这一台笔电是正式真实评测节点 | 协作者可开发完整项目，但默认由机器所有者触发真实 Codex Trial；协作者不得取得所有者凭据 |
+| C-25 | Kimi 与 DeepSeek 以后只作为独立 Agent Configuration | 一次 Trial 不得从 Codex/OpenAI 静默切换提供方；切换必须产生独立配置与运行证据 |
 
 ## 4. 总体架构
 
@@ -106,6 +112,7 @@ flowchart TB
 - Worker 原子领取排队 Job，再调用一个深的 Job Orchestrator；Job 内的逐题运行由 Harbor Trial 顺序执行。
 - Orchestrator 只依赖小型 `ExecutionBackend` interface，不直接理解 Harbor `JobConfig`、Trial 目录或异常。
 - Harbor 负责 Agent 环境，不替代 PostgreSQL 业务队列、MinIO 长期制品、SWE-Bench-Fork 判卷、Judge 或人工复核。
+- Web、公开 Job 请求、FastAPI、PostgreSQL 和 MinIO 不接收 `auth.json` 内容或真实宿主路径；只保存非秘密的认证类型和逻辑配置身份。执行节点仅在启动受控 Codex Trial 时，从本机秘密配置解析凭据引用；这条秘密路径不属于业务数据流，完整约束见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)。
 - 闭卷 Agent 生成沙箱只允许模型调用所需端点，并禁用 Web 搜索/抓取工具；开卷实验运行允许已登记的联网工具。验证沙箱候选为断网干净环境。代理、端点白名单和工具公平性的精确实现仍待确认。
 
 ## 5. 一次运行的输入输出
@@ -151,6 +158,8 @@ sequenceDiagram
     W->>A: 轮询报告和轨迹
     A-->>W: 分层结果与制品索引
 ```
+
+图中没有画出 `auth.json`，因为它不是 Job 输入或业务制品：只有执行节点能从本机秘密配置中解析它，并在受控 Codex Trial 的最小生命周期内临时使用。
 
 关键输入输出的字段、错误和保密边界不在本文重复，分别见：
 
@@ -221,7 +230,7 @@ sequenceDiagram
 以下是规划，不表示路径已经创建。源代码实施时继续遵守：动态语言单文件默认不超过 200 行、每层默认不超过 8 个文件；确需超过先在行动文档说明并取得确认。
 
 ```text
-E:\9.1实训\
+E:\9.1agent_exam\
 ├─ AGENTS.md
 │  # Codex 协作、文档唯一事实源、验证和代码架构规则
 ├─ CONTEXT.md
@@ -345,6 +354,7 @@ E:\9.1实训\
    │  └─ DATA_MODEL.md        # PostgreSQL/MinIO
    ├─ interfaces\
    │  ├─ HARBOR_EXECUTION.md      # ExecutionBackend 与 Harbor Job/Trial 映射
+   │  ├─ CODEX_AUTHENTICATION.md  # Codex 认证、凭据所有权和秘密边界的唯一事实源
    │  ├─ RUNNER_PROTOCOL.md       # 自研 Agent/后备进程协议
    │  ├─ HTTP_API.md              # Web/API 契约
    │  └─ FRAMEWORK_INTERFACES.md  # 真实上游接口映射
@@ -374,6 +384,7 @@ E:\9.1实训\
 | 任务镜像占磁盘、构建慢 | 一次加载大题库不可行 | 首月只登记少量任务，显式缓存策略和磁盘证据 |
 | 云端 Agent 必须联网，而公开题目的原 PR 也可能在线 | 闭卷可能被运行时查答案，开卷工具能力也可能不等价 | 闭卷仅放行模型端点并禁用 Web 工具；开卷单列实验榜并记录网络/工具配置，精确代理待实测 |
 | 不可信仓库和 Agent 代码 | 主机与凭据泄漏 | 固定登记 Agent、双沙箱、最小挂载、秘密脱敏，不接受任意仓库执行 |
+| Codex 个人登录凭据进入临时 Trial、日志、轨迹或制品 | 个人账号被盗用，且评测证据不再适合共享 | 执行节点最小临时注入；日志脱敏；明确排除 `auth.json`、`$CODEX_HOME` 和秘密目录；成功、失败、超时路径都销毁容器与可写层 |
 | Harbor `TrialResult` 没有标准 `model_patch` | 无法把 Agent 结果交给固定 Fork | 原型必须在清理前提取并校验 patch artifact；缺失即失败，不猜补丁 |
 | Harbor 接口升级或 Job 目录格式变化 | Adapter 漂移、历史不可复现 | 固定完整 commit；原始 config/result 入 MinIO；升级重跑契约测试 |
 | 多 Agent×多任务导致 Job 很长 | 笔电运行数小时且磁盘增长 | 创建前显示 Trial 数；预设小批量；并发 1；耗时只按真实历史估计 |
@@ -387,10 +398,10 @@ E:\9.1实训\
 实现阶段按以下门槛推进：
 
 1. **本机门槛**：Docker/WSL 环境事实见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md)；真实任务继续并发 1。
-2. **Harbor 门槛**：固定提交运行一条真实 Trial，验证 patch、轨迹、资源/网络和清理；未通过则触发后备 Adapter 决策。
+2. **Harbor 门槛**：从固定 revision 的 `SWE-Gym/SWE-Gym-Lite` 选择 1～3 道真实任务运行 Trial，验证 patch、轨迹、资源/网络和清理；未通过则触发后备 Adapter 决策。
 3. **框架门槛**：同一 SWE-Gym 任务由固定 Fork 验证 gold、空和错误 patch；Harbor reward 不参与结论。
-4. **真实 Agent 门槛**：至少一个真实 Agent 完成 Issue→Harbor→patch→固定 Fork 的 E2E；Mock 结果不得进入交付证据。
-5. **隔离门槛**：验证 CPU/内存/PID/超时/网络/挂载/清理和秘密不泄漏。
+4. **真实 Agent 门槛**：首先由真实 Codex 完成 Issue→Harbor→patch→固定 Fork 的 E2E；Mock 结果不得进入交付证据，其他 Agent 在此后扩展。
+5. **隔离门槛**：验证 CPU/内存/PID/超时/网络/挂载/清理和秘密不泄漏；首次真实 Codex Trial 前后人工检查容器、可写层、日志、轨迹、MinIO 和 PostgreSQL 均无凭据内容或真实路径。
 6. **持久化门槛**：双 Worker 不重复领取同一 Job，单机不同时执行两个重型 Job，部分 Trial 完成时证据不丢失。
 7. **产品门槛**：Web 创建 Job 后能按 `job_id` 看总进度，并按 `run_id` 看 patch、轨迹、测试、Judge 和人工复核。
 8. **赛道门槛**：闭卷/开卷、网络策略和工具配置不会跨赛道混分；`internal_test` 不进入任何正式排行。
@@ -401,13 +412,14 @@ E:\9.1实训\
 
 按架构影响排序，一次讨论一个：
 
-1. 选择首批真实 SWE-Gym 数据 revision、split 和 1–3 条小任务。
-2. 定义 `agent-exam.yaml` 的最小字段，确保提交者不必直接编写 Harbor 配置。
-3. Harbor/Worker 作为宿主 Python 进程还是挂载 Docker Socket 的容器；用本机原型裁决。
-4. 可信用户的最小登录实现，以及提交者、管理员、评审者的角色权限。
-5. Judge 是否进入总分，还是只做失败归因。
-6. 工具调用、token、耗时只展示，还是形成独立效率分；缺失口径怎样公平展示。
-7. 开卷实验榜采用统一的平台 Web 工具，还是允许各 Agent 原生搜索工具。
+1. 固定 Codex CLI 项目版本、模型 ID 和端点白名单，并实测 Harbor 容器内 ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
+2. 读取并固定 `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个具体任务；这是技术核验，不让用户猜字段。
+3. 定义 `agent-exam.yaml` 的最小字段，确保提交者不必直接编写 Harbor 配置。
+4. Harbor/Worker 作为宿主 Python 进程还是挂载 Docker Socket 的容器；用本机原型裁决。
+5. 可信用户的最小登录实现，以及提交者、管理员、评审者的角色权限。
+6. Judge 是否进入总分，还是只做失败归因。
+7. 工具调用、token、耗时只展示，还是形成独立效率分；缺失口径怎样公平展示。
+8. 开卷实验榜采用统一的平台 Web 工具，还是允许各 Agent 原生搜索工具。
 
 ## 13. 变更记录
 
@@ -418,3 +430,7 @@ E:\9.1实训\
 - 2026-09-02：确认闭卷主排行榜和开卷实验榜；两者使用相同确定性判卷，但按赛道、网络和工具配置严格分开。
 - 2026-09-02：新增依赖唯一事实源；确认本地 `framework/` 不进入 AgentExam 主仓库，公开接口证据改用固定提交链接。
 - 2026-09-03：确认 PostgreSQL 平台 Job 队列 + Harbor Execution Backend + 固定 SWE-Bench-Fork 判卷；一个 Job 可含多 Agent×多任务，单机 Trial 并发固定 1，Mock 仅限内部测试，并记录 Harbor 原型退出条件。
+- 2026-09-04：确认首个真实原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道任务；revision、split 和具体实例仍须读取真实元数据后固定。
+- 2026-09-04：确认 Codex 为首个真实原型 Agent；认证采用评测机所有者的 ChatGPT Pro `auth.json`，当前仅该笔电作为正式真实评测节点；CLI 项目版本、模型、端点和容器运行仍待固定或实测。
+- 2026-09-04：确认个人凭据不得共享、进入业务请求、数据库或制品；Kimi/DeepSeek 只作为独立 Agent Configuration，不得在 Trial 内静默回退。
+- 2026-09-04：工作区由含中文路径迁移至 `E:\9.1agent_exam`；项目内容、Git 状态和远程仓库保持不变。

@@ -2,8 +2,8 @@
 
 > 文档状态：持续维护；上游事实已核验，Harbor 架构映射已确认，运行能力仍待分层实测
 >
-> 最后更新：2026-09-03
-> 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
+> 最后更新：2026-09-04
+> 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 认证政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
 
 ## 1. 先把最容易混淆的事说清楚
 
@@ -31,6 +31,10 @@ SWE-Gym 本身没有提供 Codex/Aider/Claude Code 的统一 Runner；固定 Har
 | SWE-Gym E2E 通过 | 真实任务从 Issue 到 SWE-Bench-Fork 结果完整跑通 |
 
 后三级都需要实际运行证据，不能从文档可行性直接推导。
+
+Codex 相关状态必须再区分三层：官方 `codex exec` 接口已核验；认证政策已经由项目确认；宿主 CLI 与 Harbor 容器运行能力必须分别用本机证据验证。任一层通过都不能替代另外两层。
+
+2026-09-04 的宿主探针只证明当前 npm 安装的 CLI 能输出版本和帮助；它没有发起模型请求、没有检查登录状态，也不证明 Harbor 容器 E2E 可用。
 
 ## 3. 上游身份与固定版本
 
@@ -76,7 +80,7 @@ SWE-Gym README 说明任务数据在 Hugging Face，环境常量位于 SWE-Bench
 1. 导入/登记时校验必需字段和内容哈希，不在每次运行时盲目下载会漂移的数据。
 2. 内部对象分成 Agent 可见视图和 Evaluator 受限视图。
 3. 普通 HTTP API 和 Runner 永远不返回 gold patch 与判分测试答案。
-4. 真实 SWE-Gym 数据集 ID、revision 和 split 必须在数据实际下载后记录；本文不凭 README 猜 split 名称。
+4. 首个原型数据集 ID 已确认为 `SWE-Gym/SWE-Gym-Lite`；revision、split 和具体实例必须在实际读取数据元信息后记录，本文不凭 README 猜 split 名称。
 
 ## 5. SWE-Bench-Fork Patch Evaluator
 
@@ -186,6 +190,8 @@ Harness 还在当前工作目录生成 `<model_name_or_path>.<run_id>.json` 汇�
 
 ## 7. Codex CLI Adapter
 
+项目已确认首个真实原型使用 Harbor 内置 Codex Agent，认证采用评测机所有者本人通过 ChatGPT Pro 登录产生的 `auth.json`。该政策不等于容器内 Codex 已可运行；项目固定 CLI 版本、模型 ID、端点白名单、Token 刷新、脱敏、清理和网络策略仍须固定或实测。
+
 ### 7.1 已核验官方接口
 
 OpenAI 官方将 `codex exec` 标为稳定的非交互/脚本运行入口：
@@ -198,7 +204,7 @@ OpenAI 官方将 `codex exec` 标为稳定的非交互/脚本运行入口：
 - 官方列出的事件包括 `thread.started`、`turn.*`、`item.*` 和 `error`；item 可包括命令执行、文件修改、MCP 调用、Web 搜索和计划更新；
 - `--output-last-message/-o` 可另存最终回答，但它不是最终 Git patch。
 
-来源：[Codex Non-interactive mode](https://developers.openai.com/codex/noninteractive)、[Codex CLI reference](https://developers.openai.com/codex/cli/reference)，访问日期 2026-09-01。
+来源：[Codex Non-interactive mode](https://developers.openai.com/codex/noninteractive)、[Codex CLI reference](https://developers.openai.com/codex/cli/reference)，复核日期 2026-09-04。官方页面当前仍把 `codex exec` 列为稳定的非交互入口；本项目认证选择及秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
 
 ### 7.2 直接 CLI 后备映射
 
@@ -224,7 +230,11 @@ Runner RunEnvelope
 | 超时/CPU/内存/网络 | Execution Backend 的环境策略；Codex 自身 sandbox 是第二层，不替代 Docker |
 | 版本/模型/配置 | Agent Configuration 冻结并写入 `result.json` |
 
-当前本机核验限制：2026-09-01 尝试执行 `codex --version` / `codex exec --help` 时，WindowsApps 中打包的 `codex.exe` 被操作系统拒绝启动。因此这里只能说官方接口已核验，不能说本机 CLI Adapter 或精确本地版本已验证。
+历史记录：2026-09-01 从旧工作区尝试 `codex --version` / `codex exec --help` 时，WindowsApps 中打包的 `codex.exe` 被操作系统拒绝启动。该结果不再作为当前宿主 CLI 状态。
+
+当前宿主探针：2026-09-04 在 `E:\9.1agent_exam` 的提升权限只读 shell 中，`Get-Command codex` 解析到 `C:\Users\YINGYI\AppData\Roaming\npm\codex.ps1`；`codex --version` 返回 `codex-cli 0.142.0`，`codex exec --help` 正常输出，两个退出码均为 0。
+
+限制：同一窗口的默认沙箱命令启动器在命令执行前返回 `setup refresh had errors`，而提升权限后探针成功；因此该故障应归入 Codex Windows 沙箱/宿主运行环境，不应误写为 CLI 命令失败。上述结果也没有固定项目 CLI 版本、验证真实账号、发起模型请求或证明 Harbor 容器内 Codex 可用。
 
 ## 8. Aider CLI Adapter
 
@@ -349,7 +359,7 @@ Runner RunEnvelope
 3. **真实 CLI 小仓库测试**：固定版本和真实凭据，在极小仓库完成一次修改。
 4. **SWE-Gym E2E**：一条固定任务，保存 Runner 证据并由固定 SWE-Bench-Fork 判卷。
 
-建议实现顺序改为：Mock 只验证内部状态/错误分支 → Harbor 固定提交 + 一个真实 Agent 跑通单题 → 再验证其余真实 Agent。Mock 不属于正式 Agent 接入，也不产生展示或排行证据。
+建议实现顺序改为：Mock 只验证内部状态/错误分支 → Harbor 固定提交 + 真实 Codex 跑通单题 → 再验证其余真实 Agent。Mock 不属于正式 Agent 接入，也不产生展示或排行证据。
 
 ## 14. 升级维护清单
 
@@ -365,10 +375,10 @@ Runner RunEnvelope
 
 ## 15. 当前未解决接口问题
 
-1. 真实 SWE-Gym 数据集 ID、revision、split 和首批小任务；需实际读取数据集元数据，不能暗猜。
+1. `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个首批任务；需实际读取数据集元数据，不能暗猜。
 2. Windows + Docker Desktop 下 SWE-Bench-Fork 固定提交是否无需补丁即可运行；需 gold patch 实测。
 3. Harbor 固定提交在本机的安装方式、Worker 载体、`model_patch` 受控提取和 Trial→`run_id` 映射。
-4. Codex 打包 CLI 在当前 Windows 环境为什么被拒绝启动，以及 Harbor 容器内固定版本安装方式。
+4. 固定 Codex 项目 CLI 版本、模型 ID 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；当前宿主 `0.142.0` 只是一条环境探针，不是已选基线。
 5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
 6. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
 7. `agent-exam.yaml` 的 schema，以及自研 Agent 使用 Harbor `BaseAgent` 还是后备进程协议。
@@ -378,3 +388,6 @@ Runner RunEnvelope
 - 2026-09-02：把依赖来源、固定版本、获取与入库策略迁移到 `DEPENDENCIES.md` 唯一维护；公开证据改用固定提交的 GitHub permalink，避免 `framework/` 不入库后链接失效。
 - 2026-09-01：创建；核验固定 SWE-Gym/SWE-Bench-Fork 源码、Codex 官方非交互接口，并汇总 Aider/Claude Code 官方研究；定义四类 Adapter 映射、能力差异、错误映射和分层验证。
 - 2026-09-03：加入固定 Harbor 的真实 Job/Trial/Verifier/Artifact 接口入口；确认 Harbor 为主 Execution Backend，直接 CLI 映射降为后备，运行状态仍保持待原型。
+- 2026-09-04：确认首个真实原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道任务；其 revision、split 和具体实例仍待真实元数据核验。
+- 2026-09-04：确认首个真实原型 Agent 为 Harbor 内置 Codex；认证政策采用评测机所有者的 ChatGPT Pro `auth.json`，容器 CLI、模型、Token 生命周期和网络能力仍待实测。
+- 2026-09-04：在新路径复测宿主 `codex --version` 与 `codex exec --help` 均成功；记录本机 `codex-cli 0.142.0`，但不将其自动固定为项目版本，也不据此宣称 Harbor 容器 E2E 通过。

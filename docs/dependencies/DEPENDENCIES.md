@@ -2,7 +2,7 @@
 
 > 文档状态：已建立；三项上游源代码身份及本机 Docker/WSL 运行时已核验，项目版本基线与外部制品版本仍待确认
 >
-> 最后核验：2026-09-03
+> 最后更新：2026-09-04；上游与 CLI 最后核验：2026-09-04
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
 
 ## 1. 文档边界
@@ -23,7 +23,7 @@
 
 | 依赖 | 项目用途 | 固定版本 | 是否进入主仓库 | 当前状态 |
 |---|---|---|---:|---|
-| SWE-Gym | 任务数据、模型与复现实验材料的上游来源 | `b681068ca20628c6987b7416cc4cf03f06b77ba5` | 否 | 源码身份、许可证和上游制品入口已核验；数据未下载 |
+| SWE-Gym | 任务数据、模型与复现实验材料的上游来源 | `b681068ca20628c6987b7416cc4cf03f06b77ba5` | 否 | 源码身份、许可证和上游制品入口已核验；原型数据集已选 `SWE-Gym/SWE-Gym-Lite`，数据未下载 |
 | SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 源码身份、许可证和安装入口已核验；该 Fork 尚未安装或运行 |
 | Harbor | Execution Backend（执行后端）：把一个平台 Job 展开并运行成多个 Agent Trial，管理 Agent、环境、资源/网络策略和轨迹 | `6af8d6e31eced13b93849cdf80feeadf24603d15` | 否 | 固定源码接口、包版本和许可证已静态核验；本机尚未下载、安装或运行 |
 | Python 运行时 | 后端及 SWE-Bench-Fork 运行时 | 待确认 | 不适用 | 已确认采用；上游只声明 `>=3.8`，项目基线未选定 |
@@ -34,7 +34,7 @@
 | Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | 本机 Windows + WSL2 部署和无网络冒烟测试已验证；Compose 与 SWE-Bench-Fork 集成未验证，详见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
 | PostgreSQL | 结构化业务数据存储与首版平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
-| Codex CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；可运行版本未固定 |
+| Codex CLI | 首个真实原型 Agent 执行器 | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；本机 `codex-cli 0.142.0` 的版本与帮助命令已通过只读探针，但这不是项目固定版本，容器版本、模型、端点和运行兼容性仍待固定或实测 |
 | Aider CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；尚未安装或固定版本 |
 | Claude Code CLI | 目标 Agent 执行器 | 待确认 | 否 | 已确认接入目标；尚未安装或固定版本 |
 | 本地自研 Agent | 目标 Agent 执行器 | 待实现 | 是，由 AgentExam 项目维护 | 已确认接入目标；进程接口和版本载体未确定 |
@@ -72,7 +72,7 @@
 - 该固定提交的仓库根目录没有 `pyproject.toml`、`setup.py`、`setup.cfg`、`requirements.txt`、`environment.yml`、`Pipfile`、`poetry.lock` 或 `package.json`，因此不能把 SWE-Gym 本身描述成一个具有统一安装入口的软件包。
 - 官方 [`README.md`](https://github.com/SWE-Gym/SWE-Gym/blob/b681068ca20628c6987b7416cc4cf03f06b77ba5/README.md) 将数据与模型入口指向 Hugging Face 的 [`SWE-Gym`](https://huggingface.co/SWE-Gym) 组织页，并把环境常量指向 SWE-Bench-Fork。
 - 同一 README 声明实例预构建镜像位于 Docker Hub 的 `xingyaoww/sweb.eval.x86_64` 前缀下。
-- README 没有为 AgentExam 要使用的数据给出已确认的精确 dataset ID、revision、split，也没有给镜像记录不可变 digest。为保证复现性，这些值必须在实际选取和下载后再写入本文件。
+- 团队已确认首个真实原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道任务。不可变 dataset revision、真实 split、具体 `instance_id`、内容校验值和镜像 digest 仍必须在实际读取元数据与选题后写入本文件，不能使用漂移的 `main`/`latest`。
 - OpenHands 和 MoatlessTools 出现在上游复现实验说明中；它们当前不是 AgentExam 已固定的直接依赖，不能仅凭上游示例自动纳入项目。
 
 当前验证状态：只核验了固定提交中的源码、README 与许可证；没有访问 Hugging Face 内容，没有下载数据或模型，没有拉取或运行镜像。
@@ -196,11 +196,11 @@ Harbor 当前尚未恢复到本机，所以对它执行上述命令会因目录�
 
 以下事项必须通过后续架构确认或真实运行完成，当前不得补猜：
 
-1. AgentExam 使用的精确 SWE-Gym dataset ID、revision、split、首批实例及内容校验值；
+1. 首个原型数据集 ID 已确认为 `SWE-Gym/SWE-Gym-Lite`；其不可变 revision、真实 split、1～3 个首批实例及内容校验值仍待核验；正式榜最终数据范围另行确认；
 2. 是否采用预构建实例镜像；若采用，需要记录完整仓库名、架构、不可变 digest 与来源验证；
 3. Python、FastAPI、Node.js、Next.js 15、React 19、Docker/Compose、PostgreSQL、MinIO 的精确版本和部署形态；
 4. SWE-Bench-Fork 未固定 Python 依赖的项目级锁定版本；
-5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；
+5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；Codex 认证政策已经确认，不再作为待选择项，但项目固定版本、模型 ID、端点和容器兼容性仍待固定或实测；
 6. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
 7. Harbor 的安装方式、项目隔离环境、完整依赖锁、Job 目录位置及原型验收结果；
 8. 恢复脚本、依赖缓存和供应链校验流程。
@@ -216,6 +216,7 @@ Harbor 当前尚未恢复到本机，所以对它执行上述命令会因目录�
 | Harbor 固定源码 | 配置/Job/Trial/结果/制品/Verifier 接口已远程静态核验；本机目录尚不存在 |
 | SWE-Gym 根目录安装清单 | 未发现统一包清单或锁文件 |
 | SWE-Bench-Fork 安装入口 | `setup.py` / `pyproject.toml` 存在；Python `>=3.8`，依赖未锁版本 |
-| 数据集来源 | SWE-Gym Hugging Face 组织页已从 README 核验；精确数据 revision 未核验 |
+| 数据集来源 | SWE-Gym Hugging Face 组织页已从 README 核验；团队已选择 Lite 作为原型数据集，精确 revision/split/实例未核验 |
 | 镜像来源 | Docker Hub 前缀已从 SWE-Gym README 核验；镜像 digest 与可用性未核验 |
+| Codex 宿主 CLI 探针 | 2026-09-04 在 `E:\9.1agent_exam` 的提升权限只读 shell 中，`codex --version` 返回 `codex-cli 0.142.0`、`codex exec --help` 正常输出，两个退出码均为 0；默认沙箱命令启动器另有 `setup refresh had errors`，不能归因于 CLI |
 | 动态验证 | 本机 Docker/WSL 已通过无网络最小容器验证；Harbor、SWE-Gym 数据、镜像构建和 SWE-Bench-Fork 评测仍未执行 |
