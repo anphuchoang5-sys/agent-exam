@@ -1,6 +1,6 @@
 # 模块职责与输入输出契约
 
-> 文档状态：架构边界已确认；字段契约 v0.3，尚未实现
+> 文档状态：架构边界已确认；字段契约 v0.3；M0 Task/Execution Ports 与 Harbor NOP 路径已部分实现，完整 MVP 尚未实现
 >
 > 最后更新：2026-09-05
 > 权威范围：本文件只维护项目内部模块的职责、输入、输出、错误、不变量和依赖。全局组成见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)，字段级边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)、[`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](./DATA_MODEL.md)。
@@ -194,6 +194,8 @@ flowchart LR
 | 依赖 | Agent Registry、Harbor 固定提交、Docker、Trajectory Normalizer、Artifact Store；P2 自研 Agent 才复用现有 LLM Provider Adapter 的受控访问 Implementation |
 | 验证 | Harbor/Fake Backend 共用同一 interface contract；空补丁与失败分开；真实 SWE-Gym 单题原型覆盖补丁、轨迹、资源和清理 |
 
+M0 当前实现注记：`ExecutionJobRequest`/`ExecutionTrialResult`、Harbor 配置与严格运行身份映射、patch 制品校验已存在；真实 NOP Docker Trial 已证明空 patch、缺失轨迹警告、原始结果引用和清理。`HarborExecutionAdapter.execute()` 已实现并通过固定 CLI/UTF-8/证据/超时分支的假进程单测；真实 Adapter CLI E2E、外层超时后的进程树清理、真实 Codex、非空 patch、网络/凭据和固定 Fork 仍未完成。
+
 Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
 
 ### 6.9 Agent Source Review（P2，MVP 不实现）
@@ -330,3 +332,4 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 - 2026-09-05：新增 Owner Approval 用例；远端提交初始为 `AWAITING_OWNER_APPROVAL`，只有评测机所有者批准后进入 `QUEUED`，Worker 不得绕过批准。
 - 2026-09-05：把现有 Failure Judge 深化为 Failure/Quality 双用途 Judge，固定严格触发、输入清洗和失败不覆盖规则；确认首版自研 Agent 为 Python 进程 Interface，仅允许 DeepSeek/Kimi，真实 Key 不进入被测容器或业务数据流。
 - 2026-09-05：确定 Codex 本地技术原型与平台 MVP 优先，自研 Agent 延至 P2；固定两角色邀请制、Quality 匿名双次反序比较、过程指标只展示、闭卷 MVP、任务快照、取消/手动重试、制品保留与大小限制。
+- 2026-09-06：同步 M0 已实现的 Execution 领域/Port、Harbor NOP Docker Trial、结果映射与薄进程 Adapter 边界；保留真实进程 E2E、Codex/Fork 与 M1 契约为未完成。

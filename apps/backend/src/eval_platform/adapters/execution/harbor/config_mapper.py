@@ -19,7 +19,7 @@ _SAFE_ID = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}")
 @dataclass(frozen=True, slots=True)
 class HarborJobPlan:
     config: dict[str, Any]
-    bindings: tuple["HarborRunBinding", ...]
+    bindings: tuple[HarborRunBinding, ...]
 
     @property
     def run_ids(self) -> tuple[str, ...]:
@@ -43,8 +43,7 @@ def build_job_plan(
         raise ValueError("Harbor revision is not registered")
     if request.artifact_contract_version != ARTIFACT_CONTRACT_VERSION:
         raise ValueError("Harbor artifact contract is not supported")
-    if not _SAFE_ID.fullmatch(request.job_id):
-        raise ValueError("job_id is not safe for a Harbor job name")
+    validate_job_id(request.job_id)
     agents: dict[str, dict[str, Any]] = {}
     tasks: dict[str, dict[str, str]] = {}
     combinations: dict[tuple[str, str], str] = {}
@@ -59,11 +58,7 @@ def build_job_plan(
         if combination in combinations:
             raise ValueError("Each Agent and task combination must be unique")
         combinations[combination] = run.run_id
-    expected = {
-        (task_id, fingerprint)
-        for task_id in tasks
-        for fingerprint in agents
-    }
+    expected = {(task_id, fingerprint) for task_id in tasks for fingerprint in agents}
     if set(combinations) != expected:
         raise ValueError("Execution runs must form a complete Agent x task matrix")
     limits = request.limits
@@ -123,6 +118,11 @@ def _map_agent(agent: AgentConfiguration) -> dict[str, Any]:
 
 def harbor_task_path_key(path: str) -> str:
     return os.path.normcase(str(Path(path).resolve()))
+
+
+def validate_job_id(job_id: str) -> None:
+    if not _SAFE_ID.fullmatch(job_id):
+        raise ValueError("job_id is not safe for a Harbor job name")
 
 
 def harbor_agent_key(agent: Mapping[str, Any]) -> str:

@@ -14,8 +14,12 @@ from eval_platform.adapters.execution.harbor.artifacts import (
 from eval_platform.adapters.execution.harbor.config_mapper import (
     ARTIFACT_CONTRACT_VERSION,
     HARBOR_REVISION,
+    HarborJobPlan,
+    HarborRunBinding,
     build_job_plan,
+    harbor_agent_key,
 )
+from eval_platform.adapters.execution.harbor.result_mapper import map_job_results
 from eval_platform.adapters.tasks.swe_gym import (
     CANDIDATE_INSTANCE_ID,
     SWEGymTaskSource,
@@ -27,6 +31,7 @@ from eval_platform.application.ports.execution import (
     RunLimits,
 )
 from eval_platform.domain.agent import AgentConfiguration
+from eval_platform.domain.result import TerminationReason
 
 pytestmark = pytest.mark.integration
 
@@ -86,6 +91,16 @@ def test_harbor_nop_collects_empty_patch_and_cleans_environment(
     )
     config = plan.config
     config["agents"] = [{"name": "nop", "n_concurrent": 1}]
+    probe_plan = HarborJobPlan(
+        config=config,
+        bindings=(
+            HarborRunBinding(
+                run_id="m0-nop-run",
+                task_path_key=plan.bindings[0].task_path_key,
+                agent_key=harbor_agent_key(config["agents"][0]),
+            ),
+        ),
+    )
     config_path = tmp_path / "harbor-nop-config.json"
     config_path.write_text(
         json.dumps(config, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
@@ -115,6 +130,12 @@ def test_harbor_nop_collects_empty_patch_and_cleans_environment(
     assert completed.returncode == 0, completed.stderr[-4000:]
 
     job_dir = jobs_dir / request.job_id
+    (mapped_result,) = map_job_results(
+        probe_plan, job_dir, process_returncode=completed.returncode
+    )
+    assert mapped_result.termination_reason is TerminationReason.COMPLETED
+    assert mapped_result.patch_ref is not None
+    assert mapped_result.warnings == ("TRAJECTORY_UNAVAILABLE",)
     job_result = json.loads((job_dir / "result.json").read_text(encoding="utf-8"))
     assert job_result["n_total_trials"] == 1
     assert job_result["stats"]["n_completed_trials"] == 1

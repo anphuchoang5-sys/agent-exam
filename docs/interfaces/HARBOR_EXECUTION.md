@@ -1,6 +1,6 @@
 # Harbor 执行后端接口
 
-> 文档状态：架构已确认；固定提交接口与 M0 配置/Task 契约已核验；本机 Trial 待原型验收
+> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射和薄进程 Adapter 单测已核验；真实 Adapter/Codex Trial 待验收
 >
 > 最后更新：2026-09-06
 >
@@ -41,7 +41,7 @@ flowchart LR
 
 ## 3. AgentExam 输入
 
-`ExecutionJobRequest` 是概念接口，尚未表示已有 Python 类：
+`ExecutionJobRequest` 已在 M0 后端实现为项目 Python 类型；下表仍是其权威语义：
 
 | 字段 | 含义 | 约束 |
 |---|---|---|
@@ -114,14 +114,14 @@ Harbor 固定提交支持本地 `path`、Git 任务 `git_url + git_commit_id + p
 
 ### 6.1 已核验的 Harbor 输出
 
-固定提交的 `JobResult` 包含 Job ID、起止时间、总 Trial 数、聚合统计和 `trial_results`。`TrialResult` 已核验包含：
+固定提交的内存 `JobResult` 包含 Job ID、起止时间、总 Trial 数、聚合统计和 `trial_results`；真实 NOP 运行确认 Job 根目录落盘的 `result.json` 会排除 `trial_results`，每条完整结果只落在对应 Trial 子目录的 `result.json`。Adapter 因此必须枚举子目录并严格绑定身份，不能从 Job 根结果猜配。`TrialResult` 已核验包含：
 
 - `id`、`task_name`、`trial_name`、`trial_uri`、`task_id`、`task_checksum`；
 - 解析后的 `config` 与 `agent_info`；
 - 可选 `agent_result`、`verifier_result`、`exception_info`；
 - 环境准备、Agent 安装/执行和 Verifier 的时间数据。
 
-Harbor Job 目录会保存 Job/Trial 的 `config.json`、`result.json`、Agent 日志、`trajectory.json` 和收集的 artifacts。固定 `SingleStepTrial` 执行顺序已核验为：运行 Agent → 同步日志 → 收集 artifacts → 运行 Verifier；`verifier.disable=true` 时跳过 Verifier，但 artifact 收集仍在其之前执行。
+Harbor Job 目录会保存 Job/Trial 的 `config.json`、`result.json`、Agent 日志、可用时的 `trajectory.json` 和收集的 artifacts。固定 `SingleStepTrial` 及真实 NOP 已确认顺序为：运行 Agent → 同步日志 → 执行任务 `verifier.collect` hook → 收集 artifacts → 可选运行 Verifier；`verifier.disable=true` 时仍执行前两类收集。
 
 ### 6.2 Adapter 必须返回的项目结果
 
@@ -153,7 +153,7 @@ Harbor 固定提交的 `TrialResult` 没有标准 `model_patch` 字段。Harbor 
 5. 二进制 patch 返回 `BINARY_PATCH_NOT_ALLOWED`，不进入 Harness；MVP 只接受文本统一 diff。
 6. 同一字节内容保存到 MinIO，并作为 SWE-Bench-Fork prediction 的 `model_patch`。
 
-“受控机制”究竟采用 Harbor Agent 包装、任务收尾脚本还是固定提交已支持的其他 extension point，尚未实测，不能在原型前写死。能否稳定完成这一步是采用 Harbor 的第一验收门槛。
+M0 已选择固定 Harbor 支持的任务级 `verifier.collect` hook：在容器销毁前相对任务 `base_commit` 生成 `model.patch`、SHA-256、字节数和二进制标志，再把整个 `/logs/artifacts` 目录收集到宿主 `artifacts/agentexam`。真实 NOP 已验证空 patch 与元数据、Verifier 关闭、UTF-8 CLI 退出和 Compose 资源清理；新建/修改/删除/Agent 自行 commit 以及真实 Codex 仍须继续实测。
 
 ## 8. 运行身份映射
 
@@ -235,7 +235,7 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
-当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置映射、collect hook 和宿主 patch 制品强校验已实现；真实 Harbor 类型/Task 契约测试通过。尚未运行 Harbor `nop`/Codex Trial，故第 1 项只完成“安装”、第 3 项有自动测试证据、第 4/6 项只有契约证据，其余验收项均未完成。
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。真实 NOP Docker Trial 已通过，证明第 1 项的无模型路径、空 patch、关闭 Verifier 后的 artifact、UTF-8 CLI 和清理；39 项 unit/contract 通过，映射后的 NOP 集成测试也通过。进程 Adapter 的固定命令、UTF-8、证据不可覆盖与超时结果已由假进程单测覆盖；当前 stdout/stderr 整体捕获尚未落实单制品 50 MiB 限额/显式截断，真实 Adapter CLI E2E、外层超时后的进程树/Compose 清理、真实 Codex、网络/凭据/轨迹、非空 patch 场景和固定 Fork仍未完成，不能据此把 M0 标记完成。
 
 ### 13.2 M1：Codex 平台 MVP
 
@@ -263,3 +263,4 @@ M1 通过后，先使用相同契约登记并验证 Harbor 已有的 Aider、Cla
 - 2026-09-04：Codex CLI 项目版本、模型、端点、Token 刷新、脱敏、清理和 Harbor 容器运行仍待固定或实测。
 - 2026-09-05：确认首版自研 Agent 为 Python 固定进程 Interface，由平台包装进 Harbor；只允许 DeepSeek/Kimi 独立配置，真实 Key 不直接进入被测容器，具体受控访问部署与网络隔离仍待原型。
 - 2026-09-05：固定 M0 本机 Codex 脚本原型、M1 Codex 平台 MVP、Aider/Claude Code、P2 自研 Agent 的顺序；补充闭卷限制、取消/中断不自动重试和 patch/原始制品限额。
+- 2026-09-06：真实 Harbor NOP Docker Trial 与项目结果映射通过；薄进程 Adapter 完成假进程单测；记录落盘 Job 结果不含 `trial_results`、Windows CLI UTF-8 要求、任务 collect hook/单目录 artifact 契约和仍未通过的真实 Adapter/Codex/Fork门槛。
