@@ -11,12 +11,39 @@ from eval_platform.adapters.execution.harbor.artifacts import (
     PatchArtifactError,
     validate_patch_artifact,
 )
+from eval_platform.application.ports.execution import ExecutionJobRequest
 from eval_platform.domain.result import (
     ArtifactRef,
+    ExecutionTrialResult,
     ResourceSummary,
     TerminationReason,
     UsageSummary,
 )
+
+
+def process_start_failure(
+    request: ExecutionJobRequest,
+    run_root: Path,
+    error: OSError,
+    warnings: tuple[str, ...],
+) -> tuple[ExecutionTrialResult, ...]:
+    reason = (
+        TerminationReason.AGENT_UNAVAILABLE
+        if isinstance(error, FileNotFoundError)
+        else TerminationReason.INFRASTRUCTURE_INTERRUPTED
+    )
+    return tuple(
+        ExecutionTrialResult(
+            run_id=run.run_id,
+            backend_job_ref=str((run_root / "jobs" / request.job_id).resolve()),
+            backend_trial_ref="",
+            termination_reason=reason,
+            patch_ref=None,
+            trajectory_ref=None,
+            warnings=warnings,
+        )
+        for run in request.runs
+    )
 
 
 def patch_ref(trial_dir: Path) -> ArtifactRef:

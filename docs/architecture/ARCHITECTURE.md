@@ -1,6 +1,6 @@
 # AI Coding Agent 评测平台总架构
 
-> 文档状态：总体方案已确认，细节持续讨论；M0 Task/Harbor 配置、NOP Docker Trial、四类非空 patch、结果映射与薄进程 Adapter 已分层验证，Codex→Fork 完整闭环未完成
+> 文档状态：总体方案已确认，细节持续讨论；M0 Task/Harbor 配置、NOP Docker Trial、四类非空 patch、结果映射、薄进程 Adapter 与外层超时清理已分层验证，Codex→Fork 完整闭环未完成
 > 最后更新：2026-09-06
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
@@ -428,6 +428,7 @@ E:\9.1agent_exam\
 | 不可信仓库和 Agent 代码 | 主机与凭据泄漏 | 固定登记 Agent、双沙箱、最小挂载、秘密脱敏，不接受任意仓库执行；自研 Agent 不取得真实模型 Key |
 | Codex 个人登录凭据进入临时 Trial、日志、轨迹或制品 | 个人账号被盗用，且评测证据不再适合共享 | 执行节点最小临时注入；日志脱敏；明确排除 `auth.json`、`$CODEX_HOME` 和秘密目录；成功、失败、超时路径都销毁容器与可写层 |
 | Harbor `TrialResult` 没有标准 `model_patch` | 无法把 Agent 结果交给固定 Fork | 已用任务 collect hook + 宿主强校验通过 NOP 空 patch，以及固定摘要、禁网容器中的修改/新建/删除/Agent commit；仍须验证真实 Codex 路径，缺失即失败且不猜补丁 |
+| 外层超时强杀 Harbor 会绕过其 Trial `finally` | Compose 容器、网络或本地镜像残留，日志后代管道也可能阻塞收束 | 生产进程执行器以总期限收束双流并显式告警；Harbor Adapter 只依据本 Job 已落盘 Trial 身份清理、复核精确 Compose project label，真实 NOP 阻塞 collect 超时探针已通过 |
 | Harbor 接口升级或 Job 目录格式变化 | Adapter 漂移、历史不可复现 | 固定完整 commit；原始 config/result 入 MinIO；升级重跑契约测试 |
 | 多 Agent×多任务导致 Job 很长 | 笔电运行数小时且磁盘增长 | 创建前显示 Trial 数；预设小批量；并发 1；耗时只按真实历史估计 |
 | Aider 无结构化工具事件 | 过程指标不能完全同口径 | 缺失标为“不支持/未知”，不伪造 0 |
@@ -464,7 +465,7 @@ E:\9.1agent_exam\
 
 1. 固定 Codex CLI 项目版本、模型 ID 和端点白名单，并实测 Harbor 容器内 ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
 2. 读取并固定 `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个具体任务；不让用户猜字段。
-3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志和宿主进程树终止，生产执行器接真实 Harbor NOP 也已通过。继续用本地脚本验证外层杀死 Harbor 后的 Compose 清理、资源/网络和固定 Fork，通过前不搭 Web/数据库流程。
+3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志、宿主进程树终止和外层超时后的精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均通过真实 NOP。下一步验证固定 Fork，再核验真实 Codex 的资源/网络/凭据路径；通过前不搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。
 5. 在真实 Trial 中测量 patch、日志和原始制品规模；默认阈值先按 C-37/C-38，实现证据表明需要调整时再请求确认。
 6. 完成校园网 + FlClash 开启/关闭下的 Tailscale 双机共存测试，失败时才评估 Cloudflare Tunnel + Access。
@@ -487,3 +488,4 @@ E:\9.1agent_exam\
 - 2026-09-05：确认 Failure/Quality Judge 的严格触发、清洗和非覆盖规则；首版自研 Agent 固定为 Python 进程 Interface，仅允许 DeepSeek/Kimi 独立配置，真实 Key 只由评测机可信配置持有；安全访问复用现有 Implementation，不新增顶层业务 Module。
 - 2026-09-05：实施范围改为本地 Codex 技术原型 → Codex 平台 MVP → Aider/Claude Code → P2 自研 Agent；确认两角色邀请制、Quality 匿名双次反序比较、过程指标只展示、闭卷 MVP、任务双层存储、手动重试、制品保留与大小限制。
 - 2026-09-06：M0 真实 Harbor NOP Docker Trial、结果映射和生产有界执行器通过，薄进程 Adapter 完成双流截断与宿主父子进程清理验证；记录宿主进程驱动、任务 collect hook、空 patch、UTF-8 CLI 和正常清理证据，真实 Codex、Harbor 超时后的 Compose 清理和固定 Fork 仍未通过。
+- 2026-09-06：真实阻塞 collect 探针证明外层强杀会留下 Compose 容器、网络和本地镜像；现已用本 Job Trial 身份的精确 project label 清理并复核，日志线程也改为有界收束。真实 Codex 与固定 Fork 仍未通过。

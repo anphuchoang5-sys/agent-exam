@@ -2,7 +2,7 @@
 
 > 交接时间：2026-09-06
 >
-> 当前阶段：已按用户要求暂停并交接。Harbor 结果映射、薄进程 Adapter、有界日志、宿主进程树清理和真实 collect-patch 四场景已通过无模型检查；固定 Fork、真实 Codex Trial、Harbor 超时后的 Compose 清理和日志线程有界收束尚未完成
+> 当前阶段：长期目标进行中。Harbor 结果映射、薄进程 Adapter、有界日志、宿主进程树、真实 collect-patch 四场景和外层超时后的精确 Compose 清理已通过无模型检查；固定 Fork 与真实 Codex Trial 尚未完成
 >
 > 用途：帮助从 `E:\9.1agent_exam` 打开的下一条 Codex 任务恢复上下文
 >
@@ -16,20 +16,20 @@
 E:\9.1实训  →  E:\9.1agent_exam
 ```
 
-文件系统迁移、Git 状态和远程仓库完整性已经验证，但 Windows 默认沙箱的 `setup refresh had errors` 后来在英文路径重新出现，因此不能再把迁移视为故障根治。Codex 认证与单机协作方式已在 2026-09-04 对账；2026-09-05 又确认“协作者远端提交 → 评测机所有者批准 → 本机 Worker 执行”，并明确评测机必须在线。同日已实测 Docker Desktop 内部代理经 FlClash 完成通用容器 HTTPS 和固定摘要镜像拉取；这不等于 Harbor/Codex Trial 或闭卷防绕过已通过。Tailscale Serve 已作为校园网/VPN下的私有接入实施方案，仍须安装和双机实测。
+文件系统迁移、Git 状态和远程仓库完整性已经验证，但 Windows 默认沙箱的 `setup refresh had errors` 后来在英文路径重新出现，因此不能再把迁移视为故障根治。Codex 认证与单机协作方式已在 2026-09-04 对账；2026-09-05 又确认“协作者远端提交 → 评测机所有者批准 → 本机 Worker 执行”，并明确评测机必须在线。同日已实测 Docker Desktop 内部代理经 FlClash 完成通用容器 HTTPS 和固定摘要镜像拉取；这不等于 Harbor/Codex Trial 或闭卷防绕过已通过。Tailscale Serve 已作为校园网/VPN 下的私有接入实施方案，仍须安装和双机实测。
 
 最新范围收敛为：M0 先用本机脚本跑通 Codex→Harbor→patch→SWE-Bench-Fork 单题真实闭环，不先做 Web/数据库；M1 再接 Web、PostgreSQL、MinIO、两类角色和所有者批准，完成 Codex-only MVP；之后接 Aider、Claude Code；自研 Agent 降为 P2，只保留 Python 进程 Interface 和 DeepSeek/Kimi 安全接缝。Quality Judge 的触发、清洗、四项 rubric、匿名反序双评和循环赛已经固定；过程指标只展示；MVP 只闭卷；取消/中断不自动重试；任务原始 JSON、制品保留和大小上限也已确认。
 
-2026-09-05 至 09-06 已按用户授权启动长期 M0 目标。已完成 Git/固定依赖核验、Harbor 安装、固定 SWE-Gym-Lite 数据与镜像、`apps/backend` 基础领域/Ports/Task Adapter、Harbor 配置、patch 契约和严格结果映射。生产进程执行器现在同时排空 stdout/stderr，每路最多持久化 50 MiB，显式记录截断，并在超时后终止 Windows 进程树或 POSIX 进程组。最新快速基线为 format/lint/strict mypy 全通过、unit + contract `42 passed in 2.03s`；生产有界执行器接真实 Harbor CLI 与 mapper 的 NOP 证据 `runtime/prototype/m0-harbor-bounded-process-20260906-01` 为 `1 passed in 19.61s`；真实 Windows 父子进程超时清理证据 `runtime/prototype/m0-process-tree-timeout-20260906-01` 为 `1 passed in 1.35s`。固定摘要、禁网的真实 Docker collect-patch 测试现已覆盖修改、新建、删除和 Agent commit，结果为 `4 passed in 5.91s`，测试前后 Docker 对象计数一致且专用容器无残留。固定 Fork Evaluator、M0 Composition Root、外层杀死 Harbor 后的 Compose 清理和真实 Codex Trial 仍未完成。所有事实、失败和命令边界见当前行动记录 [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md)。下一窗口不得重建 Harbor、重写现有执行器或重复已经通过的 NOP/collect-patch 探针。
+2026-09-05 至 09-06 已按用户授权启动长期 M0 目标。已完成 Git/固定依赖核验、Harbor 安装、固定 SWE-Gym-Lite 数据与镜像、`apps/backend` 基础领域/Ports/Task Adapter、Harbor 配置、patch 契约、严格结果映射、有界进程执行与超时清理。生产执行器同时排空 stdout/stderr，每路最多持久化 50 MiB；日志线程有总收束期限，Windows 可定向取消仍阻塞的同步读，未完整收束会显式告警。交接前最新快速基线为 format/lint/strict mypy 全通过、unit + contract `44 passed, 7 deselected in 6.67s`；固定摘要、禁网的 collect-patch 四场景为 `4 passed in 5.91s`。真实阻塞 collect 探针先证明强杀会留下 1 个容器、1 个网络和 1 个本地镜像，修复后公开 Adapter 只按本 Job Trial 身份精确清理 project label，证据 `runtime/prototype/m0-harbor-timeout-green-20260906-02` 为 `1 passed in 49.47s`，前后 Docker 对象数均为 `18/5/15/21`；正常 NOP 与真实父子进程回归分别为 `1 passed in 18.87s`、`1 passed in 1.34s`。固定 Fork Evaluator、M0 Composition Root 和真实 Codex Trial 仍未完成。所有事实、失败和命令边界见当前行动记录 [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md)。下一窗口不得重建 Harbor、重写现有执行器或重复已经通过的 NOP/patch/超时探针。
 
 迁移证据见 [`docs/actions/2026-09-04-workspace-path-migration.md`](docs/actions/2026-09-04-workspace-path-migration.md)。
 
 ## 2. 恢复任务时先做什么
 
 1. 确认工作区是 `E:\9.1agent_exam`，不要再使用旧路径。
-2. 运行 `git status --short --branch` 和 `git log -3 --oneline`；第六个仅本地交接提交为 `a9306b7`，本轮交接将形成第七个本地提交，提交主题为 `docs: hand off verified patch scenarios`。下一窗口以实际 `HEAD` 为准；预期本地 `main` 比仍位于 `42484d8` 的 `origin/main` 领先 7、落后 0，工作区干净。不得自行 push，除非用户再次明确要求。
+2. 运行 `git status --short --branch` 和 `git log -3 --oneline`；第七个仅本地交接提交为 `aca01e7 docs: hand off verified patch scenarios`，其后的第八个本地提交主题为 `fix: clean up timed-out Harbor trials`。本次交接提交后工作区应当干净，本地预计比仍位于 `42484d8` 的 `origin/main` 领先 8、落后 0；若实际状态不同，必须先辨明后续修改，不得 reset/checkout/clean。不得自行 push，除非用户再次明确要求。
 3. 按下面的层级阅读，不要只看总架构就开始修改。
-4. 第 6 节所列业务规则已经同步；固定数据、镜像、Harbor 环境、结果映射、薄进程 Adapter、有界日志、宿主父子进程清理和 collect-patch 四场景已有相应证据。下一步覆盖 Harbor 外层超时后的 Compose 清理和日志线程有界收束，之后实现固定 Fork；不要重新下载 Harbor、重复已通过探针或重写现有模块。
+4. 第 6 节所列业务规则已经同步；固定数据、镜像、Harbor 环境、结果映射、薄进程 Adapter、有界日志、宿主父子进程、collect-patch 四场景和 Harbor 外层超时精确清理已有相应证据。下一步建立固定 Fork Evaluator；不要重新下载 Harbor、重复已通过探针或重写现有模块。
 5. 当前遗留项是技术核验，不得把已经确认的业务规则重新列成待决定；若实现发现必须新增顶层 Module、Interface、数据库表或目录，先说明现有职责为何不能承载并取得确认。
 
 ### 2.1 第一批：开始任何修改前必须完整阅读
@@ -45,7 +45,7 @@ E:\9.1实训  →  E:\9.1agent_exam
 | 7 | [`docs/architecture/MODULE_CONTRACTS.md`](docs/architecture/MODULE_CONTRACTS.md) | M0 要实现的领域对象、Execution Backend 与 Patch Evaluator 边界 | 写代码前必须按此建立依赖方向 |
 | 8 | [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | ChatGPT Pro `auth.json` 方案、凭据所有权和安全边界 | 禁止读取或复制凭据内容 |
 | 9 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | 三个固定源码提交和本地恢复方式 | 当前动态安装结果以 M0 行动记录为准，收尾时同步本文件 |
-| 10 | [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1、Harbor Trial、patch、轨迹和错误映射 | NOP/mapper/有界日志已实测；Codex Token、真实 Agent 和 Harbor 超时后的 Compose 清理仍未实测 |
+| 10 | [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1、Harbor Trial、patch、轨迹和错误映射 | NOP/mapper/有界日志/外层超时清理已实测；Codex Token 与真实 Agent 仍未实测 |
 | 11 | [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | SWE-Gym 字段、固定 Fork CLI、Harbor 与 Agent CLI 入口 | NOP 已实测；固定 Fork/Codex 仍待核验 |
 | 12 | [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | Docker/WSL、FlClash/Docker 代理、磁盘和单机限制 | 当前 Windows 系统代理已被用户关掉；只在单次探针进程注入 7890 |
 | 13 | [`docs/adr/0001-use-harbor-as-execution-backend.md`](docs/adr/0001-use-harbor-as-execution-backend.md) | Harbor 主 Adapter 和固定 Fork 判卷决定 | 只有真实原型触发退出条件时才讨论 Process 后备 |
@@ -205,10 +205,10 @@ M0 通过后，M1 的平台主流程才是：
 - Docker Desktop `4.38.0` / Client、Server `27.5.1` 当前可响应，Docker 可见内存 `10,429,505,536` bytes；第五次恢复时 E 盘可用 `19,594,498,048` bytes。当前 Windows `ProxyEnable=0` 且 `ProxyServer` 为空，FlClash 进程仍运行；Docker manifest/镜像拉取和项目 `uv` 网络步骤仅对单次进程注入 `HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:7890` 后成功。不要擅自重新开启用户的系统代理。
 - `framework/swe-gym`、`framework/swe-bench-fork`、`framework/harbor` 都已恢复到依赖事实源固定提交并保持干净；它们与 `runtime/` 都被主仓库忽略。
 - Harbor 根 `.venv` 已按其 `uv.lock` 和 `huggingface` extra 安装成功。由于 `litellm==1.93.0` 在该锁中没有 Windows wheel，使用项目内隔离 `rustc/cargo 1.98.1` 加 Visual Studio 2022 C++ 环境源码编译，单次实际耗时 275 分 06 秒；不要删除或无理由重建 `framework/harbor/.venv`、`runtime/tools`、`runtime/cache/uv`。
-- `apps/backend` 已建立 Python 3.13 项目，`uv.lock` 已生成；固定 Task Adapter、领域对象、两个 Ports、Harbor 配置/结果映射、collect hook、patch 校验、薄进程 Adapter、有界双流日志和宿主进程树清理均已实现。最新 `ruff check`、严格 `mypy` 均通过；unit + contract 为 `42 passed in 2.03s`，所有项目 Python 文件不超过 200 行、每层目录不超过 8 个文件。`tests/integration/test_collect_patch_scenarios.py` 已在固定摘要、`--network none` 容器中真实得到 `4 passed in 5.91s`，专用容器无残留。
+- `apps/backend` 已建立 Python 3.13 项目，`uv.lock` 已生成；固定 Task Adapter、领域对象、两个 Ports、Harbor 配置/结果映射、collect hook、patch 校验、薄进程 Adapter、有界双流日志、宿主进程树和超时后的精确 Compose 清理均已实现。最新 `ruff check`、严格 `mypy` 均通过；unit + contract 为 `44 passed in 6.60s`，所有项目 Python 文件不超过 200 行、每层目录不超过 8 个文件。`tests/integration/test_collect_patch_scenarios.py` 已在固定摘要、`--network none` 容器中真实得到 `4 passed in 5.91s`，专用容器无残留。
 - 固定 Harbor NOP Docker Trial 已真实通过：原始链路证据 `runtime/prototype/m0-harbor-nop-20260906-04` 为 `1 passed in 18.40s`；正式 mapper 接入后的证据 `runtime/prototype/m0-harbor-nop-20260906-05` 为 `1 passed in 20.56s`。后者把真实 Job/Trial 严格映射为 `COMPLETED` 与可信 0-byte patch。两者都只是无模型 NOP，不代表真实 Codex 或 SWE-Bench-Fork E2E 通过。
 - `result_mapper.py` 已拆分为不超过 200 行的流程映射与 `result_values.py` 纯值转换，修复 `slots=True` 运行时缺陷并覆盖成功、缺失、异常、非零进程保留完成 Trial、usage/时间等分支。
-- `HarborExecutionAdapter` 已实现；内部 `process_runner.py`/`process_evidence.py` 使用 `Popen` 并发排空双流、每路 50 MiB 硬上限、显式截断 manifest 和结构化告警。生产执行器接真实 Harbor CLI 与 mapper 的 NOP 证据 `runtime/prototype/m0-harbor-bounded-process-20260906-01` 为 `1 passed in 19.61s`。受控 Windows 父子进程超时探针为 `1 passed in 1.35s`；默认受限环境无法调用 `taskkill` 时会显式返回 `HARBOR_PROCESS_TREE_CLEANUP_FAILED`。公开 `HarborExecutionAdapter.execute()` 的编排仍由替身单测覆盖。只读源码检查另发现 `LogCaptureSession.finish()` 使用无超时线程 `join()`；项目强杀路径可能绕过 Harbor Trial `finally` 中的 Compose `down`。这两点均尚未用真实 Harbor 外层超时复现或修复。
+- `HarborExecutionAdapter` 已实现；内部 `process_runner.py`/`process_evidence.py` 使用 `Popen` 并发排空双流、每路 50 MiB 硬上限、显式截断 manifest 和结构化告警。日志收束不再使用无限 `join()`；后代保持管道开放时会在固定期限返回 `HARBOR_LOG_CAPTURE_INCOMPLETE`。公开 Adapter 的真实 NOP 阻塞 collect 探针已复现并修复强杀后的 Compose 残留；清理只接受本 Job 下目录名与 `trial_name` 一致的身份，按 Harbor 相同净化规则生成精确 project label，不执行全局 prune。正常 NOP 与父子进程回归也已通过。
 - 截至交接时，没有读取 `auth.json` 内容，也没有发起真实模型调用或运行固定 SWE-Bench-Fork 判卷。固定 Fork Evaluator 与 M0 Composition Root 尚未实现。
 
 ## 6. 文档对账完成状态
@@ -221,15 +221,15 @@ M0 通过后，M1 的平台主流程才是：
 | [`CONTEXT.md`](CONTEXT.md) | 新增协作者、评测所有者、MVP 和取消请求；保留 Agent Configuration 与 Failure/Quality Judge 词义 | 不承载实现和部署细节 |
 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 已固定 M0→M1→Aider/Claude→P2、自研降级、两角色、闭卷、Judge、任务快照、取消/恢复与制品策略 | CLI/模型版本、Harbor/Codex Trial 及 Tailscale/VPN 仍待技术实测 |
 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | 依赖恢复按 M0/M1/后续/P2 分层，并同步固定数据、Harbor 安装、Python 项目锁和摘要镜像状态 | 模型 ID、Codex 容器安装和固定 Fork 运行兼容性未验证 |
-| [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1 验收、patch/制品上限、NOP/mapper、有界日志、取消/中断和 P2 接缝已写明 | Codex Token、脱敏、真实 Agent/判卷和 Harbor 超时后的 Compose 清理未验证 |
+| [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1 验收、patch/制品上限、NOP/mapper、有界日志、外层超时清理、取消/中断和 P2 接缝已写明 | Codex Token、脱敏与真实 Agent/判卷未验证 |
 | [`docs/interfaces/RUNNER_PROTOCOL.md`](docs/interfaces/RUNNER_PROTOCOL.md) | 明确是 P2/后备协议；固定文本 patch、二进制拒绝、大小和日志限额 | P2 完整 schema、Python/依赖锁和包装不阻塞 MVP |
-| [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | 已记录真实上游入口、任务双层存储、M0/M1 顺序，并同步真实 Harbor NOP/mapper/有界执行状态 | Codex 容器、Harbor 超时后的 Compose 清理与固定 Fork 仍未验证 |
+| [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | 已记录真实上游入口、任务双层存储、M0/M1 顺序，并同步真实 Harbor NOP/mapper/有界执行与超时清理状态 | Codex 容器与固定 Fork 仍未验证 |
 | [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | 凭据事实源区分 M0/M1 Codex `auth.json` 与 P2 自研受控访问 | 不记录真实凭据路径、内容或 Token；P2 宿主/侧车不阻塞 MVP |
 | [`docs/actions/2026-09-04-codex-authentication-policy.md`](docs/actions/2026-09-04-codex-authentication-policy.md) | 实际文件树和验证结果已补齐 | 历史行动记录只说明本次政策落盘，不替代认证事实源 |
 | [`docs/architecture/MODULE_CONTRACTS.md`](docs/architecture/MODULE_CONTRACTS.md) | 两角色、双用途 Judge、取消/恢复、制品策略、闭卷 MVP 和 P2 自研职责已同步 | 登录技术落点、Judge 模型/Prompt 与 P2 访问部署仍待实测 |
 | [`docs/architecture/DATA_MODEL.md`](docs/architecture/DATA_MODEL.md) | 任务原始快照、审批/取消状态、Job 级 Quality、保留/删除审计和大小规则已同步 | 账户现有承载点、精确 SQL/索引/租约仍待实现验证 |
 | [`docs/interfaces/HTTP_API.md`](docs/interfaces/HTTP_API.md) | 两角色权限、MVP 禁用自研/开卷、取消、Judge、指标和制品删除语义已同步 | 账户/会话的精确路由和现有承载位置仍待核验，接口尚未实现 |
-| [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | 通用 Docker/FlClash 出站、当前资源、固定摘要镜像、Harbor NOP 与宿主进程树清理已记录 | Codex Trial、Harbor 超时后的 Compose 清理与闭卷阻断未实测；P2 受控访问不阻塞 MVP |
+| [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | 通用 Docker/FlClash 出站、当前资源、固定摘要镜像、Harbor NOP、宿主进程树与超时 Compose 清理已记录 | Codex Trial 与闭卷阻断未实测；P2 受控访问不阻塞 MVP |
 | [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) | Tailscale 实施方案、FlClash/VPN 共存、两角色和双层账户标识已记录 | Tailscale 尚未安装/双机实测；应用登录未实现，真实页面不能开放 |
 | [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md) | 记录本轮范围、实际变更和文档验证证据 | 不把文档验证写成网络或真实 Trial 已通过 |
 | [`docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md`](docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md) | 记录本次同步范围、文件树、偏差和验证证据 | 不替代各专题权威事实源 |
@@ -241,7 +241,7 @@ M0 通过后，M1 的平台主流程才是：
 
 ## 7. 当前 Git 工作区，禁止误删
 
-前六次本地提交为；本轮交接将创建第七个本地提交 `docs: hand off verified patch scenarios`，准确 SHA 以 `git log -1` 为准：
+本轮开始前的七次本地提交为：
 
 - `0caedda docs: hand off M0 implementation progress`
 - `37f04d2 feat: add M0 evaluation foundations and handoff`
@@ -249,33 +249,32 @@ M0 通过后，M1 的平台主流程才是：
 - `40c6f6c wip: hand off Harbor adapter progress`
 - `e629eda wip: hand off bounded Harbor process progress`
 - `a9306b7 wip: hand off collect patch scenarios`
+- `aca01e7 docs: hand off verified patch scenarios`
 
-本轮提交前的恢复基线为：
+本轮恢复时的基线为：
 
 ```text
-## main...origin/main [ahead 6]
+## main...origin/main [ahead 7]
 ```
 
-本轮只把四场景真实证据和上述风险调查同步进 8 份文档，没有新增或修改生产/测试代码；提交后预期工作区干净、本地相对远端为 `7/0`。如果实际状态不同，先查日志与 status，区分当前交接、用户或其他窗口的后续修改；不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。当前仍没有 push；远端停在 `42484d8`，除非用户或其他窗口后来明确推送。
+`aca01e7` 后长期目标曾恢复，本轮完成日志有界收束、精确 Compose 超时清理、相应单元/真实集成测试和权威文档同步。上述内容与本 Handoff 以主题 `fix: clean up timed-out Harbor trials` 创建第八个本地提交；提交后工作区应干净，本地预计为 `main...origin/main [ahead 8]`。如果实际状态不同，先查 `git log -3 --oneline` 与 status，区分用户或其他窗口的后续修改；不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。当前没有 push；远端停在 `42484d8`，除非用户或其他窗口后来明确推送。
 
 ## 8. 待技术核验
 
 业务范围和产品行为已经确认。以下只能用查代码/配置、原型和测试补齐，不能重新解释成业务待决定：
 
-1. 有界 stdout/stderr、宿主父子进程终止和四类非空 patch 已验证，不要重做。源码事实是 `LogCaptureSession.finish()` 当前执行无超时线程 `join()`；Harbor Trial 正常路径在 `finally` 中调用环境清理，而项目 Windows `taskkill /T /F`、POSIX 进程组 SIGKILL 可能绕过它。优先用上游 `nop` 加测试专用阻塞 collect hook 构造受控真实 Harbor 超时，不调用模型、不加入生产 Agent Registry。精确识别并检查该 Trial 的 Compose 容器、网络和卷，同时验证后代仍持有日志管道时调用方不会无限阻塞；若发现残留或挂起，只清理已核实属于该探针的资源，并在现有 Harbor Adapter seam 内最小修复。不得把源码推断或普通父子进程测试写成 Docker 清理已通过。
-2. 建立固定 Fork 的独立、锁定环境和 `adapters/evaluation/swe_bench.py`；在同一候选题上先跑 gold、空、错误 patch。固定 Fork 顶层 `run_evaluation.py` 无条件导入 Linux `resource`，Windows 宿主直接运行的兼容性仍须实测，或用不修改上游源码的受控 Linux 载体解决。
-3. 补齐 M0 Composition Root/脚本与受控证据 manifest；先让上述无模型路径全部通过，并复核容器、网络、资源和清理。
-4. 真实 Trial 前按 `AGENTS.md` 一次只向用户确认一个会影响评测身份的选择：先确认 Codex CLI 固定版本，再确认当前可用模型与 reasoning effort。不得沿用旧记忆或把测试占位符 `model-must-be-confirmed` 当生产默认值。
-5. 容器内验证 Codex 安装、端点白名单以及 `auth.json` Token 刷新、脱敏和成功/失败/超时销毁路径。任何时候只检查凭据文件存在性/元数据，不读内容；最终只运行一个真实 Codex Trial。
-6. M0 全部门槛通过后才同步“完成”状态并开始 M1；Worker/账户/Judge/Tailscale/P2 都不抢占当前 M0。
+1. 建立固定 Fork 的独立、锁定环境和 `adapters/evaluation/swe_bench.py`；在同一候选题上先跑 gold、空、错误 patch。固定 Fork 顶层 `run_evaluation.py` 无条件导入 Linux `resource`，Windows 宿主直接运行的兼容性仍须实测，或用不修改上游源码的受控 Linux 载体解决。
+2. 补齐 M0 Composition Root/脚本与受控证据 manifest；先让上述无模型路径全部通过，并复核容器、网络、资源和清理。
+3. 真实 Trial 前按 `AGENTS.md` 一次只向用户确认一个会影响评测身份的选择：先确认 Codex CLI 固定版本，再确认当前可用模型与 reasoning effort。不得沿用旧记忆或把测试占位符 `model-must-be-confirmed` 当生产默认值。
+4. 容器内验证 Codex 安装、端点白名单以及 `auth.json` Token 刷新、脱敏和成功/失败/超时销毁路径。任何时候只检查凭据文件存在性/元数据，不读内容；最终只运行一个真实 Codex Trial。
+5. M0 全部门槛通过后才同步“完成”状态并开始 M1；Worker/账户/Judge/Tailscale/P2 都不抢占当前 M0。
 
 ## 9. 推荐的下一步顺序
 
 1. 先读本文、当前 M0 行动记录、`AGENTS.md`、总架构、模块契约、依赖事实源和三个 M0 接口文档；只做短恢复检查，不要重新下载数据、重建 Harbor、重拉已有摘要镜像或重写现有代码。
-2. 补齐外层杀死真实 Harbor 后的 Compose 清理和日志线程有界收束证据；发现问题时只在现有 Harbor Adapter seam 内最小修复，并对测试资源使用精确名称清理。
-3. 实现固定 Fork Adapter，并完成 gold/空/错误 patch 三类确定性验证；随后补 M0 Composition Root 与证据 manifest。
-4. 无模型闭环全通过后，按一次一个问题确认 Codex 版本、模型与 reasoning，再只检查凭据元数据并执行唯一一次真实 Codex Trial；不要额外消耗模型额度测试 prompt。
-5. M0 真实成功标准仍是 Codex→Harbor→完整、校验过的 patch→固定 Fork 确定性结果，加成功/失败/超时清理证据。未满足就保持 M0 进行中，不得进入 M1。
+2. 实现固定 Fork Adapter，并完成 gold/空/错误 patch 三类确定性验证；随后补 M0 Composition Root 与证据 manifest。
+3. 无模型闭环全通过后，按一次一个问题确认 Codex 版本、模型与 reasoning，再只检查凭据元数据并执行唯一一次真实 Codex Trial；不要额外消耗模型额度测试 prompt。
+4. M0 真实成功标准仍是 Codex→Harbor→完整、校验过的 patch→固定 Fork 确定性结果，加成功/失败/超时清理证据。未满足就保持 M0 进行中，不得进入 M1。
 
 ## 10. 安全红线
 
@@ -305,19 +304,19 @@ M0 通过后，M1 的平台主流程才是：
 11. docs/operations/LOCAL_DOCKER_ENVIRONMENT.md
 12. docs/adr/0001-use-harbor-as-execution-backend.md
 
-先做只读恢复检查：git status --short --branch、git log、三个 framework 仓库的 remote/HEAD/status、Harbor --version、Docker version、E 盘可用空间。本轮已在第六个本地提交 `a9306b7` 之后创建主题为 `docs: hand off verified patch scenarios` 的第七个本地交接提交；准确 SHA 以实际 `git log -1` 为准。预期本地 main 比 origin/main 领先 7、落后 0，origin/main 为 42484d8，工作区干净。Harbor 固定提交是 6af8d6e31eced13b93849cdf80feeadf24603d15，版本 0.22.0。保留并先辨明任何意外改动，禁止 reset/checkout/clean。除非用户明确要求，不 push。
+先做只读恢复检查：git status --short --branch、git log、三个 framework 仓库的 remote/HEAD/status、Harbor --version、Docker version、E 盘可用空间。第七个本地交接提交是 `aca01e7 docs: hand off verified patch scenarios`；其后的第八个本地提交主题应为 `fix: clean up timed-out Harbor trials`，包含日志有界收束、精确 Compose 超时清理、测试与同步文档。提交后工作区应干净，本地 main 预计比 origin/main 领先 8、落后 0，origin/main 为 42484d8。Harbor 固定提交是 6af8d6e31eced13b93849cdf80feeadf24603d15，版本 0.22.0。若状态不符，保留并先辨明所有后续改动，禁止 reset/checkout/clean。除非用户明确要求，不 push。
 
 不要重复构建 Harbor：framework/harbor/.venv 已按固定 uv.lock 安装，Windows 上 litellm 源码构建曾耗时 275 分钟；runtime/tools 和 runtime/cache/uv 也是已忽略但有价值的本机缓存。固定 SWE-Gym-Lite Parquet 和固定摘要镜像都已在本机，镜像 `/testbed` HEAD 已核验。
 
-继续更新同一份 M0 行动记录，不新建重复记录。当前快速无模型绿色基线是：ruff check、strict mypy 全通过，unit + contract `42 passed in 2.03s`。真实 Harbor NOP 原始链路证据是 `runtime/prototype/m0-harbor-nop-20260906-04`（`1 passed in 18.40s`）；正式 mapper 接入后的证据是 `runtime/prototype/m0-harbor-nop-20260906-05`（`1 passed in 20.56s`）；生产有界执行器接真实 Harbor CLI 与 mapper 的证据是 `runtime/prototype/m0-harbor-bounded-process-20260906-01`（`1 passed in 19.61s`）。真实 Windows 父子进程超时清理证据是 `runtime/prototype/m0-process-tree-timeout-20260906-01`（`1 passed in 1.35s`）。不要重新构建 Harbor，也不要重复这些旧探针。
+继续更新同一份 M0 行动记录，不新建重复记录。交接前最新快速无模型绿色基线是：ruff format/check、strict mypy 全通过，unit + contract `44 passed, 7 deselected in 6.67s`。正常 Harbor NOP 回归是 `runtime/prototype/m0-harbor-timeout-regression-20260906-01`（`1 passed in 18.87s`）；真实 Windows 父子进程回归是 `runtime/prototype/m0-process-tree-timeout-20260906-02`（`1 passed in 1.34s`）。不要重新构建 Harbor，也不要重复这些旧探针。
 
 `apps/backend/tests/integration/test_collect_patch_scenarios.py` 已在固定摘要镜像和 `--network none` 下真实运行：tracked modification、新文件、删除与容器内 Git commit 为 `4 passed in 5.91s`，生产 hook/校验器均通过，测试前后 Docker 对象计数一致且 `agentexam-patch-*` 无残留。证据目录是 `runtime/prototype/m0-collect-patch-scenarios-20260906-01`。不要重复这组探针，也不要把它扩大解释为 Harbor Compose 超时清理已通过。
 
-结果映射已完成：`result_mapper.py` 负责枚举子 Trial 结果并按 task path + agent config 严格绑定，`result_values.py` 负责制品/usage/时间纯转换。薄 `HarborExecutionAdapter` 已实现；`process_runner.py` 管 `Popen` 生命周期、Windows 进程树/POSIX 进程组终止，`process_evidence.py` 并发排空 stdout/stderr、每路最多持久化 50 MiB 并写显式截断 manifest。不要重写这些模块，也不要新增第二套执行路径。默认受限环境无法调用 `taskkill` 时会显式返回 `HARBOR_PROCESS_TREE_CLEANUP_FAILED`；提升权限父子进程探针已通过。只读调查确认 `LogCaptureSession.finish()` 当前使用无超时线程 `join()`；Harbor 自身依靠 Trial `finally` 调用 `environment.stop(delete=True)`，而项目 Windows `taskkill /T /F`、POSIX SIGKILL 强杀可能绕过这条 Compose 清理路径。该风险尚未由真实 Harbor 超时复现，不得先写成 bug 已证实或已修复。优先用上游 `nop` 加测试专用阻塞 collect hook 构造受控超时，不调用模型、不注册生产 sleep Agent；只检查/清理该 Trial 的精确 Compose project，然后在既有 seam 内最小修复。
+结果映射已完成：`result_mapper.py` 负责枚举子 Trial 结果并按 task path + agent config 严格绑定，`result_values.py` 负责制品/usage/时间和启动失败的纯结果转换。薄 `HarborExecutionAdapter` 已实现；`process_runner.py` 管 `Popen` 生命周期、Windows 进程树/POSIX 进程组终止，`process_evidence.py` 并发排空 stdout/stderr、每路最多持久化 50 MiB，并在总收束期限后用 `HARBOR_LOG_CAPTURE_INCOMPLETE` 明示不完整。真实阻塞 collect 红灯先留下 1 个容器、1 个网络和 1 个本地镜像；修复后 Adapter 只从本 Job 路径名一致的 Trial 配置推导 Harbor 规则的 project name，按精确 label 删除并复核四类资源，不使用 prune。绿灯证据 `runtime/prototype/m0-harbor-timeout-green-20260906-02` 为 `1 passed in 49.47s`，前后 Docker 对象数均为 `18/5/15/21`。不要重写这些模块，也不要新增第二套执行路径或重复该探针。
 
 必须固定：SWE-Gym revision/split/instance、镜像 digest、Harbor commit、Codex CLI 版本、模型和配置身份；Harbor n_attempts=1、n_concurrent_trials=1、max_retries=0、verifier.disable=true。Harbor reward 不得成为 resolved。Patch 必须来自容器最终 Git 工作区相对固定 base_commit 的完整 diff，覆盖未跟踪、删除、空 patch 和 Agent 自行 commit；256 KiB 警告，超过 1 MiB 或含二进制明确拒绝，不得截断。
 
-接下来依次做：验证外层杀死 Harbor 后的 Compose 清理与日志线程有界收束；建立固定 Fork 的独立锁定环境和 `adapters/evaluation/swe_bench.py`，对固定题运行 gold/空/错误 patch；再补 M0 Composition Root 和 manifest。无模型链路全部通过后，按 AGENTS.md 一次只问一个问题，向用户确认会进入评测身份的 Codex CLI 版本、当前可用模型和 reasoning effort；测试中的 `model-must-be-confirmed` 不是默认值。之后只执行唯一一次真实 Codex Trial，不额外消耗模型额度。
+接下来依次做：建立固定 Fork 的独立锁定环境和 `adapters/evaluation/swe_bench.py`，对固定题运行 gold/空/错误 patch；再补 M0 Composition Root 和 manifest。无模型链路全部通过后，按 AGENTS.md 一次只问一个问题，向用户确认会进入评测身份的 Codex CLI 版本、当前可用模型和 reasoning effort；测试中的 `model-must-be-confirmed` 不是默认值。之后只执行唯一一次真实 Codex Trial，不额外消耗模型额度。
 
 安全约束：不得读取、打印、复制、提交或上传 auth.json 内容/API Key/Token/Cookie；真实秘密路径也不得进入配置快照、日志、轨迹、patch 或 manifest。当前 Windows 系统代理关闭、FlClash 运行；不要擅自开启系统代理、修改 VPN 或把代理连通写成闭卷隔离已通过。需要改变用户系统网络状态时，先给只读证据并请求明确授权。
 

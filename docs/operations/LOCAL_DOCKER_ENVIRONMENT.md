@@ -106,9 +106,11 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 第一次更新 Docker CLI JSON 时，使用带空备份参数的 `.NET File.Replace` 被拒绝；原文件 SHA-256 和 JSON 随即复核未变，临时文件数为 0。第二次使用同目录覆盖移动成功，写入后重新解析 JSON 并核对全部原顶层字段和代理字段。
 
-2026-09-06 的 Harbor NOP 探针使用固定任务镜像真实创建 Docker Compose Trial。映射后复测 `runtime/prototype/m0-harbor-nop-20260906-05` 为 `1 passed in 20.56s`；生产有界执行器接真实 Harbor CLI 的复测 `runtime/prototype/m0-harbor-bounded-process-20260906-01` 为 `1 passed in 19.61s`：Verifier 关闭，collect hook 生成并校验 0-byte patch，stdout 未截断，Harbor CLI 在显式 UTF-8 环境正常退出，Trial 对应的 Compose container/network/volume 均无残留。另一个真实 Windows 父子进程超时探针为 `1 passed in 1.35s`，只证明宿主进程树终止；外层杀死 Harbor 后 Compose 子资源是否残留仍待单独验证。这些证据不包含模型、认证或网络白名单，不能推导真实 Codex Trial 已安全可用。
+2026-09-06 的 Harbor NOP 探针使用固定任务镜像真实创建 Docker Compose Trial。映射后复测 `runtime/prototype/m0-harbor-nop-20260906-05` 为 `1 passed in 20.56s`；生产有界执行器接真实 Harbor CLI 的复测 `runtime/prototype/m0-harbor-bounded-process-20260906-01` 为 `1 passed in 19.61s`：Verifier 关闭，collect hook 生成并校验 0-byte patch，stdout 未截断，Harbor CLI 在显式 UTF-8 环境正常退出，Trial 对应的 Compose container/network/volume 均无残留。修复后的正常 NOP 回归为 `1 passed in 18.87s`，真实 Windows 父子进程回归为 `1 passed in 1.34s`。这些证据不包含模型、认证或网络白名单，不能推导真实 Codex Trial 已安全可用。
 
 同日的固定摘要镜像 collect-patch 探针使用 `--network none`，对跟踪文件修改、新文件、删除和容器内 Git commit 四种场景得到 `4 passed in 5.91s`。测试直接运行生产 `collect_patch.sh` 并调用宿主生产校验器；运行前后均为 18 个容器、13 个运行和 21 个镜像，测试前缀容器查询无输出。该证据证明四类非空 patch 与测试容器精确清理，不证明 Harbor 外层超时后的 Compose 清理。
+
+外层超时探针使用上游 `nop` 和测试专用阻塞 collect。修复前 `1 failed in 48.51s` 并精确观测到该 project 留下 1 个容器、1 个网络、1 个本地镜像；测试 `finally` 清理后总数恢复。生产 Adapter 随后只按本 Job 落盘 Trial 身份推导的 project label 清理并复核，`runtime/prototype/m0-harbor-timeout-green-20260906-02` 为 `1 passed in 49.47s`，运行前后容器/网络/卷/镜像总数都是 `18/5/15/21`。该证据不包含真实模型或凭据。
 
 ## 7. 对 AgentExam 的直接限制
 
@@ -125,7 +127,7 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 ## 8. 尚未验证
 
-- Harbor 固定环境、CLI `0.22.0`、NOP Job/Trial、正式有界进程 Adapter 的 NOP 路径和四类非空 patch 已通过；Harbor 外层失败/超时后的 Compose 清理和真实 Codex 尚未验证。
+- Harbor 固定环境、CLI `0.22.0`、NOP Job/Trial、正式有界进程 Adapter、四类非空 patch 和外层超时后的精确 Compose 清理已通过；真实 Codex 尚未验证。
 - 尚未执行带真实模型的 SWE-Gym Agent Trial。
 - 尚未运行固定 SWE-Bench-Fork 的 `run_evaluation`。
 - 尚未确定单个 Trial 的安全内存、CPU、磁盘和超时上限。

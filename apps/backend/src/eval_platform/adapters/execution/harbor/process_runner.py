@@ -17,6 +17,7 @@ from eval_platform.adapters.execution.harbor.process_evidence import (
 )
 
 _CLEANUP_TIMEOUT_SEC = 5
+_LOG_CAPTURE_TIMEOUT_SEC = 5
 _TIMEOUT_EXIT_CODE = 124
 
 
@@ -69,7 +70,11 @@ def run_bounded_process(
         timed_out = True
         warnings.append("HARBOR_PROCESS_TIMEOUT")
         warnings.extend(_terminate_process_tree(process))
-    stdout, stderr = capture.finish()
+    stdout, stderr, incomplete_logs = capture.finish(
+        timeout_sec=_LOG_CAPTURE_TIMEOUT_SEC
+    )
+    if incomplete_logs:
+        warnings.append("HARBOR_LOG_CAPTURE_INCOMPLETE")
     _add_truncation_warnings(warnings, stdout, stderr)
     returncode = (
         _TIMEOUT_EXIT_CODE

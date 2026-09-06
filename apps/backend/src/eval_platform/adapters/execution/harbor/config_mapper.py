@@ -14,6 +14,10 @@ from eval_platform.domain.agent import AgentConfiguration
 HARBOR_REVISION = "6af8d6e31eced13b93849cdf80feeadf24603d15"
 ARTIFACT_CONTRACT_VERSION = "agentexam.m0.v1"
 _SAFE_ID = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}")
+_ENVIRONMENT_BUILD_TIMEOUT_SEC = 1800
+_AGENT_SETUP_TIMEOUT_SEC = 360
+_COLLECT_TIMEOUT_SEC = 60
+_PROCESS_GRACE_SEC = 120
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,3 +140,14 @@ def harbor_agent_key(agent: Mapping[str, Any]) -> str:
     ):
         raise ValueError("Harbor Agent config has no stable identity")
     return json.dumps(selected, sort_keys=True, separators=(",", ":"))
+
+
+def process_timeout_sec(request: ExecutionJobRequest) -> int:
+    per_trial = (
+        _ENVIRONMENT_BUILD_TIMEOUT_SEC
+        + _AGENT_SETUP_TIMEOUT_SEC
+        + request.limits.wall_timeout_sec
+        + _COLLECT_TIMEOUT_SEC
+        + _PROCESS_GRACE_SEC
+    )
+    return len(request.runs) * per_trial

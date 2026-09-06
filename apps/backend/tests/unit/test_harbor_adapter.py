@@ -185,6 +185,7 @@ def test_process_timeout_is_explicit_and_keeps_partial_logs(
         "HARBOR_JOB_RESULT_MISSING",
         "HARBOR_PROCESS_TIMEOUT",
         "HARBOR_STDERR_TRUNCATED",
+        "HARBOR_COMPOSE_CLEANUP_UNVERIFIED",
     )
     run_root = tmp_path / "evidence/timeout-test"
     assert (run_root / "harbor.stdout.log").read_text() == "partial stdout"

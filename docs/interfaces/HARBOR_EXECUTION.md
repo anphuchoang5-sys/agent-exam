@@ -1,6 +1,6 @@
 # Harbor 执行后端接口
 
-> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射、四类非空 patch、有界日志和宿主进程树清理已核验；真实 Codex Trial 与 Harbor 超时后的 Compose 清理待验收
+> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射、四类非空 patch、有界日志、宿主进程树及外层 Compose 超时清理已核验；真实 Codex Trial 待验收
 >
 > 最后更新：2026-09-06
 >
@@ -235,7 +235,7 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
-当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB，超限与进程树清理失败都写入 manifest 并传播为运行告警。unit/contract 共 42 项通过；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 路径也通过，证明无模型路径、空 patch、关闭 Verifier 后的 artifact、UTF-8 CLI 和正常 Compose 清理。固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 集成测试为 `4 passed in 5.91s`，测试专用容器无残留。公开 `HarborExecutionAdapter.execute()` 的编排仍由受控替身单测覆盖；真实父子进程超时探针只证明宿主进程树终止，不证明外层杀死 Harbor 后 Compose 子资源必然清理。真实 Codex、网络/凭据/轨迹、Harbor 超时后的 Compose 清理和固定 Fork 仍未完成，不能据此把 M0 标记完成。
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB；超限、进程树清理失败或日志收束不完整均显式传播为运行告警。unit/contract 共 44 项通过；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 正常路径为 `1 passed in 18.87s`，固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 为 `4 passed in 5.91s`。公开 `HarborExecutionAdapter.execute()` 的阻塞 collect 探针先真实复现外层强杀留下 1 个容器、1 个网络和 1 个本地镜像；生产修复只从本 Job 路径名一致的 Trial 配置推导固定规则的 Compose project，并按 label 删除、复核容器/网络/卷/本地镜像，复测为 `1 passed in 49.47s`，前后 Docker 对象计数相同。真实 Codex、网络/凭据/轨迹和固定 Fork 仍未完成，不能据此把 M0 标记完成。
 
 ### 13.2 M1：Codex 平台 MVP
 
@@ -264,3 +264,4 @@ M1 通过后，先使用相同契约登记并验证 Harbor 已有的 Aider、Cla
 - 2026-09-05：确认首版自研 Agent 为 Python 固定进程 Interface，由平台包装进 Harbor；只允许 DeepSeek/Kimi 独立配置，真实 Key 不直接进入被测容器，具体受控访问部署与网络隔离仍待原型。
 - 2026-09-05：固定 M0 本机 Codex 脚本原型、M1 Codex 平台 MVP、Aider/Claude Code、P2 自研 Agent 的顺序；补充闭卷限制、取消/中断不自动重试和 patch/原始制品限额。
 - 2026-09-06：真实 Harbor NOP Docker Trial 与项目结果映射通过；薄进程 Adapter、有界双流日志和宿主进程树超时终止完成测试；记录落盘 Job 结果不含 `trial_results`、Windows CLI UTF-8 要求、任务 collect hook/单目录 artifact 契约，以及仍未通过的真实 Codex、Harbor 超时后 Compose 清理和固定 Fork 门槛。
+- 2026-09-06：阻塞 collect 的公开 Adapter 探针复现外层强杀后的 Compose 残留；新增基于本 Job Trial 身份的精确 project label 清理与日志线程总收束期限，真实超时、正常 NOP 和父子进程回归均通过。真实 Codex 与固定 Fork 仍未通过。
