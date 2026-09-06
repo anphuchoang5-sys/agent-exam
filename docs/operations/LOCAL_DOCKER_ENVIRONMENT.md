@@ -2,7 +2,7 @@
 
 > 状态：已动态验证
 >
-> 最后核验：2026-09-05
+> 最后核验：2026-09-06
 > 权威范围：本机 Docker/WSL 的实际版本、数据位置、资源上限、磁盘余量和验证状态
 
 ## 1. 这份文档解决什么问题
@@ -19,15 +19,15 @@
 | Docker Desktop | `4.38.0.181591` | Windows 上管理 Docker 的桌面程序 |
 | Docker Engine | `27.5.1` | 真正创建和运行容器的后台引擎 |
 | WSL | `2.4.12.0`，WSL2 后端 | Docker Linux 容器使用的轻量 Linux 虚拟环境 |
-| Windows 系统代理 | FlClash `127.0.0.1:7890` | 系统代理已开启；FlClash TUN 与 `allow-lan` 均关闭 |
+| Windows 系统代理 | 已关闭；FlClash 进程仍监听 `127.0.0.1:7890` | 2026-09-06 `ProxyEnable=0`；需要联网的本轮命令仅使用进程级代理，不改变系统设置 |
 | Docker Desktop 代理 | `ProxyHTTPMode=system` | Desktop 读取 Windows 系统代理；Engine 内部显示 `http.docker.internal:3128` |
 | Docker CLI 容器代理 | `http://http.docker.internal:3128` | 新的 CLI 创建容器/构建自动注入 HTTP(S) 代理；Harbor 动态 Trial 仍须显式映射 |
 | WSL 内存上限 | `10GB` | 所有 WSL2 虚拟机可动态使用的上限，不会启动时立刻占满 |
-| Docker 实际可见内存 | `10,429,509,632` bytes，约 `9.713 GiB` | 10 GB 扣除 WSL/Linux 自身开销后的可用量 |
+| Docker 实际可见内存 | `10,429,505,536` bytes，约 `9.713 GiB` | 2026-09-06 Engine 动态探针；10 GB 扣除 WSL/Linux 自身开销后的可用量 |
 | Docker 数据目录 | `E:\dockerdata\DockerDesktopWSL\DockerDesktopWSL` | Docker Desktop 实际记录的镜像、容器与卷所在目录 |
 | 主数据盘文件 | `...\disk\docker_data.vhdx`，约 21.34 GiB | 一个虚拟 Linux 磁盘文件；不得在 Docker 运行时手工剪切 |
 | D 盘可用空间 | 约 29.13 GiB | 迁移完成后的核验值 |
-| E 盘可用空间 | 约 22.80 GiB | 迁移完成后的核验值 |
+| E 盘可用空间 | `19,609,157,632` bytes，约 18.26 GiB | 2026-09-06 交接前动态值；会随镜像和运行制品变化 |
 
 Docker Desktop 会在用户选择的 `E:\dockerdata\DockerDesktopWSL` 下再创建自己的 `DockerDesktopWSL` 子目录，所以实际路径多一层。这是 Docker Desktop 保存的真实设置，不是重复迁移。
 
@@ -112,8 +112,8 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 - Harbor SWE-Gym 模板中的 `8192 MB` 是**单个任务环境上限**，而 `10GB` 是整个 WSL2 的共享上限，两者不是同一个概念。
 - Agent 容器、判卷容器、Docker/WSL 开销和宿主进程会竞争内存，因此不能因为 `8192 MB < 10GB` 就断言模板稳定可用。
 - 首个真实任务必须实测峰值内存、耗时和磁盘增长，再决定 Harbor Trial 的正式资源模板。
-- E 盘仅余约 22.80 GiB，不适合批量下载完整 SWE-Gym 镜像集合；M0 只能选择 1 道任务起步、必要时扩至 3 道，并控制镜像缓存。
-- 当前只验证通用 BusyBox 容器和无凭据 OpenAI HTTPS；没有验证固定 Harbor 提交、容器内 Codex CLI、ChatGPT `auth.json`、Token 刷新或完整 Trial。
+- 2026-09-06 交接前 E 盘可用 `19,609,157,632` bytes（约 18.26 GiB），不适合批量下载完整 SWE-Gym 镜像集合；M0 只能选择 1 道任务起步、必要时扩至 3 道，并控制镜像缓存。
+- 固定 Harbor 源码/环境/CLI 和候选摘要镜像已经核验；固定镜像的无网络探针确认 `/testbed` 位于任务 base commit。仍没有验证 Harbor Trial、容器内 Codex CLI、ChatGPT `auth.json`、Token 刷新或完整闭环。
 - Docker CLI 自动代理不等于 Harbor 动态 Trial 自动代理；实现时必须核对 Harbor `AgentConfig.env` 的实际容器结果。
 - `host.docker.internal:7890` 可达证明环境变量可以被绕过；闭卷赛道不得把当前配置直接当作端点白名单或防绕过措施。
 - 当前最先验证的是 M0 本机 Codex 脚本闭环；Web、PostgreSQL、MinIO、登录和所有者审批属于其后的 M1 平台集成，不应阻塞 M0。
@@ -121,7 +121,7 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 ## 8. 尚未验证
 
-- 尚未安装或运行 Harbor。
+- Harbor 固定环境已安装且 CLI `0.22.0` 可用，但尚未运行 Harbor Job/Trial。
 - 尚未执行真实 SWE-Gym Agent Trial。
 - 尚未运行固定 SWE-Bench-Fork 的 `run_evaluation`。
 - 尚未确定单个 Trial 的安全内存、CPU、磁盘和超时上限。

@@ -1,8 +1,8 @@
 # 上游框架与 Agent CLI 接口清单
 
-> 文档状态：持续维护；上游事实已核验，Harbor 架构映射已确认，运行能力仍待分层实测
+> 文档状态：持续维护；上游事实与 M0 第一批 Task/Harbor 类型契约已核验，真实 Trial 与 Harness 仍待分层实测
 >
-> 最后更新：2026-09-05
+> 最后更新：2026-09-06
 > 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 与自研 Agent 凭据政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
 
 ## 1. 先把最容易混淆的事说清楚
@@ -25,7 +25,7 @@ SWE-Gym 本身没有提供 Codex/Aider/Claude Code 的统一 Runner；固定 Har
 | 已核验源码 | 已从当前本地固定提交读取到接口定义 |
 | 已核验官方文档 | 已从工具供应商官方文档/官方源码确认 |
 | 架构已确认 | 项目已决定采用该映射，但不等于本机运行通过 |
-| 候选映射 | 本项目怎样使用真实接口的设计，尚未实现 |
+| 候选映射 | 本项目怎样使用真实接口的设计；未标为“Adapter 契约通过”前仍可能尚未实现 |
 | Adapter 契约通过 | 固定版本通过本项目统一协议测试 |
 | 真实账号通过 | 使用真实模型凭据在小仓库运行通过 |
 | SWE-Gym E2E 通过 | 真实任务从 Issue 到 SWE-Bench-Fork 结果完整跑通 |
@@ -187,7 +187,7 @@ Harness 还在当前工作目录生成 `<model_name_or_path>.<run_id>.json` 汇�
 
 架构决定是：平台 Job→Harbor Job，评测运行→Harbor Trial，`n_attempts=1`、`n_concurrent_trials=1`、`verifier.disable=true`；每个 Trial 的 patch 由 Adapter 强校验后交给固定 SWE-Bench-Fork。完整输入、输出、错误和验收门槛只在 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md) 维护。
 
-静态核验不能证明 Harbor 已经在本机安装、任务能运行或 patch 能提取；当前状态仍是“架构已确认、运行待原型”。
+固定 Harbor 已在本机安装，项目生成的 `JobConfig` 与无 `tests/` 的公开 Task 已通过真实 Harbor 类型解析；配置/Task 边界可标为“Adapter 契约通过”。这仍不能证明 Harbor Job/Trial 能运行或 collect hook 能实际提取 patch，运行状态仍是“待原型”。
 
 ## 7. Codex CLI Adapter
 
@@ -233,7 +233,7 @@ Runner RunEnvelope
 
 历史记录：2026-09-01 从旧工作区尝试 `codex --version` / `codex exec --help` 时，WindowsApps 中打包的 `codex.exe` 被操作系统拒绝启动。该结果不再作为当前宿主 CLI 状态。
 
-当前宿主探针：2026-09-04 在 `E:\9.1agent_exam` 的提升权限只读 shell 中，`Get-Command codex` 解析到 `C:\Users\YINGYI\AppData\Roaming\npm\codex.ps1`；`codex --version` 返回 `codex-cli 0.142.0`，`codex exec --help` 正常输出，两个退出码均为 0。
+当前宿主探针：2026-09-06 `codex --version` 返回 `codex-cli 0.153.0`；2026-09-04 的 `0.142.0` 只保留在变更记录中作为当时事实。当前宿主可启动不代表项目已经固定该版本，也不代表 Harbor 容器内 Codex 可运行。
 
 限制：同一窗口的默认沙箱命令启动器在命令执行前返回 `setup refresh had errors`，而提升权限后探针成功；因此该故障应归入 Codex Windows 沙箱/宿主运行环境，不应误写为 CLI 命令失败。上述结果也没有固定项目 CLI 版本、验证真实账号、发起模型请求或证明 Harbor 容器内 Codex 可用。
 
@@ -375,10 +375,10 @@ P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键�
 
 ## 15. 当前未解决接口问题
 
-1. `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个首批任务；需实际读取数据集元数据，不能暗猜。
+1. Lite revision、`train` split、候选 `python__mypy-15413`、Parquet 哈希与镜像 digest 已固定；候选能否成为 M0 正式首题取决于真实闭环。
 2. Windows + Docker Desktop 下 SWE-Bench-Fork 固定提交是否无需补丁即可运行；需 gold patch 实测。
-3. Harbor 固定提交在本机的安装方式、Worker 载体、`model_patch` 受控提取和 Trial→`run_id` 映射。
-4. 固定 Codex 项目 CLI 版本、模型 ID 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；当前宿主 `0.142.0` 只是一条环境探针，不是已选基线。
+3. Harbor 固定环境已安装；仍须验证 CLI 进程 Adapter、实际 Job/Trial 目录、`model.patch` 受控提取、结果映射和 Trial→`run_id` 映射。
+4. 固定 Codex 项目 CLI 版本、模型 ID、reasoning effort 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；2026-09-06 宿主 `0.153.0` 只是一条环境探针，不是已选基线。
 5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
 6. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
 7. P2 `agent-exam.yaml` 的完整 schema、Python 版本、依赖锁格式，以及平台怎样把已确认进程 Interface 包装进 Harbor；不再待选 Harbor `BaseAgent` 或进程协议，且不阻塞 MVP。

@@ -1,0 +1,1 @@
+"""Pure AgentExam domain objects."""

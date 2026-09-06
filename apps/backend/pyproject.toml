@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentexam-backend"
+version = "0.1.0"
+description = "AgentExam modular backend and M0 evaluation prototype"
+requires-python = ">=3.13,<3.14"
+dependencies = ["pyarrow==22.0.0"]
+
+[dependency-groups]
+dev = [
+  "mypy==1.18.2",
+  "pytest==9.0.2",
+  "ruff==0.15.17",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"eval_platform.adapters.tasks" = ["collect_patch.sh"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = [
+  "contract: validates an adapter against a fixed external interface",
+  "integration: uses local runtime data, Docker, or the fixed harness",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+packages = ["eval_platform"]

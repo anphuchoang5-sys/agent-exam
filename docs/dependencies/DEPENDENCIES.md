@@ -1,8 +1,8 @@
 # 项目依赖唯一事实源
 
-> 文档状态：已建立；三项上游源代码身份及本机 Docker/WSL 运行时已核验，项目版本基线与外部制品版本仍待确认
+> 文档状态：持续维护；M0 三项上游身份、固定数据/镜像、Harbor 环境和后端锁文件已核验，完整 Trial 依赖仍待验证
 >
-> 最后更新：2026-09-05；上游与 CLI 最后核验：2026-09-04
+> 最后更新：2026-09-06；上游、Harbor 与 CLI 最后核验：2026-09-06
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
 
 ## 1. 文档边界
@@ -23,10 +23,10 @@
 
 | 依赖 | 项目用途 | 固定版本 | 是否进入主仓库 | 当前状态 |
 |---|---|---|---:|---|
-| SWE-Gym | 任务数据、模型与复现实验材料的上游来源 | `b681068ca20628c6987b7416cc4cf03f06b77ba5` | 否 | 源码身份、许可证和上游制品入口已核验；原型数据集已选 `SWE-Gym/SWE-Gym-Lite`，数据未下载 |
-| SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 源码身份、许可证和安装入口已核验；该 Fork 尚未安装或运行 |
-| Harbor | Execution Backend（执行后端）：把一个平台 Job 展开并运行成多个 Agent Trial，管理 Agent、环境、资源/网络策略和轨迹 | `6af8d6e31eced13b93849cdf80feeadf24603d15` | 否 | 固定源码接口、包版本和许可证已静态核验；本机尚未下载、安装或运行 |
-| Python 运行时 | 后端及 SWE-Bench-Fork 运行时 | 待确认 | 不适用 | 已确认采用；上游只声明 `>=3.8`，项目基线未选定 |
+| SWE-Gym | 任务数据、模型与复现实验材料的上游来源 | `b681068ca20628c6987b7416cc4cf03f06b77ba5` | 否 | 源码身份、许可证和上游制品入口已核验；M0 固定 Lite revision/split/单题已下载并通过内容校验 |
+| SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 源码身份、许可证和安装入口已核验；固定单题摘要镜像已拉取并核验仓库快照，但 Fork Harness 尚未安装或运行 |
+| Harbor | Execution Backend（执行后端）：把一个平台 Job 展开并运行成多个 Agent Trial，管理 Agent、环境、资源/网络策略和轨迹 | `6af8d6e31eced13b93849cdf80feeadf24603d15` | 否 | 固定源码和隔离环境已恢复，CLI `0.22.0` 可用；真实类型/Task 契约测试通过，尚未启动 Trial |
+| Python 运行时 | 后端及 SWE-Bench-Fork 运行时 | M0 后端 `>=3.13,<3.14`；Fork 基线待验证 | 不适用 | `apps/backend/pyproject.toml` 与 `uv.lock` 已固定并安装 Python 3.13 项目环境；Fork 独立运行依赖尚未锁定 |
 | FastAPI | 后端 HTTP 交付层 | 待确认 | 后续由项目包清单锁定 | 已确认采用；精确版本未固定 |
 | Node.js 运行时 | Web 前端构建/运行 | 待确认 | 不适用 | 已确认采用；版本未选定 |
 | Next.js | Web 框架 | `15.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 Next.js 15 |
@@ -34,7 +34,7 @@
 | Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | 本机 Windows + WSL2 部署和无网络冒烟测试已验证；Compose 与 SWE-Bench-Fork 集成未验证，详见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
 | PostgreSQL | 结构化业务数据存储与 MVP 平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；M0 本机脚本原型不依赖；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
-| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；本机 `codex-cli 0.142.0` 的版本与帮助命令已通过只读探针，但这不是项目固定版本，容器版本、模型、端点和运行兼容性仍待固定或实测 |
+| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；2026-09-06 宿主动态探针为 `codex-cli 0.153.0`，但项目固定版本、容器模型、端点和运行兼容性仍待确认或实测 |
 | Aider CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | Claude Code CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | 本地自研 Agent | P2 扩展 Agent | 待实现 | 是，由提交者固定 Git commit 提交，审核后登记 | 只保留扩展接缝；P2 首版只支持 Python 和固定进程 Interface，完整 manifest、Python 版本、依赖锁格式与 Harbor 包装不阻塞 MVP |
@@ -75,10 +75,11 @@
 - 该固定提交的仓库根目录没有 `pyproject.toml`、`setup.py`、`setup.cfg`、`requirements.txt`、`environment.yml`、`Pipfile`、`poetry.lock` 或 `package.json`，因此不能把 SWE-Gym 本身描述成一个具有统一安装入口的软件包。
 - 官方 [`README.md`](https://github.com/SWE-Gym/SWE-Gym/blob/b681068ca20628c6987b7416cc4cf03f06b77ba5/README.md) 将数据与模型入口指向 Hugging Face 的 [`SWE-Gym`](https://huggingface.co/SWE-Gym) 组织页，并把环境常量指向 SWE-Bench-Fork。
 - 同一 README 声明实例预构建镜像位于 Docker Hub 的 `xingyaoww/sweb.eval.x86_64` 前缀下。
-- 团队已确认首个真实原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道任务。不可变 dataset revision、真实 split、具体 `instance_id`、内容校验值和镜像 digest 仍必须在实际读取元数据与选题后写入本文件，不能使用漂移的 `main`/`latest`。
+- 团队已确认首个真实原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道任务。M0 当前固定 revision `61231f2c90b18985b42a1419738a240085a15107`、`train` split 和候选 `python__mypy-15413`；固定 Parquet 大小为 `931,193` bytes，SHA-256 为 `f3a7cd934e8cc523b6053298d0abb2c82fd7db2b83f9f2ccba5944545aaa4eb1`。
+- 当前候选镜像固定为 `xingyaoww/sweb.eval.x86_64.python_s_mypy-15413@sha256:f069dfc74592d438ad870bbc6dfb369bff1b125d21237ead49190b414f5f3456`，已拉取并确认 `/testbed` HEAD 为任务 base commit `e7b917ec7532206b996542570f4b68a33c3ff771`。这只证明镜像身份，不证明 Harness 或 Codex Trial 通过。
 - OpenHands 和 MoatlessTools 出现在上游复现实验说明中；它们当前不是 AgentExam 已固定的直接依赖，不能仅凭上游示例自动纳入项目。
 
-当前验证状态：只核验了固定提交中的源码、README 与许可证；没有访问 Hugging Face 内容，没有下载数据或模型，没有拉取或运行镜像。
+当前验证状态：固定源码、README、许可证、Lite 数据 revision/split/内容哈希、候选字段与固定摘要镜像均已核验；项目 Task Adapter 的公开/隐藏字段隔离和真实 Parquet 契约测试已通过。没有运行真实 Agent 或 Harness。
 
 ## 5. SWE-Bench-Fork
 
@@ -132,14 +133,14 @@ python -m pip install -e .
 | 项目 | 已核验值 |
 |---|---|
 | 官方仓库 | <https://github.com/harbor-framework/harbor.git> |
-| 计划恢复路径 | `framework/harbor`；当前目录不存在 |
+| 本地恢复路径 | `framework/harbor` |
 | 固定提交 | `6af8d6e31eced13b93849cdf80feeadf24603d15` |
 | 包内版本 | `0.22.0` |
 | Python 要求 | `>=3.12` |
 | 许可证 | Apache License 2.0 |
 | 固定提交入口 | <https://github.com/harbor-framework/harbor/tree/6af8d6e31eced13b93849cdf80feeadf24603d15> |
 
-完整提交哈希是项目的权威固定版本；包内版本 `0.22.0` 只作为辅助身份。版本、Python 要求与许可证已经从固定提交的 `pyproject.toml` 和 `LICENSE` 静态核验，但这不等于 Harbor 已在本机安装或跑通。
+完整提交哈希是项目的权威固定版本；包内版本 `0.22.0` 只作为辅助身份。固定源码和按上游 `uv.lock` 的隔离环境已在本机恢复，CLI 可启动；这仍不等于 Harbor Trial 已跑通。
 
 ### 6.2 在项目中的边界
 
@@ -149,7 +150,7 @@ python -m pip install -e .
 - 固定 SWE-Bench-Fork 的 `swebench.harness.run_evaluation` 仍是唯一确定性最终判卷入口，Harbor Reward 不能覆盖其结论。
 - Harbor 的精确接口、转换与退出门槛由 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) 维护；采用决定见 [`ADR-0001`](../adr/0001-use-harbor-as-execution-backend.md)。
 
-当前验证状态：已对固定提交中的配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力进行静态核验；尚未下载源码、安装依赖、创建 Harbor Job、启动 Trial 或验证 `model_patch` 提取。
+当前验证状态：固定源码/环境已恢复；已对配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力做源码核验，并用真实 `JobConfig`/`Task` 类型通过项目契约测试。尚未创建或启动 Harbor Trial，collect hook 与 `model.patch` 仍须运行验证。
 
 ## 7. 恢复固定源码
 
@@ -193,34 +194,34 @@ git -C framework/harbor status --porcelain
 - 三个 `status --porcelain` 均无输出，表示没有本地改动；
 - SWE-Bench-Fork 的 `swebench/__init__.py` 仍声明 `2.0.13`；若任一结果不同，不得把该环境标记为已复现。
 
-Harbor 当前尚未恢复到本机，所以对它执行上述命令会因目录不存在而失败；这正是当前真实状态，不应标记为已复现。
+Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败，应先查明本机后续变化，不得覆盖或重建现有环境。
 
 ## 9. 尚待确认的锁定项
 
 以下事项必须通过后续架构确认或真实运行完成，当前不得补猜：
 
-1. 首个原型数据集 ID 已确认为 `SWE-Gym/SWE-Gym-Lite`；其不可变 revision、真实 split、1～3 个首批实例及内容校验值仍待核验；正式榜最终数据范围另行确认；
-2. 是否采用预构建实例镜像；若采用，需要记录完整仓库名、架构、不可变 digest 与来源验证；
+1. 首个原型已经固定 Lite revision、`train` split、候选单题和内容校验值；候选成为正式首题仍取决于真实 M0 闭环，正式榜最终数据范围另行确认；
+2. M0 已采用并拉取候选预构建实例镜像；其固定 digest 和 `/testbed` base commit 已核验，Harbor/Codex/Harness 兼容性仍待实测；
 3. Python、FastAPI、Node.js、Next.js 15、React 19、Docker/Compose、PostgreSQL、MinIO 的精确版本和部署形态；
 4. SWE-Bench-Fork 未固定 Python 依赖的项目级锁定版本；
 5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；Codex 认证政策已经确认，不再作为待选择项，但项目固定版本、模型 ID、端点和容器兼容性仍待固定或实测；
 6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；
 7. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
-8. Harbor 的安装方式、项目隔离环境、完整依赖锁、Job 目录位置及原型验收结果；
+8. Harbor Job/Trial 目录位置、CLI 进程 Adapter、结果映射及真实原型验收结果；
 9. 恢复脚本、依赖缓存和供应链校验流程。
 
 ## 10. 本次核验证据摘要
 
 | 检查 | 结果 |
 |---|---|
-| 本机两仓库 `remote.origin.url` | SWE-Gym 与 SWE-Bench-Fork 均与第 4、5 节官方地址一致 |
-| 本机两仓库 `HEAD` | SWE-Gym 与 SWE-Bench-Fork 均与固定提交一致 |
-| 本机两仓库 tracked worktree / index | 均干净 |
+| 本机三仓库 `remote.origin.url` | SWE-Gym、SWE-Bench-Fork 与 Harbor 均与第 4～6 节官方地址一致 |
+| 本机三仓库 `HEAD` | SWE-Gym、SWE-Bench-Fork 与 Harbor 均与固定提交一致 |
+| 本机三仓库 tracked worktree / index | 均干净 |
 | 三项上游许可证 | SWE-Gym、Harbor 为 Apache-2.0；SWE-Bench-Fork 为 MIT |
-| Harbor 固定源码 | 配置/Job/Trial/结果/制品/Verifier 接口已远程静态核验；本机目录尚不存在 |
+| Harbor 固定源码与环境 | 本机固定提交、`uv.lock` 环境和 CLI `0.22.0` 已核验；真实 Job/Trial 尚未运行 |
 | SWE-Gym 根目录安装清单 | 未发现统一包清单或锁文件 |
 | SWE-Bench-Fork 安装入口 | `setup.py` / `pyproject.toml` 存在；Python `>=3.8`，依赖未锁版本 |
-| 数据集来源 | SWE-Gym Hugging Face 组织页已从 README 核验；团队已选择 Lite 作为原型数据集，精确 revision/split/实例未核验 |
-| 镜像来源 | Docker Hub 前缀已从 SWE-Gym README 核验；镜像 digest 与可用性未核验 |
-| Codex 宿主 CLI 探针 | 2026-09-04 在 `E:\9.1agent_exam` 的提升权限只读 shell 中，`codex --version` 返回 `codex-cli 0.142.0`、`codex exec --help` 正常输出，两个退出码均为 0；默认沙箱命令启动器另有 `setup refresh had errors`，不能归因于 CLI |
-| 动态验证 | 本机 Docker/WSL 已通过无网络最小容器验证；Harbor、SWE-Gym 数据、镜像构建和 SWE-Bench-Fork 评测仍未执行 |
+| 数据集来源 | 固定 Lite revision、`train` split、230 条记录、候选单题和 Parquet 内容哈希已核验 |
+| 镜像来源 | 候选 Docker Hub 镜像的 linux/amd64 digest、拉取结果与 `/testbed` base commit 已核验 |
+| Codex 宿主 CLI 探针 | 2026-09-06 `codex --version` 返回 `codex-cli 0.153.0`；它仍不是项目固定版本，容器运行未验证 |
+| 动态验证 | Docker/WSL 与固定镜像无网络探针通过；项目 Task/Harbor 类型契约测试通过；Harbor Trial 和 SWE-Bench-Fork 评测仍未执行 |

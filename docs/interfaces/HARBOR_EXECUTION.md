@@ -1,8 +1,8 @@
 # Harbor 执行后端接口
 
-> 文档状态：架构已确认；固定提交接口已静态核验；本机运行待原型验收
+> 文档状态：架构已确认；固定提交接口与 M0 配置/Task 契约已核验；本机 Trial 待原型验收
 >
-> 最后更新：2026-09-05
+> 最后更新：2026-09-06
 >
 > Harbor 固定版本：以 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 中的完整提交为唯一事实源
 > 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；Codex 与自研 Agent 的凭据所有权和秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
@@ -234,6 +234,8 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 9. Trial 前后人工检查容器、可写层、日志、轨迹和本机证据目录；成功、失败、超时三条路径均不得遗留凭据内容、真实秘密路径或可复用 Token。
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
+
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置映射、collect hook 和宿主 patch 制品强校验已实现；真实 Harbor 类型/Task 契约测试通过。尚未运行 Harbor `nop`/Codex Trial，故第 1 项只完成“安装”、第 3 项有自动测试证据、第 4/6 项只有契约证据，其余验收项均未完成。
 
 ### 13.2 M1：Codex 平台 MVP
 
