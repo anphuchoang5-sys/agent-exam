@@ -1,6 +1,6 @@
 # 项目依赖唯一事实源
 
-> 文档状态：持续维护；M0 三项上游身份、固定数据/镜像、Harbor 环境、后端锁文件、NOP Trial、四类非空 patch 与超时清理已核验，Codex/Fork 依赖仍待验证
+> 文档状态：持续维护；固定 Fork 的 Linux 依赖锁、CLI 和五类真实补丁判卷已验证；真实 Codex 与完整 M0 仍待验证
 >
 > 最后更新：2026-09-06；上游、Harbor 与 CLI 最后核验：2026-09-06
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
@@ -24,14 +24,14 @@
 | 依赖 | 项目用途 | 固定版本 | 是否进入主仓库 | 当前状态 |
 |---|---|---|---:|---|
 | SWE-Gym | 任务数据、模型与复现实验材料的上游来源 | `b681068ca20628c6987b7416cc4cf03f06b77ba5` | 否 | 源码身份、许可证和上游制品入口已核验；M0 固定 Lite revision/split/单题已下载并通过内容校验 |
-| SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 源码身份、许可证和安装入口已核验；固定单题摘要镜像已拉取并核验仓库快照，但 Fork Harness 尚未安装或运行 |
+| SWE-Bench-Fork | SWE-Gym 环境常量、Docker 环境构建和评测 Harness（自动执行测试并判定补丁是否解决任务的程序） | `242429c188fcfd06aad13fce9a54d450470bf0ac` | 否 | 已在隔离 Linux 环境运行原 CLI；项目仅适配镜像准备/容器创建，gold、空、错误、不可应用、超时五类真实判卷通过 |
 | Harbor | Execution Backend（执行后端）：把一个平台 Job 展开并运行成多个 Agent Trial，管理 Agent、环境、资源/网络策略和轨迹 | `6af8d6e31eced13b93849cdf80feeadf24603d15` | 否 | 固定源码和隔离环境已恢复，CLI `0.22.0` 可用；真实类型/Task 契约与 NOP Docker Trial/结果映射通过，Codex Trial 未运行 |
-| Python 运行时 | 后端及 SWE-Bench-Fork 运行时 | M0 后端 `>=3.13,<3.14`；Fork 基线待验证 | 不适用 | `apps/backend/pyproject.toml` 与 `uv.lock` 已固定并安装 Python 3.13 项目环境；Fork 独立运行依赖尚未锁定 |
+| Python 运行时 | 后端及 SWE-Bench-Fork 运行时 | 后端 `>=3.13,<3.14`；Fork 当前 Ubuntu Python `3.12.3` | 不适用 | 后端使用 `pyproject.toml`/`uv.lock`；Fork 使用 `swebench-requirements.txt` 的 Linux Python 3.12 带哈希锁，63 项运行依赖已安装且启动时核对版本 |
 | FastAPI | 后端 HTTP 交付层 | 待确认 | 后续由项目包清单锁定 | 已确认采用；精确版本未固定 |
 | Node.js 运行时 | Web 前端构建/运行 | 待确认 | 不适用 | 已确认采用；版本未选定 |
 | Next.js | Web 框架 | `15.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 Next.js 15 |
 | React | Web 视图框架 | `19.x`，精确版本待确认 | 后续由前端包清单锁定 | 已确认采用 React 19 |
-| Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | 本机 Windows + WSL2、无网络冒烟和 Harbor NOP Compose Trial 已验证；SWE-Bench-Fork 集成未验证，详见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
+| Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | Harbor NOP/超时与固定 Fork 五类真实补丁集成已验证；环境细节见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
 | PostgreSQL | 结构化业务数据存储与 MVP 平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；M0 本机脚本原型不依赖；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
 | Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；2026-09-06 宿主动态探针为 `codex-cli 0.153.0`，但项目固定版本、容器模型、端点和运行兼容性仍待确认或实测 |
@@ -79,7 +79,7 @@
 - 当前候选镜像固定为 `xingyaoww/sweb.eval.x86_64.python_s_mypy-15413@sha256:f069dfc74592d438ad870bbc6dfb369bff1b125d21237ead49190b414f5f3456`，已拉取并确认 `/testbed` HEAD 为任务 base commit `e7b917ec7532206b996542570f4b68a33c3ff771`。这只证明镜像身份，不证明 Harness 或 Codex Trial 通过。
 - OpenHands 和 MoatlessTools 出现在上游复现实验说明中；它们当前不是 AgentExam 已固定的直接依赖，不能仅凭上游示例自动纳入项目。
 
-当前验证状态：固定源码、README、许可证、Lite 数据 revision/split/内容哈希、候选字段与固定摘要镜像均已核验；项目 Task Adapter 的公开/隐藏字段隔离和真实 Parquet 契约测试已通过；该任务镜像已用于 Harbor NOP Trial。没有运行真实 Agent 或 Harness。
+当前验证状态：Task Adapter 的公开/隐藏隔离、固定 Parquet、摘要镜像与 Harbor NOP 已核验；同一固定镜像又用于通过的 Fork 五类真实补丁验证。真实 Codex 尚未运行。
 
 ## 5. SWE-Bench-Fork
 
@@ -108,13 +108,23 @@
 python -m pip install -e .
 ```
 
-该命令只记录上游入口，本次没有执行。上游 [`setup.py`](https://github.com/SWE-Gym/SWE-Bench-Fork/blob/242429c188fcfd06aad13fce9a54d450470bf0ac/setup.py) 声明：
+该命令是上游入口；项目实际使用固定源码的 `PYTHONPATH` 加隔离依赖环境，没有对上游执行 editable 安装。上游 [`setup.py`](https://github.com/SWE-Gym/SWE-Bench-Fork/blob/242429c188fcfd06aad13fce9a54d450470bf0ac/setup.py) 声明：
 
 - Python 要求：`>=3.8`；
 - 核心直接依赖：`beautifulsoup4`、`chardet`、`datasets`、`docker`、`ghapi`、`GitPython`、`pre-commit`、`python-dotenv`、`requests`、`rich`、`unidiff`、`tqdm`；
 - `inference` 可选依赖：`tiktoken`、`openai`、`anthropic`、`transformers`、`peft`、`sentencepiece`、`protobuf`、`torch`、`flash_attn`、`triton`、`jedi`、`tenacity`。
 
-这些依赖在 `setup.py` 中没有固定精确版本，仓库也没有锁文件，所以单独运行安装命令不能保证不同日期得到完全相同的环境。项目采用哪些依赖、固定到哪些版本，仍需后续生成项目自己的锁定清单后确认。
+上游没有锁文件；项目现以 [`swebench-requirements.in`](../../apps/backend/swebench-requirements.in) 记录这 12 项运行依赖，以 [`swebench-requirements.txt`](../../apps/backend/swebench-requirements.txt) 锁定 Linux Python 3.12 的 63 项传递依赖及分发文件 SHA-256，不安装 inference extra。当前载体为已有 Ubuntu WSL2 的 Python `3.12.3`，隔离环境位于 `framework/swe-bench-fork/.venv`。每次 Fork 启动核对锁文件哈希与全部已装版本，并保存 `runtime.json`。
+
+本机恢复流程（先确认目标不存在，复用已有缓存；不修改系统 Python）：
+
+```text
+Windows：uv pip install --target runtime/tools/uv-linux --python-version 3.12 --python-platform x86_64-unknown-linux-gnu --no-python-downloads --only-binary :all: uv==0.12.10
+WSL：runtime/tools/uv-linux/bin/uv venv framework/swe-bench-fork/.venv --python /usr/bin/python3 --no-python-downloads
+Windows：uv pip install --target framework/swe-bench-fork/.venv/lib/python3.12/site-packages --python-version 3.12 --python-platform x86_64-unknown-linux-gnu --no-python-downloads --only-binary :all: --require-hashes -r apps/backend/swebench-requirements.txt
+```
+
+这里 Windows 的 `uv` 为本项目 `runtime/tools/uv-bootstrap/Scripts/uv.exe`（`0.12.10`）。需要下载时仅给对应进程配置既有代理和 `UV_CACHE_DIR`；Linux 实际执行使用清空后重建的环境变量，不继承个人凭据或 `.env`。原生 `--help` 已在该隔离环境通过；接口适配范围见 [`FRAMEWORK_INTERFACES.md` 第 5.4 节](../interfaces/FRAMEWORK_INTERFACES.md#54-项目实际调用方式)。
 
 ### 5.3 数据与镜像来源
 
@@ -124,7 +134,7 @@ python -m pip install -e .
 - 基础 Dockerfile 从 `ubuntu:22.04` 构建并下载 Miniconda 安装器；两者都未按镜像 digest 或文件校验和固定。
 - 对固定提交执行源码搜索，没有发现 `docker pull` 或 Docker SDK `images.pull` 调用。也就是说，SWE-Gym README 提到的 `xingyaoww/...` 预构建镜像不是当前 Harness 自动恢复流程；默认行为是在本机缺少镜像时按源码构建。
 
-当前验证状态：安装声明、包内版本、数据加载入口、镜像命名和本地构建路径已经静态核验；该 Fork 尚未安装，没有构建或运行其评测镜像，也没有执行评测。本机 Docker daemon 的独立冒烟验证记录在 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md)，不能据此宣称 Harness 已跑通。
+当前验证状态：固定 Fork CLI 与五类真实判卷已经通过。原 CLI 的 base/env 预检查与 16 GiB 默认限制由 Evaluator 内部基础设施适配处理，直接使用已固定的实例镜像 digest，不伪造 base/env 标签、不重建上游镜像、不修改上游源码或 grading。原始报告与失败证据见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)；这仍不是 Codex 端到端通过。
 
 ## 6. Harbor
 
@@ -150,7 +160,7 @@ python -m pip install -e .
 - 固定 SWE-Bench-Fork 的 `swebench.harness.run_evaluation` 仍是唯一确定性最终判卷入口，Harbor Reward 不能覆盖其结论。
 - Harbor 的精确接口、转换与退出门槛由 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) 维护；采用决定见 [`ADR-0001`](../adr/0001-use-harbor-as-execution-backend.md)。
 
-当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和正常 Compose 清理均通过；固定摘要、禁网容器又覆盖了修改、新建、删除和 Agent commit 四类非空 patch，并经宿主生产校验器验证。阻塞 collect 探针复现外层强杀残留并验证生产 Adapter 的精确 Compose project 清理和日志有界收束。Codex、网络/凭据和固定 Fork 仍待验证。
+当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和正常 Compose 清理均通过；固定摘要、禁网容器又覆盖了修改、新建、删除和 Agent commit 四类非空 patch，并经宿主生产校验器验证。阻塞 collect 探针复现外层强杀残留并验证生产 Adapter 的精确 Compose project 清理和日志有界收束。固定 Fork 已完成第 5 节的五类验证；真实 Codex 与生成阶段网络/凭据仍待验证。
 
 ## 7. 恢复固定源码
 
@@ -203,7 +213,7 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 1. 首个原型已经固定 Lite revision、`train` split、候选单题和内容校验值；候选成为正式首题仍取决于真实 M0 闭环，正式榜最终数据范围另行确认；
 2. M0 已采用并拉取候选预构建实例镜像；其固定 digest 和 `/testbed` base commit 已核验，Harbor/Codex/Harness 兼容性仍待实测；
 3. Python、FastAPI、Node.js、Next.js 15、React 19、Docker/Compose、PostgreSQL、MinIO 的精确版本和部署形态；
-4. SWE-Bench-Fork 未固定 Python 依赖的项目级锁定版本；
+4. SWE-Bench-Fork 已有 Linux Python 3.12 哈希锁与单题实测；新增题目/升级依赖时重新验证，不默认把当前单题扩展成全题库通过；
 5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；Codex 认证政策已经确认，不再作为待选择项，但项目固定版本、模型 ID、端点和容器兼容性仍待固定或实测；
 6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；
 7. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
@@ -224,4 +234,4 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 | 数据集来源 | 固定 Lite revision、`train` split、230 条记录、候选单题和 Parquet 内容哈希已核验 |
 | 镜像来源 | 候选 Docker Hub 镜像的 linux/amd64 digest、拉取结果与 `/testbed` base commit 已核验 |
 | Codex 宿主 CLI 探针 | 2026-09-06 `codex --version` 返回 `codex-cli 0.153.0`；它仍不是项目固定版本，容器运行未验证 |
-| 动态验证 | Docker/WSL、固定镜像无网络探针、项目 Task/Harbor 类型契约及 NOP Docker Trial/结果映射通过；Codex Trial 和 SWE-Bench-Fork 评测仍未执行 |
+| 动态验证 | Harbor NOP/超时、collect-patch 四场景及固定 Fork 五类真实判卷通过；Codex Trial 仍未执行 |

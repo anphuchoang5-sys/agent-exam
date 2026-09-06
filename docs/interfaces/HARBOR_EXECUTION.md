@@ -235,7 +235,7 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
-当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB；超限、进程树清理失败或日志收束不完整均显式传播为运行告警。unit/contract 共 44 项通过；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 正常路径为 `1 passed in 18.87s`，固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 为 `4 passed in 5.91s`。公开 `HarborExecutionAdapter.execute()` 的阻塞 collect 探针先真实复现外层强杀留下 1 个容器、1 个网络和 1 个本地镜像；生产修复只从本 Job 路径名一致的 Trial 配置推导固定规则的 Compose project，并按 label 删除、复核容器/网络/卷/本地镜像，复测为 `1 passed in 49.47s`，前后 Docker 对象计数相同。真实 Codex、网络/凭据/轨迹和固定 Fork 仍未完成，不能据此把 M0 标记完成。
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB；超限、进程树清理失败或日志收束不完整均显式传播为运行告警。当前完整测试数量以 M0 行动记录为准；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 正常路径为 `1 passed in 18.87s`，固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 为 `4 passed in 5.91s`。公开 `HarborExecutionAdapter.execute()` 的阻塞 collect 探针先真实复现外层强杀留下 1 个容器、1 个网络和 1 个本地镜像；生产修复只从本 Job 路径名一致的 Trial 配置推导固定规则的 Compose project，并按 label 删除、复核容器/网络/卷/本地镜像，复测为 `1 passed in 49.47s`，前后 Docker 对象计数相同。固定 Fork 五类独立补丁判卷已通过，M0 入口已连接既有 ports 并维护原型证据；真实 Codex 与生成阶段网络/凭据/轨迹仍未完成，不能据此把 M0 标记完成。编排只允许内部测试/NOP，CLI 仅提供 `--check`；无模型串联结果及 Windows 长路径修复见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
 
 ### 13.2 M1：Codex 平台 MVP
 

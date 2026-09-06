@@ -27,7 +27,7 @@
 | Docker 数据目录 | `E:\dockerdata\DockerDesktopWSL\DockerDesktopWSL` | Docker Desktop 实际记录的镜像、容器与卷所在目录 |
 | 主数据盘文件 | `...\disk\docker_data.vhdx`，约 21.34 GiB | 一个虚拟 Linux 磁盘文件；不得在 Docker 运行时手工剪切 |
 | D 盘可用空间 | 约 29.13 GiB | 迁移完成后的核验值 |
-| E 盘可用空间 | `19,594,158,080` bytes，约 18.25 GiB | 2026-09-06 collect-patch 四场景复测后动态值；会随镜像和运行制品变化 |
+| E 盘可用空间 | `19,118,747,648` bytes，约 17.81 GiB | 2026-09-06 M0 无模型串联复测后动态值；会随依赖、镜像和运行制品变化 |
 
 Docker Desktop 会在用户选择的 `E:\dockerdata\DockerDesktopWSL` 下再创建自己的 `DockerDesktopWSL` 子目录，所以实际路径多一层。这是 Docker Desktop 保存的真实设置，不是重复迁移。
 
@@ -60,6 +60,12 @@ memory=10GB
 - `NO_PROXY` 当前覆盖 loopback、Docker 的宿主/内部代理名称、`.local` 和 RFC1918 私网。它是应用兼容配置，不是安全边界；不同客户端对 CIDR 的支持并不完全一致。
 - FlClash 仍为 `mixed-port: 7890`、`allow-lan: false`、`tun.enable: false`，宿主监听仍是 `127.0.0.1:7890`。本次没有修改 FlClash 配置，也没有创建 7890 防火墙规则。
 - Harbor 是动态创建 Trial 的执行后端，不能假设它读取宿主 Docker CLI 配置。正式 `HarborExecutionAdapter` 仍须从本机受控配置把代理变量映射到已登记 Codex `AgentConfig.env`；公开 Job 不得提供任意代理值。
+
+### 3.3 固定 Fork 验证环境
+
+2026-09-06 固定 Fork 实测补充：现有 Ubuntu WSL2（Python `3.12.3`）可以通过 `/var/run/docker.sock` 连接同一 Docker Desktop Engine；Fork 的隔离依赖安装在项目被忽略的 `framework/swe-bench-fork/.venv`。真实 gold、空、错误、不可应用、测试超时五类判卷均通过。验证容器来自既有固定摘要镜像，实际 `NetworkMode=none`、CPU `1`、内存/内存加交换上限均 `4 GiB`、PID `256`、`CapDrop=ALL`、禁止提权、无宿主挂载；未创建新镜像。测试结束后 Docker 容器/网络/卷/唯一镜像数为 `18/5/15/21`，本轮 Evaluator label 查询为空，E 盘可用 `19,154,898,944` bytes。该结果只覆盖判卷阶段，不代表 Codex 生成阶段的网络与秘密隔离已经通过。运行命令和证据目录见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
+
+无模型串联最终复核（2026-09-06）：Harbor NOP＋测试专用无关改动，经生产 collect 与独立 Fork 完成真实判卷；串联路径的 Windows 长路径导入修复后通过。Docker 容器/网络/卷/唯一镜像仍为 `18/5/15/21`，Evaluator label 容器为 0；固定 Fork 源码工作区干净。先前四批独立验证与本轮两次串联的八份清理记录均通过。该证据仍不包含真实 Codex 或凭据。
 
 ## 4. 迁移和回退纪律
 
@@ -129,7 +135,7 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 - Harbor 固定环境、CLI `0.22.0`、NOP Job/Trial、正式有界进程 Adapter、四类非空 patch 和外层超时后的精确 Compose 清理已通过；真实 Codex 尚未验证。
 - 尚未执行带真实模型的 SWE-Gym Agent Trial。
-- 尚未运行固定 SWE-Bench-Fork 的 `run_evaluation`。
+- 固定 SWE-Bench-Fork 的五类判卷已运行并验证（第 3.3 节）；真实 Codex→Fork 完整验收仍未通过。
 - 尚未确定单个 Trial 的安全内存、CPU、磁盘和超时上限。
 - 尚未确认 Codex CLI 实际所需的完整域名集合，也未完成只允许登记模型访问且阻断宿主/任意公网直连的网络策略。
 - P2 尚未裁决自研 Agent 的受控 DeepSeek/Kimi 访问采用宿主进程还是可信侧车，也未验证单次运行访问能力、预算限制、撤销、清理和“真实 Key 不进入被测容器”；该项不属于 M0/M1 验收门槛。

@@ -1,6 +1,6 @@
 # 上游框架与 Agent CLI 接口清单
 
-> 文档状态：持续维护；上游事实、M0 Task/Harbor 契约、真实 NOP Trial/结果映射、四类非空 patch、有界进程执行和外层超时清理已核验，Codex Trial 与 Harness 待分层实测
+> 文档状态：持续维护；Harbor 无模型执行与固定 Fork 五类真实补丁判卷已验证，真实 Codex Trial 仍待实测
 >
 > 最后更新：2026-09-06
 > 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 与自研 Agent 凭据政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
@@ -164,16 +164,24 @@ Harness 还在当前工作目录生成 `<model_name_or_path>.<run_id>.json` 汇�
 - `resolved=false` 且 report 完整表示测试正常执行但补丁没有完全解决任务；这是正常评测结果，不是平台崩溃。
 - Patch Evaluator Adapter 需要复制这些原始文件到 MinIO，再规范化为内部 `DeterministicResult`。
 
-### 5.4 候选调用方式
+### 5.4 项目实际调用方式
 
-第一版建议 Adapter 生成单条临时 JSONL prediction，并以子进程调用固定模块 CLI，而不是把上游 `main()` 的内部参数传播到整个应用。这样：
+`SWEbenchEvaluator` 生成不可覆盖的单条 JSONL prediction 和固定原始任务 JSONL，以隔离 Linux 子进程运行固定模块 CLI；应用仍只调用 `EvaluationRequest → DeterministicResult`。这样：
 
 - 仍然是直接执行真实 SWE-Bench-Fork Harness；
 - 上游进程、Linux `resource`、Docker 日志目录和退出状态被隔离在一个小 Adapter 内；
 - 业务层只接收 `EvaluationRequest → DeterministicResult`；
 - CLI 变化只需改 Adapter 与契约测试。
 
-该方式仍需在 Linux/WSL2 + Docker Desktop 环境进行 gold patch 冒烟测试后确认。
+当前 Ubuntu WSL2 + Docker Desktop 已通过 gold、空、错误、不可应用和测试超时五类真实验证。必要的基础设施适配位于同一 Evaluator 的 `fork_entry.py`：只替换上游镜像准备和 `build_container` 函数，再以 `runpy` 执行原 `swebench.harness.run_evaluation` 模块。原因是固定 Fork 会预检查 base/env/instance 并按创建时间触发重建，且 `build_container` 硬编码 16 GiB；原生 CLI 没有固定远端 digest、内存、PID 或禁网参数。
+
+项目适配直接使用登记的实例 digest，独立创建 `network=none`、无宿主挂载、显式 CPU/内存/PID、禁止提权的验证容器。没有伪造 base/env 标签；原 `run_instance`、模型补丁及测试补丁应用、测试脚本生成、`grading` 和汇总均未改动。每次保存 `profile.json`、`runtime.json`、`container.json`、原始命令/进程/清理证据。清理同时匹配运行 ID 和证据目录身份，不能删除其他尝试。
+
+`result_mapper.py` 检查汇总 schema 2、唯一任务、互斥结果类别、布尔类型、冻结测试集合、报告与汇总一致性及原始 patch 字节。空补丁只由真实 `empty_patch_ids` 支持；`error_ids` 或报告缺失抛出带证据引用的 `EvaluationError`，不能写成正常 unresolved。依赖恢复只在 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 维护，真实测试证据只在 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md) 维护。
+
+Windows 导入 WSL 生成的报告时，完整配置指纹和嵌套目录可能使路径超过 260 字符。Evaluator 内部使用扩展本机路径读取并继续输出原有相对 object key；不改系统全局设置、不缩短指纹。该问题已经过超长路径单测、原失败报告重放和真实无模型串联回归验证。
+
+M0 入口 `prototype_codex_harbor_e2e.py` 通过既有 `ExecutionBackend`/`PatchEvaluator` 串联。当前仅显式标记的内部测试/NOP 可调用，真实 Codex 入口尚未接通；`--check` 只验证本地固定任务并报告未完成门槛，不运行容器或模型。Harbor NOP→生产 collect patch→固定 Fork 的非空补丁串联已实测，通过不等于真实 Codex M0 完成。
 
 ## 6. Harbor Execution Backend
 
@@ -376,7 +384,7 @@ P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键�
 ## 15. 当前未解决接口问题
 
 1. Lite revision、`train` split、候选 `python__mypy-15413`、Parquet 哈希与镜像 digest 已固定；候选能否成为 M0 正式首题取决于真实闭环。
-2. Windows + Docker Desktop 下 SWE-Bench-Fork 固定提交是否无需补丁即可运行；需 gold patch 实测。
+2. 固定 Fork 已通过现有 Ubuntu WSL2 载体及 Evaluator 内部镜像/资源适配完成五类真实补丁判卷；下一步连接真实 Codex 的最终 patch，不能将无模型测试视作完整 M0。
 3. Harbor 固定环境、实际 Job/Trial 目录、空 `model.patch` 受控提取及 Trial→`run_id` 结果映射已由 NOP 验证；CLI 进程 Adapter 已实现有界日志、宿主进程树终止和外层超时精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均接真实 Harbor NOP 通过；固定摘要、禁网容器已覆盖修改/新建/删除/Agent commit 四类非空 patch。仍须验证真实 Codex 路径。
 4. 固定 Codex 项目 CLI 版本、模型 ID、reasoning effort 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；2026-09-06 宿主 `0.153.0` 只是一条环境探针，不是已选基线。
 5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。

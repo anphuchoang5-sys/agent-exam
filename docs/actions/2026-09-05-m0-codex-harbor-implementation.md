@@ -2,7 +2,7 @@
 
 ## 状态与情况说明
 
-- 状态：进行中但已按用户要求暂停；M0 未完成。第八次恢复已最小修复并验证 Harbor 外层超时后的 Docker Compose 精确清理与日志线程有界收束；下一窗口从固定 Fork Evaluator 继续。
+- 状态：进行中；M0 未完成。额度中断后按用户要求恢复；固定 Fork 五类补丁已实测，当前接入 M0 脚本编排，真实 Codex 及其网络/凭据安全门槛仍未完成。沿用同一行动记录，保留未提交实现，不自行 push。
 - 来源请求：用户要求先核对 Git 为最新状态，再以长期目标开始实现 MVP，并严格遵守架构、模块契约和接口等权威文档。
 - 当前范围：只实施 M0 本机技术原型。使用固定 SWE-Gym-Lite 单题、固定 Harbor、真实 Codex 和固定 SWE-Bench-Fork，形成可检查的 patch 与判卷证据；M0 通过后另建 M1 行动记录。
 - Git 基线：2026-09-05 已执行 `git fetch origin --prune`；本地 `main` 与 `origin/main` 均为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`，领先/落后为 `0/0`，开始时工作区干净。
@@ -22,7 +22,7 @@
 - 复用边界：内置 SWE-Gym Adapter 会用未指定 `revision` 的 `load_dataset()` 读取远端最新数据，并把含 `gold_patch`、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS` 的原始 datum 写入任务 `tests/config.json`。M0 将复用其镜像命名和 Harbor 任务约定，但保留项目既有规划中的薄 `adapters/tasks/swe_gym.py`，直接读取已校验的固定 Parquet，只生成 Agent 必需的公开任务文件；隐藏字段只交给独立 Evaluator。
 - OpenAI 官方事实复核：Codex 当前仍支持 ChatGPT 登录和 API Key 登录；`codex exec` 是非交互入口，支持 `--ephemeral`、`--json` 和显式 sandbox；文件型缓存含访问令牌，必须按密码处理。项目仍采用已经确认的评测机所有者 ChatGPT 登录政策，不改为 API Key。
 - 已确认的超时事实：真实 Harbor 外层超时会绕过上游正常清理；修复前探针留下 1 个 Compose 容器、1 个网络和 1 个本地镜像。生产 Adapter 现按本 Job 落盘 Trial 身份推导精确 project label，清理并复核容器、网络、卷和本地镜像；日志采集使用总期限，Windows 对仍阻塞的同步读执行定向取消，无法完整收束时返回 `HARBOR_LOG_CAPTURE_INCOMPLETE`，不再无限等待。
-- 已知未知：Codex 模型 ID、所需端点、Token 刷新、日志脱敏和异常路径清理；固定 Fork 在 Windows/WSL2 + Docker Desktop 的真实行为；真实单题的资源峰值与清理结果。
+- 已知未知：Codex 模型 ID、所需端点、Token 刷新、日志脱敏和异常路径清理；固定 Fork 已通过的单题以外的适配范围；真实单题的资源峰值与清理结果。
 - 安全红线：不读取、显示、复制或提交 `auth.json` 内容、Token、Cookie 或 API Key；不把秘密路径写入业务输入或证据；不把 Agent 可见输入与 gold patch、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS` 混合；不把 Mock、Harbor reward 或 Agent 自述写成真实判卷结果。
 - 明确排除：本行动不实现 Next.js、FastAPI HTTP、PostgreSQL、MinIO、应用登录、Owner Approval、Judge、排行榜、Tailscale 或 P2 自研 Agent；不提前创建 M1 空壳。
 
@@ -40,10 +40,18 @@
 10. 每获得一个动态事实就同步其唯一事实源；收尾时记录全部实际命令、结果、失败、跳过项和遗留风险，并核对代码、规划树、依赖文档、Handoff 与本行动记录一致。
 11. 先增加两个受控失败探针：单元测试模拟后代持续持有日志管道，要求执行器在固定上限内返回并显式告警；真实 Docker 集成测试使用上游 `nop` 与测试专用阻塞 collect hook，要求外层超时后该 Trial 的精确 Compose 容器、网络、卷和本地镜像均无残留。测试不得调用模型或注册生产 sleep Agent，`finally` 只能清理按该 Trial project label 核实的资源。
 12. 只有探针证明真实缺陷后，才在现有 `process_evidence.py`、`process_runner.py` 和 Harbor Adapter seam 内最小修复；不新增生产顶层模块、Interface 或第二套执行路径。修复后复跑失败探针、全部快速检查和真实 NOP，记录清理前后 Docker 对象与证据目录。
+13. 在已规划的 `adapters/evaluation` 内实现固定 Fork 适配：先用现有 Ubuntu WSL2 + Docker 接口建立隔离 Linux Python 环境，生成带哈希的依赖锁；只使用固定 Fork 源码，核实实际 CLI 与镜像预检查。复用 Task Catalog 冻结的原始记录及 `PatchEvaluator` port，不把隐藏字段传回 Agent。补丁结果映射必须区分空补丁、正常 unresolved、报告缺失和基础设施失败。
+14. 新增 Evaluator 契约与真实 gold/空/错误补丁测试；运行前定义独立证据目录和精确容器身份。记录实例报告、汇总、测试日志、Fork/依赖/任务/镜像身份与清理结果。原生 Fork 的环境镜像预检查、硬编码资源限制和联网行为先据源码/实测处理，不通过伪造镜像标签或伪造判卷绕过。
+15. 经源码确认，Fork 原生 `build_container` 硬编码 `mem_limit=16g`，先检查 base/env/instance 镜像且比较创建时间，不能直接复用已固定的远端预构建 digest。因此在同一 Evaluator Implementation 内加入 `fork_entry.py`，仅替换上游镜像准备和容器创建函数，使用固定摘要、无挂载、禁网、显式 CPU/内存/PID 的独立容器，再通过 `runpy` 执行原模块 CLI。上游源码不修改；`run_instance`、patch/test_patch 应用、测试命令、grading、summary 全部保持原样。真实测试与 manifest 必须清楚记录此基础设施兼容层，不能声称原生 CLI 零适配通过。
+16. 恢复时全目录 pytest 收集发现 unit 与 integration 同名 `test_swe_bench.py` 冲突，尽管此前分目录执行通过；将集成文件改为唯一名称并同步引用，再复跑全目录默认测试。不删除缓存来掩盖命名冲突。
+17. 在已规划的 `apps/backend/prototype_codex_harbor_e2e.py` 中连接既有 `ExecutionBackend` 与 `PatchEvaluator`：只允许单题单次原型；严格复核执行身份、终止原因及补丁引用；阶段成功/失败写入不可覆盖的原型证据，基础设施错误不得写成 unresolved。CLI 在真实 Codex 安全门槛完成前仅准备非秘密配置，不启动真实模型。契约测试使用显式替身验证编排，真实 NOP→Fork 探针另行标注无模型，二者均不能替代真实 Codex 验收。
+18. 真实串联首测发现报告导入失败：Fork 已完成且报告存在，但 Windows 普通路径长 284 字符，Python `is_file()` 返回 false；同一文件使用 Windows 扩展长路径返回 true。按 `diagnosing-bugs` 先以已有证据和秒级单测复现，再仅在现有 Evaluator 的本机文件读取边界支持扩展路径；不改系统注册表、不缩短配置指纹、不重新判卷掩盖问题。修复后重放原报告，并运行一次原始串联回归。
+
+本轮新增验证标准：全目录默认 pytest 能完成收集；格式、lint、strict mypy 通过；编排拒绝多题、错配运行、无效/被修改补丁及证据覆盖；正常结果与基础设施失败能保留各自证据。实际文件为 `prototype_codex_harbor_e2e.py`（M0 Composition Root）、`tests/contract/test_m0_pipeline.py` 与 `conftest.py`（替身编排契约及夹具）、`tests/integration/test_m0_pipeline_integration.py`（真实无模型串联）；不新增业务 Module 或 port。
 
 实施偏差记录：原计划先自行寻找通用 Harbor patch extension point；实际固定提交已提供 collect hook 与 artifact manifest，故改为用任务级 collect hook 在容器销毁前生成 patch，再由项目 Adapter 做强校验。曾尝试读取 `framework/harbor/adapters/swegym/pyproject.toml`，该文件不存在；该 Adapter 不是独立 Python 包，必须通过 Harbor 根环境或项目薄适配使用。项目环境最初在默认沙箱内访问 PyPI 因 Windows socket 权限错误 10013 失败，后续仅为对应 `uv` 进程注入 `127.0.0.1:7890` 并使用项目内缓存完成锁定和安装，没有改变系统代理。
 
-本次实际进度：已经建立 `apps/backend` 的 Python 3.13 包和锁文件，实现领域对象、两个 application ports、固定 Parquet Task Adapter、Harbor 配置映射、collect hook、patch 制品强校验、严格结果映射、薄进程 Adapter、有界双流日志、跨平台进程树超时终止和外层超时后的精确 Compose 清理。真实 Harbor `nop` Docker Trial 在 `runtime/prototype/m0-harbor-nop-20260906-04` 通过；正式 mapper 接入后的单次 NOP 在 `runtime/prototype/m0-harbor-nop-20260906-05` 通过；生产有界进程执行器接真实 Harbor CLI 与 mapper 的 NOP 路径在 `runtime/prototype/m0-harbor-bounded-process-20260906-01` 通过；公开 `HarborExecutionAdapter.execute()` 的阻塞 collect 超时路径在 `runtime/prototype/m0-harbor-timeout-green-20260906-02` 通过。所有真实 Harbor 探针都使用上游 `nop`，不能描述为真实 Codex。固定 Fork Evaluator、原型 Composition Root、真实 Codex Trial 和固定 Fork 判卷尚未实现/运行。
+本次实际进度：Harbor 执行/patch/有界日志/超时清理已实测；固定 Fork 的独立 Linux 环境、63 包哈希锁、Evaluator Adapter 与五类补丁判卷已实测。M0 脚本已串接既有 ports，含原型标记、配置冻结、执行身份/patch 内容复核、分阶段证据与基础设施错误不伪装 unresolved；当前只供内部测试/NOP，CLI 只开放 `--check`。真实串联曾暴露 Windows 长路径报告读取失败，已用秒级单测定位和修复，最终回归见本记录末尾。真实 Codex、网络/凭据/轨迹验收仍未完成，M0/MVP 均未完成。
 
 本次恢复的立即措施已经完成：集成探针只把 Agent 临时替换为上游 `nop`，不注册为生产 Agent。实测发现 Harbor 的 Job `result.json` 不落盘 `trial_results`，真实结果须枚举子 Trial 目录；Windows 子进程必须显式使用 UTF-8；artifact 改为一次收集 `/logs/artifacts` 到 `artifacts/agentexam`，避免隐式收集与显式单文件来源重叠。根据这些事实已开始结果映射草稿，但用户要求立即停止，故没有继续修复或测试。
 
@@ -66,6 +74,33 @@
 完成标准：真实 Codex 在固定 SWE-Gym-Lite 单题上通过固定 Harbor Trial 产生经过大小、类型和 SHA-256 校验的完整 patch 与可追溯过程证据；固定 SWE-Bench-Fork 在独立干净环境生成可信确定性报告；成功、失败和清理证据中均未发现凭据内容或真实秘密路径。只有全部满足，M0 才标记完成并进入 M1。
 
 ## 受影响文件树
+
+本次恢复实际变更（沿用总架构第 8 节已规划的 Evaluator 与 M0 入口，不新增业务模块；下方历史树是前八次提交的累积记录）：
+
+```text
+apps/backend/
+├─ src/eval_platform/adapters/evaluation/
+│  ├─ __init__.py           # Patch Evaluator Adapter 包
+│  ├─ swe_bench.py          # 已实现 Adapter：冻结请求、调用 Fork、导入报告
+│  ├─ result_mapper.py      # 严格身份/分类校验、空补丁/异常映射与 Windows 长路径读取
+│  ├─ fork_entry.py         # Linux 入口：仅适配固定镜像和受限容器创建
+│  └─ process.py            # WSL 命令、期限、缓存隔离与双标签容器清理
+├─ prototype_codex_harbor_e2e.py # M0 Composition Root：仅无模型编排与只读 --check
+├─ pyproject.toml           # pytest 增加脚本根导入路径，不新增生产依赖
+├─ src/eval_platform/application/ports/evaluator.py # 增加错误与证据引用
+├─ swebench-requirements.in # 固定 Fork setup.py 的运行依赖清单
+├─ swebench-requirements.txt# Linux Python 3.12 依赖与分发文件哈希锁
+├─ tests/unit/test_swe_bench.py              # 参数、证据不可覆盖与映射边界
+├─ tests/contract/test_swe_bench_contract.py # 冻结 prediction、命令与清理所有权契约
+├─ tests/contract/conftest.py               # 合成公开/隐藏标记夹具，拆分后避免测试超行数
+├─ tests/contract/test_m0_pipeline.py       # 编排、失败、不覆盖与隐藏字段隔离契约
+├─ tests/integration/test_swe_bench_integration.py # 五类真实补丁与清理；避免同名收集冲突
+└─ tests/integration/test_m0_pipeline_integration.py # 真实 NOP＋测试注入无效修复→Fork 串联
+runtime/tools/uv-linux/                     # 忽略：Linux uv 引导工具
+framework/swe-bench-fork/.venv/             # 忽略：隔离 Linux Python 环境
+```
+
+验证方式：在 `apps/backend` 执行 `.venv/Scripts/ruff.exe check src tests`、`ruff format --check src tests`、`mypy src` 和 `pytest -q -m 'not integration'`；真实 Fork 测试须显式开启独立环境变量并检查实际 report/summary/log 与容器清理。已执行结果见本记录末尾；Ruff 与 mypy 还必须包含 `prototype_codex_harbor_e2e.py`。全套默认 pytest 必须成功收集，不能仅以分目录运行替代。
 
 本次暂停时，实际进入主仓库的文件为：
 
@@ -150,7 +185,7 @@ E:\9.1agent_exam\
    # 已拉取固定 python__mypy-15413 摘要镜像，并用于通过的 Harbor NOP Trial
 ```
 
-设计模式与关系：`execution.py`/`evaluator.py` 是 Ports；`swe_gym.py` 是 Task Adapter；`adapter.py` 是 `ExecutionBackend` 的 Harbor Adapter；`config_mapper.py`、`result_mapper.py`、`result_values.py`、`process_runner.py`、`process_evidence.py` 与 `artifacts.py` 是它的内部边界。`process_runner.py` 管进程生命周期，`process_evidence.py` 管有界证据；`result_mapper.py` 负责流程与身份匹配，`result_values.py` 隔离纯值转换，避免单文件混合职责。`swe_bench.py` 和 M0 Composition Root 尚未实现。M0 不实现 Repository、Job State、HTTP Command 或生产 Composition Root，因为这些属于通过技术门槛后的 M1。
+设计模式与关系：`execution.py`/`evaluator.py` 是 Ports；`swe_gym.py` 是 Task Adapter；`adapter.py` 是 `ExecutionBackend` 的 Harbor Adapter；`config_mapper.py`、`result_mapper.py`、`result_values.py`、`process_runner.py`、`process_evidence.py` 与 `artifacts.py` 是它的内部边界。`process_runner.py` 管进程生命周期，`process_evidence.py` 管有界证据；`result_mapper.py` 负责流程与身份匹配，`result_values.py` 隔离纯值转换，避免单文件混合职责。`swe_bench.py` 实现 `PatchEvaluator`，内部 mapper/进程/Fork 入口隐藏平台差异；M0 入口依赖两个 ports 串联执行与判卷，不能把 evaluator 隐藏视图传给执行器。`tests/contract/conftest.py` 只承载测试夹具，避免 210 行测试初稿超标，不是新增业务模块。M0 不实现 Repository、Job State、HTTP Command 或生产 Composition Root，因为这些属于通过技术门槛后的 M1。
 
 ## 自验证方式
 
@@ -167,6 +202,7 @@ E:\9.1agent_exam\
 
 ## 自验证结果
 
+- 第九次恢复：`git fetch origin --prune` 成功，起点 `74f7149` 工作区干净，相对 `origin/main` 为领先 8/落后 0。固定 Fork HEAD 为 `242429c188fcfd06aad13fce9a54d450470bf0ac` 且干净；E 盘可用 `19,577,884,672` bytes。默认沙箱读取 WSL/Docker 被拒绝，提升权限只读探针确认 Ubuntu Python `3.12.3`、Docker Engine `27.5.1` 与 Unix socket 可用；固定 Fork 尚无 `.venv`。源码确认原生 CLI 无条件依赖 `resource`，且实例镜像存在也仍先检查 base/env 镜像，不能直接凭预构建镜像宣称可运行。
 - Git 基线：`git fetch origin --prune` 退出码 0；开始时 `HEAD` 与 `origin/main` 同为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`，`git rev-list --left-right --count` 为 `0 0`，工作区干净。Git 多次提示无法读取用户级 `C:\Users\YINGYI\.config\git\ignore`，未影响仓库命令结果。
 - 上游身份：三个 framework 仓库的 remote、完整 HEAD 和工作树已核验；SWE-Gym、SWE-Bench-Fork、Harbor 分别处于权威依赖文档固定提交且干净。
 - 数据：固定 Parquet 为 230 行、唯一 `train` split；大小 `931,193` bytes 和 SHA-256 `f3a7cd934e8cc523b6053298d0abb2c82fd7db2b83f9f2ccba5944545aaa4eb1` 均与数据源 LFS 元数据一致。候选 `python__mypy-15413` 存在，repo/base commit/公开题面字段可解析；隐藏字段只统计了字段名和长度，没有写入 Agent 目录。
@@ -225,3 +261,46 @@ E:\9.1agent_exam\
 - 回归验证：`ruff format --check` 首次诚实报告新集成测试需要格式化；执行 Ruff 格式化后，33 个文件格式检查、Ruff lint、strict mypy 21 个源文件均通过，unit + contract 为 `44 passed in 6.60s`。默认关闭的 integration 为 7 项按设计跳过，不算真实通过；其中本轮超时探针已通过上面的显式开关实测。正常 Harbor NOP 回归 `runtime/prototype/m0-harbor-timeout-regression-20260906-01` 为 `1 passed in 18.87s`；真实 Windows 父子进程回归 `runtime/prototype/m0-process-tree-timeout-20260906-02` 为 `1 passed in 1.34s`。所有生产 Python 文件不超过 200 行，Harbor 源目录仍为 8 个文件；unit 与 integration 目录分别为 7 和 4 个文件。
 - 第八次暂停：用户要求立即停止当前实现、汇总进度与情况、更新 Handoff 和下一窗口提示词，并把已有文件修改创建本地提交。本窗口收到要求后不再实现固定 Fork、Composition Root 或真实 Codex Trial，不再启动容器或模型调用；只更新交接状态、执行提交前核对并创建本地提交，不 push。最终检查与提交事实记录在提交后核对中。
 - 第八次交接检查：`ruff format --check` 显示 33 个文件已格式化，Ruff lint 通过；第一次直接按 `pyproject.toml` 的 package 配置调用 mypy 时因已安装包缺少 `py.typed` 标记退出 1，改为对项目源码执行 `mypy src` 后严格检查 21 个源文件通过。unit + contract 为 `44 passed, 7 deselected in 6.67s`，7 项真实 integration 因本次明确不启动 Docker 而被排除，不算重新通过。`git diff --check`、8 份变更 Markdown 的围栏/相对链接、Python 200 行/源目录 8 文件指标均通过。第一次敏感形态扫描因 PowerShell/PCRE2 引号导致正则编译失败，修正模式后重跑，对全部变更文件未发现常见 API key、Bearer token 或 JWT 形态。16 个精确目标以主题 `fix: clean up timed-out Harbor trials` 创建本地提交；提交后核对工作区干净，`main...origin/main [ahead 8]`，未 push。
+
+## 2026-09-06 Fork 与 M0 编排恢复验证
+
+本地检查点说明：用户随后明确要求“本地提交一次后继续 MVP 实现”。提交前复跑 Ruff 格式/检查与 strict mypy 通过，默认全套为 `79 passed, 13 skipped in 6.99s`；不重复启动已通过的 Docker 探针。本次仅把现有 Fork、M0 编排、测试和同步文档创建本地检查点，不 push；实际提交身份与后续实现记录在恢复续记中。
+
+### 已完成的 Fork 依赖与独立判卷
+
+- 固定 Fork 源码仍为 `242429c188fcfd06aad13fce9a54d450470bf0ac`，未修改上游源码；Linux Python 为 Ubuntu WSL2 的 `3.12.3`。从固定 `setup.py` 提取 12 个直接运行依赖，生成 63 包的 Linux/Python 3.12 哈希锁。实际安装与 CLI `--help` 通过，恢复方式以依赖事实源为准。
+- Windows uv 编译锁时曾尝试下载托管 Python，跨盘重命名缓存失败产生警告；依赖锁仍生成成功。后续明确 `--no-python-downloads`，使用已存在的 Linux Python；Windows 进程通过单次代理下载 Linux wheels，未修改系统网络设置。上游 SyntaxWarning/runpy RuntimeWarning 保存在日志中，不记为无警告。
+- 固定基础设施兼容层不修改 grading：使用已存在的镜像 digest，禁网、无宿主挂载、CPU 1、内存与含交换总额 4 GiB、PID 256、去能力与禁止提权。每次记录镜像/任务/源码/锁哈希及实际容器配置。
+- 容器清理同时按 `run_id` 和证据目录哈希两个 label 限定所有权；Linux timeout 与宿主有界进程负责期限。读取上游产生的四个 `__pycache__` 目录后，将它们移至忽略的 `runtime/cache/fork-initial-pycache-20260906`，没有删除；随后配置独立 `PYTHONPYCACHEPREFIX`。上游 Git 工作区复核干净。
+- 真实测试均以 `AGENTEXAM_RUN_FORK_INTEGRATION=1`、`-p no:cacheprovider` 和全新 `--basetemp` 运行；入口现名为 `tests/integration/test_swe_bench_integration.py`。以下结果是额度中断前的实际运行，并非本轮重新全部启动：
+
+| 场景 | 证据目录（位于 runtime/prototype） | 实际结果 |
+|---|---|---|
+| 空 patch | `m0-fork-empty-20260906-01` | 1 passed / 4 deselected，18.38 s；明确空补丁分类 |
+| gold + wrong | `m0-fork-patches-20260906-01` | 2 passed / 3 deselected，75.97 s；gold resolved=true，wrong=false |
+| 不可应用 + 测试超时 | `m0-fork-errors-20260906-01` | 2 passed / 3 deselected，67.23 s；均返回 HARNESS_EVALUATION_FAILED，不写普通 unresolved |
+| 双标签清理回归 gold | `m0-fork-ownership-20260906-01` | 1 passed / 4 deselected，38.20 s；无剩余容器 |
+
+以上场景的原始 report/summary/test_output 与清理证据均保留在对应目录；正确/错误补丁对同一 frozen FAIL_TO_PASS 测试产生不同真实结果。资源动态事实只由本机 Docker 文档维护。
+
+### 本轮编排与长路径问题
+
+- 用户要求额度恢复后先汇报测试再继续下一任务。恢复确认 `HEAD=74f7149`、ahead 8，已有未提交 Fork 改动保持原样，没有新建提交或 push。宿主 `codex --version` 本轮仍为 `0.153.0`；已向用户询问是否固定该版本，未把默认预选视为确认。
+- 使用 `action-document` 持续记录；OpenAI Docs 官方非交互页面核对后仅保留既有 ChatGPT 所有者认证政策，不改 API Key，不发真实模型调用。当前 CLI 的 `--check` 输出固定任务快照已验证、`real_codex_ready=false`，待版本/模型/effort、网络白名单和秘密生命周期。
+- 首次全目录 pytest 失败于 unit/integration 同名模块收集；将集成文件改名后，全目录为 `62 passed, 12 skipped in 7.16s`。12 项因显式开关未打开而跳过，不是重新通过。静态基线 41 个格式文件、26 个源码 mypy 均通过。
+- 新编排契约覆盖正常 resolved/unresolved/空 patch、执行失败、错配身份、截断/越界/篡改 patch、Harness 错误与证据保留、禁止覆盖、多题/冻结任务不一致拒绝、真实入口未开放；16 项通过。初稿测试格式化后 210 行，按夹具与行为职责拆到现有 contract 目录的 `conftest.py`，没有放宽 200 行指标。初次 lint 报导入/长行，修正后通过。
+- 真实串联使用公开 Harbor Adapter、固定上游 NOP、测试专用 collect 前置写入无关文件和生产 collect hook，生成真实非空 patch，再经生产 Fork Adapter 独立测试。没有注册生产 NOP，没有模型或秘密注入；不把测试人工造 patch 误记为 Codex 修复。
+- 首次串联 `runtime/prototype/m0-pipeline-nop-20260906-01` 为 `1 failed in 98.08s`：Fork 已完成、unresolved=1/error=0/无残留，但 Windows 导入 284 字符报告路径时 `is_file=false`，同一文件扩展路径 `is_file=true`。
+- 按 `diagnosing-bugs` 建立秒级回归：`pytest -q tests/unit/test_swe_bench.py -k max_path -p no:cacheprovider` 修复前 `1 failed, 16 deselected in 0.06s`。仅在 Evaluator 本机读取边界转换扩展路径，保留原始稳定 object key 和配置指纹，不改系统注册表。修复后 mapper + contract 共 `36 passed in 0.84s`，Ruff 45 个文件、strict mypy 27 个源文件通过。
+- 原失败证据只读重放成功：patch_applied=true、resolved=false，报告 SHA-256 `96546551ec3e04ea7e3eb8a3a1c2efae0033bb0bde156a2f00a1952d58ef3d62`，5 个日志引用；没有改写原失败记录或重新判卷。完整串联回归使用新目录 `m0-pipeline-nop-20260906-02`，最终结果见下方续记。
+
+### 本轮最终验证与下一任务
+
+- 文档收尾：8 份变更 Markdown 的代码围栏与相对链接检查通过，项目源码/测试及文档的常见 Key/Bearer/JWT 形态扫描无命中。一次临时覆盖 `core.autocrlf=false` 的检查把原有 CRLF 误报为尾随空白；去掉覆盖、按仓库实际配置运行 `git diff --check` 通过。两次多文件补丁调用曾返回上下文不存在，但读回显示前部目标已更新，故仅补齐未写入目标并逐项核验，没有盲目重复覆盖。
+
+- 完整串联修复后实测：`AGENTEXAM_RUN_M0_INTEGRATION=1`，运行 `python -m pytest -q tests/integration/test_m0_pipeline_integration.py -p no:cacheprovider --basetemp=E:\9.1agent_exam\runtime\prototype\m0-pipeline-nop-20260906-02`，结果为 **1 passed in 63.56s**。断言实际上游 Agent 为 NOP、生产 collect 生成非空 patch、传给 Fork 的字节完全相同、独立验证 patch_applied=true/resolved=false、报告成功导入，以及本 Trial 的 Compose container/network/volume/image 和 Fork 容器都无残留。这是无模型技术串联，不是 Codex M0 验收。
+- 最终快速全套：在 `apps/backend` 使用 `.venv/Scripts` 工具，`ruff format --check src tests prototype_codex_harbor_e2e.py` 为 45 个文件；`ruff check` 同路径通过；`mypy src prototype_codex_harbor_e2e.py` 为 27 个源文件通过；默认 `python -m pytest -q -p no:cacheprovider` 为 **79 passed, 13 skipped in 7.05s**。13 个集成项按默认开关跳过；本轮显式运行的串联结果单独如上，不混入默认通过数。
+- 最终只读核对八份 Fork 清理记录均 `verified=true`、remaining=0，当前 Evaluator label 容器查询为 0；固定 Fork 工作区干净。资源对象数与磁盘动态值同步到本机 Docker 事实源，未删除其他容器/镜像/卷。
+- 项目 45 个 Python 文件均不超过 200 行，每层不超过 8 个源码/测试文件；`git diff --check` 通过。Git 的 LF/CRLF 提示属于行尾转换提示，不是 diff 错误。未增加临时 DEBUG 日志，首测失败证据留存而非删除。
+- 同步职责：`HANDOFF.md` 维护恢复入口与下一窗口提示词；`ARCHITECTURE.md` 维护规划树和实施队列；`MODULE_CONTRACTS.md` 维护错误与公开/隐藏边界；`FRAMEWORK_INTERFACES.md` 维护 Fork 调用/长路径兼容；`HARBOR_EXECUTION.md` 维护执行验收；`DEPENDENCIES.md` 维护独立依赖锁；`LOCAL_DOCKER_ENVIRONMENT.md` 维护资源动态事实；本行动记录唯一维护本轮命令、失败和结果。
+- 下一任务：先确认真实评测 Codex CLI 固定版本，再确认模型/effort；随后复用固定 Harbor 已有 `network_mode`/`allowed_hosts` 能力验证生成阶段端点白名单、防绕过与凭据生命周期。此轮只是只读发现已有网络能力，尚未把它记为实测。真实 Codex CLI 入口仍关闭，不启动模型、不读取秘密、不开始 M1。本轮未提交、未 push，保留当前可审阅工作区。

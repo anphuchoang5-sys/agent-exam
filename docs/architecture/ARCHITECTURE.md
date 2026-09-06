@@ -1,6 +1,6 @@
 # AI Coding Agent 评测平台总架构
 
-> 文档状态：总体方案已确认，细节持续讨论；M0 Task/Harbor 配置、NOP Docker Trial、四类非空 patch、结果映射、薄进程 Adapter 与外层超时清理已分层验证，Codex→Fork 完整闭环未完成
+> 文档状态：总体方案已确认；Harbor 无模型执行、超时清理与固定 Fork 五类真实补丁判卷已验证；真实 Codex→Fork 完整闭环未完成
 > 最后更新：2026-09-06
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
@@ -283,8 +283,10 @@ E:\9.1agent_exam\
 │  │  # FastAPI 与 Worker 共享的 Python 模块化单体
 │  │  ├─ pyproject.toml
 │  │  │  # Python 依赖、测试、格式和命令入口
+│  │  ├─ swebench-requirements.in / swebench-requirements.txt
+│  │  │  # 固定 Fork 的独立 Linux/Python 3.12 直接依赖与 63 包哈希锁
 │  │  ├─ prototype_codex_harbor_e2e.py
-│  │  │  # M0 临时入口：本机单题 Codex→Harbor→patch→固定 Fork；不接 Web/数据库且不得写正式排行
+│  │  │  # M0 ports 编排、原型证据和 --check；当前仅内部测试/NOP，真实 Codex 入口待安全门槛
 │  │  ├─ src\eval_platform\
 │  │  │  ├─ domain\
 │  │  │  │  # 纯领域规则，不依赖框架/数据库/Docker
@@ -324,8 +326,12 @@ E:\9.1agent_exam\
 │  │  │  │  │  │  └─ artifacts.py     # patch/ATIF/原始结果校验和导入
 │  │  │  │  │  └─ process.py
 │  │  │  │  │     # 后备 Adapter：只在 Harbor 原型未过门槛时实现统一进程协议
-│  │  │  │  ├─ evaluation\swe_bench.py
-│  │  │  │  │  # Adapter：prediction JSONL → 固定 Fork CLI → 规范化结果
+│  │  │  │  ├─ evaluation\
+│  │  │  │  │  # 已实现的 PatchEvaluator Adapter；上游类型仅在内部流动
+│  │  │  │  │  ├─ swe_bench.py     # 冻结任务/prediction、验证 Fork 身份、调用判卷
+│  │  │  │  │  ├─ fork_entry.py    # Linux 入口；仅适配镜像与容器创建，执行原 Fork CLI
+│  │  │  │  │  ├─ process.py       # WSL/原生 Linux 启动、有界日志及精确容器清理
+│  │  │  │  │  └─ result_mapper.py # 严格报告/测试/补丁身份和确定性结果映射
 │  │  │  │  ├─ persistence\postgres.py
 │  │  │  │  │  # Repository Adapter：状态事务、领取、查询和审计事件
 │  │  │  │  ├─ artifacts\minio.py
@@ -422,7 +428,7 @@ E:\9.1agent_exam\
 | 风险 | 影响 | 当前控制 |
 |---|---|---|
 | SWE-Gym 是数据、环境和多仓库材料，不是单一应用包 | 初学者容易寻找不存在的一键接口 | [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 固定来源与版本；[`FRAMEWORK_INTERFACES.md`](../interfaces/FRAMEWORK_INTERFACES.md) 固定真实数据/Harness seam |
-| Windows + Docker Desktop 与上游 Linux 代码差异 | Fork 使用 Linux `resource`、Docker 等能力 | Worker 运行载体先做 gold patch 最小实验，不先宣称跑通 |
+| Windows + Docker Desktop 与上游 Linux 代码差异 | Fork 依赖 Linux `resource`，原生镜像构建和资源默认值不适合本机 | 已用现有 Ubuntu WSL2、隔离依赖锁及 Evaluator 内部镜像/容器适配通过五类真实判卷；上游 grading 未修改，仍待真实 Codex 联通 |
 | 任务镜像占磁盘、构建慢 | 一次加载大题库不可行 | 首月只登记少量任务，显式缓存策略和磁盘证据 |
 | 云端 Agent 必须联网，而公开题目的原 PR 也可能在线 | 闭卷可能被运行时查答案，开卷工具能力也可能不等价 | 闭卷仅放行平台登记的模型访问路径及必需端点并禁用 Web 工具；开卷单列实验榜并记录网络/工具配置，精确代理待实测 |
 | 不可信仓库和 Agent 代码 | 主机与凭据泄漏 | 固定登记 Agent、双沙箱、最小挂载、秘密脱敏，不接受任意仓库执行；自研 Agent 不取得真实模型 Key |
@@ -464,8 +470,8 @@ E:\9.1agent_exam\
 本轮需要用户拍板的产品问题已经回答。下面按实施影响排序查技术事实；若验证结果要求改变产品行为，再回到用户确认：
 
 1. 固定 Codex CLI 项目版本、模型 ID 和端点白名单，并实测 Harbor 容器内 ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
-2. 读取并固定 `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个具体任务；不让用户猜字段。
-3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志、宿主进程树终止和外层超时后的精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均通过真实 NOP。下一步验证固定 Fork，再核验真实 Codex 的资源/网络/凭据路径；通过前不搭 Web/数据库流程。
+2. 固定单题的数据 revision、split、内容哈希与摘要镜像已完成（见依赖文档）；未经验证不扩展到全题库。
+3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志、宿主进程树终止和外层超时后的精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均通过真实 NOP。固定 Fork 五类补丁判卷已通过，M0 编排已实现并验证长路径报告导入；下一步完成真实 Codex 的配置与资源/网络/凭据路径，实际串联证据以 M0 行动记录为准；通过前不搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。
 5. 在真实 Trial 中测量 patch、日志和原始制品规模；默认阈值先按 C-37/C-38，实现证据表明需要调整时再请求确认。
 6. 完成校园网 + FlClash 开启/关闭下的 Tailscale 双机共存测试，失败时才评估 Cloudflare Tunnel + Access。
@@ -489,3 +495,4 @@ E:\9.1agent_exam\
 - 2026-09-05：实施范围改为本地 Codex 技术原型 → Codex 平台 MVP → Aider/Claude Code → P2 自研 Agent；确认两角色邀请制、Quality 匿名双次反序比较、过程指标只展示、闭卷 MVP、任务双层存储、手动重试、制品保留与大小限制。
 - 2026-09-06：M0 真实 Harbor NOP Docker Trial、结果映射和生产有界执行器通过，薄进程 Adapter 完成双流截断与宿主父子进程清理验证；记录宿主进程驱动、任务 collect hook、空 patch、UTF-8 CLI 和正常清理证据，真实 Codex、Harbor 超时后的 Compose 清理和固定 Fork 仍未通过。
 - 2026-09-06：真实阻塞 collect 探针证明外层强杀会留下 Compose 容器、网络和本地镜像；现已用本 Job Trial 身份的精确 project label 清理并复核，日志线程也改为有界收束。真实 Codex 与固定 Fork 仍未通过。
+- 2026-09-06：固定 Fork 的隔离 Linux 环境与五类真实补丁判卷通过；既有 Evaluator Adapter 内只适配固定镜像和受限容器创建，保留原 CLI、测试与 grading。更新实际内部文件树；Codex 真实执行和 M0 总装尚未完成。

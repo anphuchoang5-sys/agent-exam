@@ -194,7 +194,7 @@ flowchart LR
 | 依赖 | Agent Registry、Harbor 固定提交、Docker、Trajectory Normalizer、Artifact Store；P2 自研 Agent 才复用现有 LLM Provider Adapter 的受控访问 Implementation |
 | 验证 | Harbor/Fake Backend 共用同一 interface contract；空补丁与失败分开；真实 SWE-Gym 单题原型覆盖补丁、轨迹、资源和清理 |
 
-M0 当前实现注记：`ExecutionJobRequest`/`ExecutionTrialResult`、Harbor 配置与严格运行身份映射、patch 制品校验已存在；真实 NOP Docker Trial 已证明空 patch、缺失轨迹警告、原始结果引用和正常清理，固定摘要、禁网容器又证明修改、新建、删除和 Agent commit 四类非空 patch 能被生产 hook 与校验器完整处理。`HarborExecutionAdapter.execute()` 已实现；生产有界执行器落实 stdout/stderr 每路 50 MiB 上限、显式截断 manifest、日志线程总收束期限、Windows 进程树/POSIX 进程组终止，并接真实 Harbor NOP 验证。阻塞 collect 探针还证明外层强杀确会留下 Compose 资源；Adapter 现只依据本 Job 落盘 Trial 身份清理并复核精确 project label，真实超时回归通过。真实 Codex、网络/凭据和固定 Fork 仍未完成。
+M0 当前实现注记：`ExecutionJobRequest`/`ExecutionTrialResult`、Harbor 配置与严格运行身份映射、patch 制品校验已存在；真实 NOP Docker Trial 已证明空 patch、缺失轨迹警告、原始结果引用和正常清理，固定摘要、禁网容器又证明修改、新建、删除和 Agent commit 四类非空 patch 能被生产 hook 与校验器完整处理。`HarborExecutionAdapter.execute()` 已实现；生产有界执行器落实 stdout/stderr 每路 50 MiB 上限、显式截断 manifest、日志线程总收束期限、Windows 进程树/POSIX 进程组终止，并接真实 Harbor NOP 验证。阻塞 collect 探针还证明外层强杀确会留下 Compose 资源；Adapter 现只依据本 Job 落盘 Trial 身份清理并复核精确 project label，真实超时回归通过。固定 Fork 五类独立判卷已通过，见第 6.10 节；真实 Codex 与生成阶段网络/凭据仍未完成。
 
 Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
 
@@ -223,6 +223,8 @@ Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；�
 | 验证 | gold patch、空 patch、错误 patch、不可应用 patch、测试超时五类样例 |
 
 注意：补丁“可应用但测试未通过”是一次正常完成的确定性评测；Harness 无法完成才是基础设施错误。
+
+M0 当前实现：`SWEbenchEvaluator` 复用已校验 Task Catalog，逐字段核对请求中的 Evaluator 视图，冻结 JSONL 和不可覆盖证据目录。`EvaluationError` 在既有 port 中表达无法形成可信结果的错误及证据引用；`DeterministicResult` 只返回真实空补丁分类或完整、相互一致的报告。固定 Fork 在独立禁网容器中通过 gold、空、错误、不可应用和测试超时五类验证；框架实际调用与基础设施适配边界见 [`FRAMEWORK_INTERFACES.md` 第 5 节](../interfaces/FRAMEWORK_INTERFACES.md#5-swe-bench-fork-patch-evaluator)。真实 Codex 链路仍未通过。
 
 ### 6.11 Trajectory Recorder
 

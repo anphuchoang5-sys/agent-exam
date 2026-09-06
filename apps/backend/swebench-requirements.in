@@ -1,0 +1,14 @@
+# Runtime dependencies from fixed SWE-Bench-Fork setup.py:
+# 242429c188fcfd06aad13fce9a54d450470bf0ac (no inference extra).
+beautifulsoup4
+chardet
+datasets
+docker
+ghapi
+GitPython
+pre-commit
+python-dotenv
+requests
+rich
+unidiff
+tqdm
