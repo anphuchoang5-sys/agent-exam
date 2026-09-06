@@ -134,7 +134,7 @@ def test_process_timeout_marks_unfinished_run_timed_out(tmp_path: Path) -> None:
         tmp_path / "missing-job",
         process_returncode=124,
         process_failure_reason=TerminationReason.TIMED_OUT,
-        process_warning="HARBOR_PROCESS_TIMEOUT",
+        process_warnings=("HARBOR_PROCESS_TIMEOUT",),
     )
 
     assert result.termination_reason is TerminationReason.TIMED_OUT

@@ -194,7 +194,7 @@ flowchart LR
 | 依赖 | Agent Registry、Harbor 固定提交、Docker、Trajectory Normalizer、Artifact Store；P2 自研 Agent 才复用现有 LLM Provider Adapter 的受控访问 Implementation |
 | 验证 | Harbor/Fake Backend 共用同一 interface contract；空补丁与失败分开；真实 SWE-Gym 单题原型覆盖补丁、轨迹、资源和清理 |
 
-M0 当前实现注记：`ExecutionJobRequest`/`ExecutionTrialResult`、Harbor 配置与严格运行身份映射、patch 制品校验已存在；真实 NOP Docker Trial 已证明空 patch、缺失轨迹警告、原始结果引用和清理。`HarborExecutionAdapter.execute()` 已实现并通过固定 CLI/UTF-8/证据/超时分支的假进程单测；真实 Adapter CLI E2E、外层超时后的进程树清理、真实 Codex、非空 patch、网络/凭据和固定 Fork 仍未完成。
+M0 当前实现注记：`ExecutionJobRequest`/`ExecutionTrialResult`、Harbor 配置与严格运行身份映射、patch 制品校验已存在；真实 NOP Docker Trial 已证明空 patch、缺失轨迹警告、原始结果引用和正常清理。`HarborExecutionAdapter.execute()` 已实现并通过固定 CLI/UTF-8/证据/超时分支的替身进程单测；生产有界执行器已落实 stdout/stderr 每路 50 MiB 上限、显式截断 manifest、Windows 进程树/POSIX 进程组终止，并接真实 Harbor NOP 验证。父子进程超时清理已单独实测，但外层杀死 Harbor 后的 Compose 清理、真实 Codex、非空 patch、网络/凭据和固定 Fork 仍未完成。
 
 Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
 

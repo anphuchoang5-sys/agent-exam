@@ -19,6 +19,7 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
     build_job_plan,
     harbor_agent_key,
 )
+from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
 from eval_platform.adapters.execution.harbor.result_mapper import map_job_results
 from eval_platform.adapters.tasks.swe_gym import (
     CANDIDATE_INSTANCE_ID,
@@ -110,28 +111,27 @@ def test_harbor_nop_collects_empty_patch_and_cleans_environment(
     env["HARBOR_TELEMETRY"] = "disabled"
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
-    completed = subprocess.run(
+    outcome = run_bounded_process(
         [str(harbor_exe), "run", "--config", str(config_path), "--yes"],
         cwd=repo_root,
         env=env,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=900,
-        check=False,
+        timeout_sec=900,
+        evidence_root=tmp_path,
     )
-    (tmp_path / "harbor.stdout.log").write_text(
-        completed.stdout, encoding="utf-8", newline="\n"
+    stderr = (tmp_path / "harbor.stderr.log").read_text("utf-8", errors="replace")
+    assert outcome.returncode == 0, stderr[-4000:]
+    assert not outcome.timed_out and not outcome.warnings
+    process_manifest = json.loads(
+        (tmp_path / "harbor-process.json").read_text(encoding="utf-8")
     )
-    (tmp_path / "harbor.stderr.log").write_text(
-        completed.stderr, encoding="utf-8", newline="\n"
-    )
-    assert completed.returncode == 0, completed.stderr[-4000:]
+    assert not process_manifest["logs"]["stdout"]["truncated"]
 
     job_dir = jobs_dir / request.job_id
     (mapped_result,) = map_job_results(
-        probe_plan, job_dir, process_returncode=completed.returncode
+        probe_plan,
+        job_dir,
+        process_returncode=outcome.returncode,
+        process_warnings=outcome.warnings,
     )
     assert mapped_result.termination_reason is TerminationReason.COMPLETED
     assert mapped_result.patch_ref is not None

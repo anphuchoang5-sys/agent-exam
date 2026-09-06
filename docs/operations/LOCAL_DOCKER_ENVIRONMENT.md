@@ -106,7 +106,7 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 第一次更新 Docker CLI JSON 时，使用带空备份参数的 `.NET File.Replace` 被拒绝；原文件 SHA-256 和 JSON 随即复核未变，临时文件数为 0。第二次使用同目录覆盖移动成功，写入后重新解析 JSON 并核对全部原顶层字段和代理字段。
 
-2026-09-06 的 Harbor NOP 探针使用固定任务镜像真实创建 Docker Compose Trial。映射后复测 `runtime/prototype/m0-harbor-nop-20260906-05` 为 `1 passed in 20.56s`：Verifier 关闭，collect hook 生成并校验 0-byte patch，Harbor CLI 在显式 UTF-8 环境正常退出，Trial 对应的 Compose container/network/volume 均无残留。该证据不包含模型、认证或网络白名单，不能推导真实 Codex Trial 已安全可用。
+2026-09-06 的 Harbor NOP 探针使用固定任务镜像真实创建 Docker Compose Trial。映射后复测 `runtime/prototype/m0-harbor-nop-20260906-05` 为 `1 passed in 20.56s`；生产有界执行器接真实 Harbor CLI 的复测 `runtime/prototype/m0-harbor-bounded-process-20260906-01` 为 `1 passed in 19.61s`：Verifier 关闭，collect hook 生成并校验 0-byte patch，stdout 未截断，Harbor CLI 在显式 UTF-8 环境正常退出，Trial 对应的 Compose container/network/volume 均无残留。另一个真实 Windows 父子进程超时探针为 `1 passed in 1.35s`，只证明宿主进程树终止；外层杀死 Harbor 后 Compose 子资源是否残留仍待单独验证。这些证据不包含模型、认证或网络白名单，不能推导真实 Codex Trial 已安全可用。
 
 ## 7. 对 AgentExam 的直接限制
 

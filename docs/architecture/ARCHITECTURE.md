@@ -464,7 +464,7 @@ E:\9.1agent_exam\
 
 1. 固定 Codex CLI 项目版本、模型 ID 和端点白名单，并实测 Harbor 容器内 ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
 2. 读取并固定 `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个具体任务；不让用户猜字段。
-3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/清理；薄进程 Adapter 已完成假进程单测，继续用本地脚本验证真实 Adapter CLI E2E、外层超时清理、非空补丁、资源/网络和固定 Fork，通过前不搭 Web/数据库流程。
+3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；薄进程 Adapter 已落实有界日志和宿主进程树终止，生产执行器接真实 Harbor NOP 也已通过。继续用本地脚本验证外层杀死 Harbor 后的 Compose 清理、非空补丁、资源/网络和固定 Fork，通过前不搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。
 5. 在真实 Trial 中测量 patch、日志和原始制品规模；默认阈值先按 C-37/C-38，实现证据表明需要调整时再请求确认。
 6. 完成校园网 + FlClash 开启/关闭下的 Tailscale 双机共存测试，失败时才评估 Cloudflare Tunnel + Access。
@@ -486,4 +486,4 @@ E:\9.1agent_exam\
 - 2026-09-05：确认远端协作者提交的正式真实 Job 必须先处于 `AWAITING_OWNER_APPROVAL`，只有评测机所有者批准才能进入 `QUEUED`；当前单机平台只在评测机在线时可用，并新增校园网/VPN私有接入候选与验证门槛。
 - 2026-09-05：确认 Failure/Quality Judge 的严格触发、清洗和非覆盖规则；首版自研 Agent 固定为 Python 进程 Interface，仅允许 DeepSeek/Kimi 独立配置，真实 Key 只由评测机可信配置持有；安全访问复用现有 Implementation，不新增顶层业务 Module。
 - 2026-09-05：实施范围改为本地 Codex 技术原型 → Codex 平台 MVP → Aider/Claude Code → P2 自研 Agent；确认两角色邀请制、Quality 匿名双次反序比较、过程指标只展示、闭卷 MVP、任务双层存储、手动重试、制品保留与大小限制。
-- 2026-09-06：M0 真实 Harbor NOP Docker Trial 与结果映射通过，薄进程 Adapter 完成假进程单测；记录宿主进程驱动、任务 collect hook、空 patch、UTF-8 CLI 和清理证据，真实 Adapter/Codex/Fork 仍未通过。
+- 2026-09-06：M0 真实 Harbor NOP Docker Trial、结果映射和生产有界执行器通过，薄进程 Adapter 完成双流截断与宿主父子进程清理验证；记录宿主进程驱动、任务 collect hook、空 patch、UTF-8 CLI 和正常清理证据，真实 Codex、Harbor 超时后的 Compose 清理和固定 Fork 仍未通过。

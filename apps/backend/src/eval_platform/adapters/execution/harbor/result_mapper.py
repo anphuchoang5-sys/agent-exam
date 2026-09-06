@@ -32,7 +32,7 @@ def map_job_results(
     *,
     process_returncode: int,
     process_failure_reason: TerminationReason | None = None,
-    process_warning: str | None = None,
+    process_warnings: tuple[str, ...] = (),
 ) -> tuple[ExecutionTrialResult, ...]:
     try:
         job_ref = required_string(read_json(job_dir / "result.json"), "id")
@@ -41,7 +41,7 @@ def map_job_results(
             plan,
             str(job_dir.resolve()),
             process_failure_reason or TerminationReason.INFRASTRUCTURE_INTERRUPTED,
-            _failure_warnings("HARBOR_JOB_RESULT_MISSING", process_warning),
+            _failure_warnings("HARBOR_JOB_RESULT_MISSING", process_warnings),
         )
 
     bindings = {
@@ -65,7 +65,7 @@ def map_job_results(
                 trial_dir=result_path.parent,
                 trial_data=trial_data,
                 process_returncode=process_returncode,
-                process_warning=process_warning,
+                process_warnings=process_warnings,
             )
         except (OSError, ValueError, json.JSONDecodeError):
             protocol_warnings.append("INVALID_HARBOR_TRIAL_RESULT")
@@ -83,7 +83,7 @@ def map_job_results(
                 binding.run_id,
                 job_ref,
                 reason,
-                _failure_warnings("HARBOR_TRIAL_RESULT_MISSING", process_warning),
+                _failure_warnings("HARBOR_TRIAL_RESULT_MISSING", process_warnings),
             )
         if protocol_warnings:
             result = replace(
@@ -111,7 +111,7 @@ def _map_trial(
     trial_dir: Path,
     trial_data: dict[str, Any],
     process_returncode: int,
-    process_warning: str | None,
+    process_warnings: tuple[str, ...],
 ) -> ExecutionTrialResult:
     trial_ref = required_string(trial_data, "id")
     warnings: list[str] = []
@@ -143,9 +143,8 @@ def _map_trial(
         for warning in (trajectory_warning, usage_warning, timing_warning)
         if warning is not None
     )
-    if process_warning is not None:
-        warnings.append(process_warning)
-    elif process_returncode != 0:
+    warnings.extend(process_warnings)
+    if process_returncode != 0 and "HARBOR_PROCESS_TIMEOUT" not in process_warnings:
         warnings.append(f"HARBOR_PROCESS_EXIT_{process_returncode}")
     return ExecutionTrialResult(
         run_id=run_id,
@@ -191,7 +190,7 @@ def _failed_result(
     )
 
 
-def _failure_warnings(primary: str, process_warning: str | None) -> tuple[str, ...]:
-    if process_warning is None:
-        return (primary,)
-    return primary, process_warning
+def _failure_warnings(
+    primary: str, process_warnings: tuple[str, ...]
+) -> tuple[str, ...]:
+    return primary, *process_warnings

@@ -2,17 +2,19 @@ from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from eval_platform.adapters.execution.harbor import adapter as adapter_module
 from eval_platform.adapters.execution.harbor.adapter import HarborExecutionAdapter
 from eval_platform.adapters.execution.harbor.config_mapper import (
     ARTIFACT_CONTRACT_VERSION,
     HARBOR_REVISION,
 )
+from eval_platform.adapters.execution.harbor.process_evidence import CapturedLog
+from eval_platform.adapters.execution.harbor.process_runner import ProcessOutcome
 from eval_platform.application.ports.execution import (
     ExecutionJobRequest,
     ExecutionRunRequest,
@@ -92,17 +94,39 @@ def _write_successful_harbor_result(config_path: Path) -> None:
     (artifact_dir / "patch.binary").write_text("0", encoding="ascii")
 
 
+def _outcome(
+    root: Path,
+    *,
+    returncode: int = 0,
+    timed_out: bool = False,
+    warnings: tuple[str, ...] = (),
+    stdout: bytes = b"harbor ok",
+    stderr: bytes = b"",
+) -> ProcessOutcome:
+    stdout_path = root / "harbor.stdout.log"
+    stderr_path = root / "harbor.stderr.log"
+    stdout_path.write_bytes(stdout)
+    stderr_path.write_bytes(stderr)
+    return ProcessOutcome(
+        returncode,
+        timed_out,
+        CapturedLog(stdout_path.resolve(), len(stdout), False),
+        CapturedLog(stderr_path.resolve(), len(stderr), False),
+        warnings,
+    )
+
+
 def test_executes_fixed_cli_and_maps_result(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     calls: list[tuple[list[str], dict[str, Any]]] = []
 
-    def fake_run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: Any) -> ProcessOutcome:
         calls.append((command, kwargs))
         _write_successful_harbor_result(Path(command[3]))
-        return subprocess.CompletedProcess(command, 0, "harbor ok", "")
+        return _outcome(kwargs["evidence_root"])
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(adapter_module, "run_bounded_process", fake_run)
     result = _adapter(tmp_path).execute(_request())[0]
 
     assert result.termination_reason is TerminationReason.COMPLETED
@@ -117,7 +141,7 @@ def test_executes_fixed_cli_and_maps_result(
     assert kwargs["env"]["HARBOR_TELEMETRY"] == "disabled"
     assert kwargs["env"]["PYTHONIOENCODING"] == "utf-8"
     assert kwargs["env"]["PYTHONUTF8"] == "1"
-    assert kwargs["timeout"] == 2640
+    assert kwargs["timeout_sec"] == 2640
     run_root = tmp_path / "evidence/adapter-test"
     assert (run_root / "harbor.stdout.log").read_text() == "harbor ok"
     frozen = (run_root / "harbor-config.json").read_text(encoding="utf-8")
@@ -128,13 +152,11 @@ def test_executes_fixed_cli_and_maps_result(
 def test_refuses_to_overwrite_existing_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake_run(
-        command: list[str], **_kwargs: Any
-    ) -> subprocess.CompletedProcess[str]:
+    def fake_run(command: list[str], **kwargs: Any) -> ProcessOutcome:
         _write_successful_harbor_result(Path(command[3]))
-        return subprocess.CompletedProcess(command, 0, "", "")
+        return _outcome(kwargs["evidence_root"], stdout=b"")
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(adapter_module, "run_bounded_process", fake_run)
     adapter = _adapter(tmp_path)
     adapter.execute(_request())
 
@@ -145,21 +167,24 @@ def test_refuses_to_overwrite_existing_evidence(
 def test_process_timeout_is_explicit_and_keeps_partial_logs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake_timeout(command: list[str], **kwargs: Any) -> None:
-        raise subprocess.TimeoutExpired(
-            command,
-            kwargs["timeout"],
-            output=b"partial stdout",
+    def fake_timeout(_command: list[str], **kwargs: Any) -> ProcessOutcome:
+        return _outcome(
+            kwargs["evidence_root"],
+            returncode=124,
+            timed_out=True,
+            warnings=("HARBOR_PROCESS_TIMEOUT", "HARBOR_STDERR_TRUNCATED"),
+            stdout=b"partial stdout",
             stderr=b"timeout stderr",
         )
 
-    monkeypatch.setattr(subprocess, "run", fake_timeout)
+    monkeypatch.setattr(adapter_module, "run_bounded_process", fake_timeout)
     result = _adapter(tmp_path).execute(_request("timeout-test"))[0]
 
     assert result.termination_reason is TerminationReason.TIMED_OUT
     assert result.warnings == (
         "HARBOR_JOB_RESULT_MISSING",
         "HARBOR_PROCESS_TIMEOUT",
+        "HARBOR_STDERR_TRUNCATED",
     )
     run_root = tmp_path / "evidence/timeout-test"
     assert (run_root / "harbor.stdout.log").read_text() == "partial stdout"

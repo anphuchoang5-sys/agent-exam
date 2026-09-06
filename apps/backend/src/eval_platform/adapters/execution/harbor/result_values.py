@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from eval_platform.adapters.execution.harbor.artifacts import (
+    RAW_ARTIFACT_MAX_BYTES,
     PatchArtifactError,
     validate_patch_artifact,
 )
@@ -16,8 +17,6 @@ from eval_platform.domain.result import (
     TerminationReason,
     UsageSummary,
 )
-
-RAW_ARTIFACT_MAX_BYTES = 50 * 1024 * 1024
 
 
 def patch_ref(trial_dir: Path) -> ArtifactRef:

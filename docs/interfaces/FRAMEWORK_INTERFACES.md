@@ -1,6 +1,6 @@
 # 上游框架与 Agent CLI 接口清单
 
-> 文档状态：持续维护；上游事实、M0 Task/Harbor 契约与真实 NOP Trial/结果映射已核验，Codex Trial 与 Harness 待分层实测
+> 文档状态：持续维护；上游事实、M0 Task/Harbor 契约、真实 NOP Trial/结果映射和有界进程执行已核验，Codex Trial 与 Harness 待分层实测
 >
 > 最后更新：2026-09-06
 > 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 与自研 Agent 凭据政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
@@ -187,7 +187,7 @@ Harness 还在当前工作目录生成 `<model_name_or_path>.<run_id>.json` 汇�
 
 架构决定是：平台 Job→Harbor Job，评测运行→Harbor Trial，`n_attempts=1`、`n_concurrent_trials=1`、`verifier.disable=true`；每个 Trial 的 patch 由 Adapter 强校验后交给固定 SWE-Bench-Fork。完整输入、输出、错误和验收门槛只在 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md) 维护。
 
-固定 Harbor 已在本机安装，项目生成的 `JobConfig` 与无 `tests/` 的公开 Task 已通过真实 Harbor 类型解析。真实 NOP Docker Trial 进一步验证了任务 `verifier.collect` hook、0-byte patch 与元数据、单目录 artifact、关闭 Harbor Verifier、UTF-8 CLI、结果到 `run_id` 的严格映射和 Compose 资源清理。该状态只能标为“无模型 Trial 通过”；它仍不能证明 Codex、认证/网络、非空 patch 或固定 Fork E2E 可用。
+固定 Harbor 已在本机安装，项目生成的 `JobConfig` 与无 `tests/` 的公开 Task 已通过真实 Harbor 类型解析。真实 NOP Docker Trial 进一步验证了任务 `verifier.collect` hook、0-byte patch 与元数据、单目录 artifact、关闭 Harbor Verifier、UTF-8 CLI、结果到 `run_id` 的严格映射和正常 Compose 资源清理；生产有界执行器接真实 Harbor CLI 的 NOP 路径也已通过。该状态只能标为“无模型 Trial 通过”；它仍不能证明 Codex、认证/网络、非空 patch、外层超时后的 Compose 清理或固定 Fork E2E 可用。
 
 ## 7. Codex CLI Adapter
 
@@ -377,7 +377,7 @@ P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键�
 
 1. Lite revision、`train` split、候选 `python__mypy-15413`、Parquet 哈希与镜像 digest 已固定；候选能否成为 M0 正式首题取决于真实闭环。
 2. Windows + Docker Desktop 下 SWE-Bench-Fork 固定提交是否无需补丁即可运行；需 gold patch 实测。
-3. Harbor 固定环境、实际 Job/Trial 目录、空 `model.patch` 受控提取及 Trial→`run_id` 结果映射已由 NOP 验证；CLI 进程 Adapter 已实现并通过假进程单测，仍须验证真实 CLI E2E、非空/新建/删除/Agent commit、外层超时清理和真实 Codex 路径。
+3. Harbor 固定环境、实际 Job/Trial 目录、空 `model.patch` 受控提取及 Trial→`run_id` 结果映射已由 NOP 验证；CLI 进程 Adapter 已实现有界日志和宿主进程树终止，生产执行器接真实 Harbor NOP 也已通过。仍须验证非空/新建/删除/Agent commit、外层杀死 Harbor 后的 Compose 清理和真实 Codex 路径。
 4. 固定 Codex 项目 CLI 版本、模型 ID、reasoning effort 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；2026-09-06 宿主 `0.153.0` 只是一条环境探针，不是已选基线。
 5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
 6. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
@@ -394,4 +394,4 @@ P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键�
 - 2026-09-04：在新路径复测宿主 `codex --version` 与 `codex exec --help` 均成功；记录本机 `codex-cli 0.142.0`，但不将其自动固定为项目版本，也不据此宣称 Harbor 容器 E2E 通过。
 - 2026-09-05：确认首版自研 Agent 只支持 Python stdin JSON → stdout patch 进程 Interface，由平台包装进 Harbor；模型提供方限 DeepSeek/Kimi，真实 Key 不进入被测进程，具体外部接口和隔离待实测。
 - 2026-09-05：固定 M0 Codex 本机脚本→M1 Codex 平台 MVP→Aider/Claude Code→P2 自研 Agent 的验证顺序；过程指标改为只展示，并补充任务原始快照与无效 patch 映射。
-- 2026-09-06：记录真实 Harbor NOP Docker Trial 与项目结果映射通过，以及 Job 根结果不落盘 `trial_results`、UTF-8 CLI 和单目录 artifact 的实际接口事实。
+- 2026-09-06：记录真实 Harbor NOP Docker Trial、项目结果映射和生产有界执行器通过，以及 Job 根结果不落盘 `trial_results`、UTF-8 CLI、单目录 artifact、显式日志截断和宿主进程树清理的实际接口事实。

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +11,7 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
     build_job_plan,
     validate_job_id,
 )
+from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
 from eval_platform.adapters.execution.harbor.result_mapper import map_job_results
 from eval_platform.adapters.tasks.swe_gym import render_harbor_task
 from eval_platform.application.ports.execution import (
@@ -26,7 +26,6 @@ _ENVIRONMENT_BUILD_TIMEOUT_SEC = 1800
 _AGENT_SETUP_TIMEOUT_SEC = 360
 _COLLECT_TIMEOUT_SEC = 60
 _PROCESS_GRACE_SEC = 120
-_TIMEOUT_EXIT_CODE = 124
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,36 +103,25 @@ class HarborExecutionAdapter:
             str(config_path.resolve()),
             "--yes",
         ]
-        try:
-            completed = subprocess.run(
-                command,
-                cwd=self.project_root.resolve(),
-                env=env,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=_process_timeout_sec(request),
-                check=False,
+        outcome = run_bounded_process(
+            command,
+            cwd=self.project_root.resolve(),
+            env=env,
+            timeout_sec=_process_timeout_sec(request),
+            evidence_root=run_root,
+        )
+        if outcome.start_error is not None:
+            return _process_start_failure(
+                request, run_root, outcome.start_error, outcome.warnings
             )
-        except subprocess.TimeoutExpired as error:
-            _write_process_logs(run_root, error.stdout, error.stderr)
-            return map_job_results(
-                plan,
-                _job_dir(plan, request.job_id),
-                process_returncode=_TIMEOUT_EXIT_CODE,
-                process_failure_reason=TerminationReason.TIMED_OUT,
-                process_warning="HARBOR_PROCESS_TIMEOUT",
-            )
-        except OSError as error:
-            _write_process_logs(run_root, "", f"{type(error).__name__}: {error}")
-            return _process_start_failure(request, run_root, error)
-
-        _write_process_logs(run_root, completed.stdout, completed.stderr)
         return map_job_results(
             plan,
             _job_dir(plan, request.job_id),
-            process_returncode=completed.returncode,
+            process_returncode=outcome.returncode,
+            process_failure_reason=(
+                TerminationReason.TIMED_OUT if outcome.timed_out else None
+            ),
+            process_warnings=outcome.warnings,
         )
 
 
@@ -152,29 +140,11 @@ def _job_dir(plan: HarborJobPlan, job_id: str) -> Path:
     return Path(str(plan.config["jobs_dir"])) / job_id
 
 
-def _write_process_logs(
-    run_root: Path, stdout: str | bytes | None, stderr: str | bytes | None
-) -> None:
-    (run_root / "harbor.stdout.log").write_text(
-        _output_text(stdout), encoding="utf-8", newline="\n"
-    )
-    (run_root / "harbor.stderr.log").write_text(
-        _output_text(stderr), encoding="utf-8", newline="\n"
-    )
-
-
-def _output_text(value: str | bytes | None) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
-
-
 def _process_start_failure(
     request: ExecutionJobRequest,
     run_root: Path,
     error: OSError,
+    warnings: tuple[str, ...],
 ) -> tuple[ExecutionTrialResult, ...]:
     reason = (
         TerminationReason.AGENT_UNAVAILABLE
@@ -189,7 +159,7 @@ def _process_start_failure(
             termination_reason=reason,
             patch_ref=None,
             trajectory_ref=None,
-            warnings=("HARBOR_PROCESS_START_FAILED",),
+            warnings=warnings,
         )
         for run in request.runs
     )

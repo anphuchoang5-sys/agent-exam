@@ -1,6 +1,6 @@
 # Harbor 执行后端接口
 
-> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射和薄进程 Adapter 单测已核验；真实 Adapter/Codex Trial 待验收
+> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射、有界日志和宿主进程树清理已核验；真实 Codex Trial 与 Harbor 超时后的 Compose 清理待验收
 >
 > 最后更新：2026-09-06
 >
@@ -235,7 +235,7 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
-当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。真实 NOP Docker Trial 已通过，证明第 1 项的无模型路径、空 patch、关闭 Verifier 后的 artifact、UTF-8 CLI 和清理；39 项 unit/contract 通过，映射后的 NOP 集成测试也通过。进程 Adapter 的固定命令、UTF-8、证据不可覆盖与超时结果已由假进程单测覆盖；当前 stdout/stderr 整体捕获尚未落实单制品 50 MiB 限额/显式截断，真实 Adapter CLI E2E、外层超时后的进程树/Compose 清理、真实 Codex、网络/凭据/轨迹、非空 patch 场景和固定 Fork仍未完成，不能据此把 M0 标记完成。
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB，超限与进程树清理失败都写入 manifest 并传播为运行告警。unit/contract 共 42 项通过；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 路径也通过，证明无模型路径、空 patch、关闭 Verifier 后的 artifact、UTF-8 CLI 和正常 Compose 清理。公开 `HarborExecutionAdapter.execute()` 的编排仍由受控替身单测覆盖；真实父子进程超时探针只证明宿主进程树终止，不证明外层杀死 Harbor 后 Compose 子资源必然清理。真实 Codex、网络/凭据/轨迹、非空 patch 场景、Harbor 超时后的 Compose 清理和固定 Fork 仍未完成，不能据此把 M0 标记完成。
 
 ### 13.2 M1：Codex 平台 MVP
 
@@ -263,4 +263,4 @@ M1 通过后，先使用相同契约登记并验证 Harbor 已有的 Aider、Cla
 - 2026-09-04：Codex CLI 项目版本、模型、端点、Token 刷新、脱敏、清理和 Harbor 容器运行仍待固定或实测。
 - 2026-09-05：确认首版自研 Agent 为 Python 固定进程 Interface，由平台包装进 Harbor；只允许 DeepSeek/Kimi 独立配置，真实 Key 不直接进入被测容器，具体受控访问部署与网络隔离仍待原型。
 - 2026-09-05：固定 M0 本机 Codex 脚本原型、M1 Codex 平台 MVP、Aider/Claude Code、P2 自研 Agent 的顺序；补充闭卷限制、取消/中断不自动重试和 patch/原始制品限额。
-- 2026-09-06：真实 Harbor NOP Docker Trial 与项目结果映射通过；薄进程 Adapter 完成假进程单测；记录落盘 Job 结果不含 `trial_results`、Windows CLI UTF-8 要求、任务 collect hook/单目录 artifact 契约和仍未通过的真实 Adapter/Codex/Fork门槛。
+- 2026-09-06：真实 Harbor NOP Docker Trial 与项目结果映射通过；薄进程 Adapter、有界双流日志和宿主进程树超时终止完成测试；记录落盘 Job 结果不含 `trial_results`、Windows CLI UTF-8 要求、任务 collect hook/单目录 artifact 契约，以及仍未通过的真实 Codex、Harbor 超时后 Compose 清理和固定 Fork 门槛。
