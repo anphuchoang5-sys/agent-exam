@@ -1,8 +1,8 @@
 # AgentExam 架构讨论 Handoff
 
-> 交接时间：2026-09-05
+> 交接时间：2026-09-06
 >
-> 当前阶段：MVP 业务规则已对账；下一步是 M0 本机 Codex 技术原型，尚未开始业务代码实现
+> 当前阶段：M0 的 Git/文档/数据/固定 Harbor 环境已核验；业务代码尚未创建，真实 Trial 和固定 Fork 判卷尚未运行
 >
 > 用途：帮助从 `E:\9.1agent_exam` 打开的下一条 Codex 任务恢复上下文
 >
@@ -18,16 +18,18 @@ E:\9.1实训  →  E:\9.1agent_exam
 
 文件系统迁移、Git 状态和远程仓库完整性已经验证，但 Windows 默认沙箱的 `setup refresh had errors` 后来在英文路径重新出现，因此不能再把迁移视为故障根治。Codex 认证与单机协作方式已在 2026-09-04 对账；2026-09-05 又确认“协作者远端提交 → 评测机所有者批准 → 本机 Worker 执行”，并明确评测机必须在线。同日已实测 Docker Desktop 内部代理经 FlClash 完成通用容器 HTTPS 和固定摘要镜像拉取；这不等于 Harbor/Codex Trial 或闭卷防绕过已通过。Tailscale Serve 已作为校园网/VPN下的私有接入实施方案，仍须安装和双机实测。
 
-最新范围收敛为：M0 先用本机脚本跑通 Codex→Harbor→patch→SWE-Bench-Fork 单题真实闭环，不先做 Web/数据库；M1 再接 Web、PostgreSQL、MinIO、两类角色和所有者批准，完成 Codex-only MVP；之后接 Aider、Claude Code；自研 Agent 降为 P2，只保留 Python 进程 Interface 和 DeepSeek/Kimi 安全接缝。Quality Judge 的触发、清洗、四项 rubric、匿名反序双评和循环赛已经固定；过程指标只展示；MVP 只闭卷；取消/中断不自动重试；任务原始 JSON、制品保留和大小上限也已确认。最新行动记录见 [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md)。
+最新范围收敛为：M0 先用本机脚本跑通 Codex→Harbor→patch→SWE-Bench-Fork 单题真实闭环，不先做 Web/数据库；M1 再接 Web、PostgreSQL、MinIO、两类角色和所有者批准，完成 Codex-only MVP；之后接 Aider、Claude Code；自研 Agent 降为 P2，只保留 Python 进程 Interface 和 DeepSeek/Kimi 安全接缝。Quality Judge 的触发、清洗、四项 rubric、匿名反序双评和循环赛已经固定；过程指标只展示；MVP 只闭卷；取消/中断不自动重试；任务原始 JSON、制品保留和大小上限也已确认。
+
+2026-09-05 至 09-06 已按用户授权启动长期 M0 目标。本轮没有写业务代码，而是完成 Git 最新性核验、恢复并安装固定 Harbor、固定 SWE-Gym-Lite 数据 revision、选择首题候选并核验镜像 digest，同时确认 Harbor 可在关闭 verifier 时通过 collect hook 收集 patch。所有真实进度、失败和命令边界见当前行动记录 [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md)。用户随后要求停止并交接；因此下个窗口从代码实现起点继续，不得重复昨晚 275 分钟的 Harbor 构建。
 
 迁移证据见 [`docs/actions/2026-09-04-workspace-path-migration.md`](docs/actions/2026-09-04-workspace-path-migration.md)。
 
 ## 2. 恢复任务时先做什么
 
 1. 确认工作区是 `E:\9.1agent_exam`，不要再使用旧路径。
-2. 运行 `git status --short`，保留 2026-09-05 的 Docker/FlClash 代理实测文档改动，不得重置或覆盖。
+2. 运行 `git status --short --branch`；本次交接会本地提交，预期工作区干净且本地 `main` 比 `origin/main` 领先 1 个提交。不得自行 push，除非用户再次明确要求。
 3. 按下面的层级阅读，不要只看总架构就开始修改。
-4. 第 6 节所列业务规则已经同步；通用 Docker 出站代理已验证，下一步先固定 SWE-Gym-Lite revision/split/单题与 Codex/Harbor 版本，再执行 M0。
+4. 第 6 节所列业务规则已经同步；SWE-Gym-Lite revision/split、候选单题、镜像 digest、Harbor 提交和 Harbor 环境已经固定。下一步直接实现 M0 的项目薄 Adapter 和无模型额度测试，不要重新下载 Harbor。
 5. 当前遗留项是技术核验，不得把已经确认的业务规则重新列成待决定；若实现发现必须新增顶层 Module、Interface、数据库表或目录，先说明现有职责为何不能承载并取得确认。
 
 ### 2.1 第一批：开始任何修改前必须完整阅读
@@ -35,20 +37,18 @@ E:\9.1实训  →  E:\9.1agent_exam
 | 顺序 | 文档 | 下一窗口必须了解什么 | 阅读时的注意事项 |
 |---:|---|---|---|
 | 1 | 本文 `HANDOFF.md` | 中断原因、对话确认事实、文档滞后点、未决问题和安全红线 | 本文是交接快照，不替代专题事实源 |
-| 2 | [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md) | 本轮确认的 MVP 顺序、两角色、Judge、闭卷、取消/恢复、任务快照与制品规则 | 当前最新对账记录；没有业务代码修改 |
-| 3 | [`docs/actions/2026-09-04-architecture-document-reconciliation.md`](docs/actions/2026-09-04-architecture-document-reconciliation.md) | 本轮对账的实际改动、CLI 探针、沙箱偏差和验证结果 | 这是当前结果记录；原计划仍保存在 `2026-09-04-handoff-document.md` |
-| 4 | [`CONTEXT.md`](CONTEXT.md) | AgentExam 的领域词汇及其统一含义 | 只维护领域语言，不应从这里推断框架接口 |
-| 5 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 系统目标、模块边界、数据流、决定表、规划文件树和待讨论队列 | 业务规则已同步；版本、模型和容器运行仍保持待实测 |
-| 6 | [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | 已确认的 ChatGPT Pro `auth.json` 方案、凭据所有权、协作方式和安全边界 | Codex 为 M0/M1；DeepSeek/Kimi 自研路径为 P2 |
-| 7 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | SWE-Gym、SWE-Bench-Fork、Harbor 的固定提交和本地恢复方式 | 宿主 `codex-cli 0.142.0` 只是探针，不是项目固定版本 |
-| 8 | [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1、平台 Job、Harbor Trial、patch、轨迹和错误映射 | 本机 Harbor、Token 生命周期和清理仍未实测 |
-| 9 | [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | SWE-Gym 字段、SWE-Bench-Fork Harness、Harbor 与 Agent CLI 的真实接口入口 | 宿主 CLI 探针成功不等于容器 E2E 通过 |
-| 10 | [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | 当前笔电的 Docker/WSL、FlClash/Docker 代理、磁盘和单机限制 | 代理证据核验于 2026-09-05；磁盘余量等易变值仍须引用前重查 |
-| 11 | [`docs/adr/0001-use-harbor-as-execution-backend.md`](docs/adr/0001-use-harbor-as-execution-backend.md) | 为什么 PostgreSQL 管平台队列、Harbor 只管执行、固定 Fork 负责最终判卷 | 这是已接受的架构决定；只有 Harbor 原型触发退出条件时才重新讨论 |
-| 12 | [`docs/actions/2026-09-04-codex-authentication-policy.md`](docs/actions/2026-09-04-codex-authentication-policy.md) | 认证决定产生的实际修改范围与验证结果 | 已收尾；未把宿主探针扩大为 Harbor 容器或真实 Trial 结论 |
-| 13 | [`docs/actions/2026-09-05-remote-submission-owner-approval.md`](docs/actions/2026-09-05-remote-submission-owner-approval.md) | 远端提交、所有者批准和网络方案形成过程 | 历史行动记录中的“候选”已被后续实施决定取代；双机仍未实测 |
-| 14 | [`docs/operations/REMOTE_TEAM_ACCESS.md`](docs/operations/REMOTE_TEAM_ACCESS.md) | 校园网/VPN下的推荐拓扑、最小暴露面、配置顺序和诊断 | 应用登录完成前不能把真实批准页面开放给协作者 |
-| 15 | [`docs/actions/2026-09-05-docker-flclash-container-proxy.md`](docs/actions/2026-09-05-docker-flclash-container-proxy.md) | Docker/FlClash 本机配置变化、验证证据、失败尝试与剩余风险 | 通用代理通过不等于 Harbor/Codex 或闭卷网络策略通过 |
+| 2 | [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md) | 本轮实际安装、固定数据、Harbor 源码发现、失败、耗时和下一步 | 当前 M0 唯一行动记录；状态是已暂停并交接，不是完成 |
+| 3 | [`docs/actions/2026-09-05-mvp-priority-product-decisions.md`](docs/actions/2026-09-05-mvp-priority-product-decisions.md) | 已确认的 MVP 顺序、两角色、Judge、闭卷、取消/恢复、任务快照与制品规则 | 业务决策事实源；没有业务代码修改 |
+| 4 | [`docs/actions/2026-09-04-architecture-document-reconciliation.md`](docs/actions/2026-09-04-architecture-document-reconciliation.md) | 架构对账的实际改动、CLI 探针、沙箱偏差和验证结果 | 原计划仍保存在 `2026-09-04-handoff-document.md` |
+| 5 | [`CONTEXT.md`](CONTEXT.md) | AgentExam 的领域词汇及其统一含义 | 只维护领域语言，不应从这里推断框架接口 |
+| 6 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 系统目标、模块边界、数据流、决定表、规划文件树和待讨论队列 | 业务规则已同步；模型和容器真实运行仍待实测 |
+| 7 | [`docs/architecture/MODULE_CONTRACTS.md`](docs/architecture/MODULE_CONTRACTS.md) | M0 要实现的领域对象、Execution Backend 与 Patch Evaluator 边界 | 写代码前必须按此建立依赖方向 |
+| 8 | [`docs/interfaces/CODEX_AUTHENTICATION.md`](docs/interfaces/CODEX_AUTHENTICATION.md) | ChatGPT Pro `auth.json` 方案、凭据所有权和安全边界 | 禁止读取或复制凭据内容 |
+| 9 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | 三个固定源码提交和本地恢复方式 | 当前动态安装结果以 M0 行动记录为准，收尾时同步本文件 |
+| 10 | [`docs/interfaces/HARBOR_EXECUTION.md`](docs/interfaces/HARBOR_EXECUTION.md) | M0/M1、Harbor Trial、patch、轨迹和错误映射 | Harbor 已安装；Token/真实 Trial/清理仍未实测 |
+| 11 | [`docs/interfaces/FRAMEWORK_INTERFACES.md`](docs/interfaces/FRAMEWORK_INTERFACES.md) | SWE-Gym 字段、固定 Fork CLI、Harbor 与 Agent CLI 入口 | 其中旧“尚未安装”状态需在 M0 收尾时同步 |
+| 12 | [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md) | Docker/WSL、FlClash/Docker 代理、磁盘和单机限制 | 当前 Windows 系统代理已被用户关掉；只在单次探针进程注入 7890 |
+| 13 | [`docs/adr/0001-use-harbor-as-execution-backend.md`](docs/adr/0001-use-harbor-as-execution-backend.md) | Harbor 主 Adapter 和固定 Fork 判卷决定 | 只有真实原型触发退出条件时才讨论 Process 后备 |
 
 ### 2.2 第二批：修改对应架构或接口前阅读
 
@@ -155,10 +155,15 @@ M0 通过后，M1 的平台主流程才是：
 
 ### 4.5 第一个真实原型
 
-- M0 使用 `SWE-Gym/SWE-Gym-Lite` 的 1 道真实任务起步，必要时扩至 3 道。
+- M0 使用 `SWE-Gym/SWE-Gym-Lite` 的 1 道真实任务起步；已固定 Hugging Face revision `61231f2c90b18985b42a1419738a240085a15107`、`train` split 和 230 条记录。
+- 固定 Parquet 位于忽略路径 `runtime/cache/swe-gym-lite/61231f2c90b18985b42a1419738a240085a15107/train-0000.parquet`，大小 `931,193` bytes，SHA-256 `f3a7cd934e8cc523b6053298d0abb2c82fd7db2b83f9f2ccba5944545aaa4eb1`。
+- 首题候选已经选为 `python__mypy-15413`，仓库 `python/mypy`，base commit `e7b917ec7532206b996542570f4b68a33c3ff771`。它是 Harbor 自带 SWE-Gym README 使用的单题示例，但尚未运行，故仍称候选。
+- 候选镜像已核验为 `xingyaoww/sweb.eval.x86_64.python_s_mypy-15413@sha256:f069dfc74592d438ad870bbc6dfb369bff1b125d21237ead49190b414f5f3456`；13 个压缩层合计 `1,075,118,139` bytes，尚未拉取。
 - 首个真实 Agent 使用 Codex，优先复用 Harbor 内置 Codex Adapter。
 - M0 先用本机脚本跑通 Issue → Harbor → patch → 固定 SWE-Bench-Fork，不先实现 Web/PostgreSQL/MinIO/审批；M1 再完成 Codex 平台闭环，之后依次扩展 Aider、Claude Code，最后才是 P2 自研 Agent。
-- Lite 的不可变 revision、真实 split 和具体 `instance_id` 尚未核验，不能猜。
+- 固定 Harbor 已安装成功并可执行 `harbor --version`，返回 `0.22.0`。宿主 Codex 当前为 `0.153.0`；把该值固定为 M0 Agent 版本仍需在代码和权威依赖文档中落盘并通过容器实测。
+- 固定 Harbor 自带 `adapters/swegym`，但它没有给 `load_dataset()` 传不可变 revision，还会把完整原始 datum 写到任务 `tests/config.json`。项目必须保留规划中的薄 `adapters/tasks/swe_gym.py`：复用镜像命名/任务约定，直接读已校验 Parquet，只向 Harbor 任务写公开字段；隐藏字段只交给固定 Fork Evaluator。
+- 固定 Harbor 单步顺序已从源码确认：Agent → 日志同步 → `[[verifier.collect]]` → artifact 收集 → 可选 verifier。`verifier.disable=true` 时仍执行 collect/artifact，且任务可不包含 `tests/`。因此候选 patch 出口是在 collect hook 中相对固定 `base_commit` 执行 Git diff；尚须 Fake/Docker 实测新建、删除、空和 Agent 自行 commit 的情况。
 
 ### 4.6 Codex 认证与多人协作
 
@@ -191,12 +196,16 @@ M0 通过后，M1 的平台主流程才是：
 - 当前工作区：`E:\9.1agent_exam`。
 - 旧工作区 `E:\9.1实训` 已不存在。
 - Git 分支：`main`。
-- 当前 HEAD：`ef6f22e docs: add owner-approved remote evaluation flow`；`main` 与 `origin/main` 当前都指向该提交，本轮 Judge、自研 Agent、凭据和 Docker/FlClash 文档同步尚未提交。
+- 本轮开始基线：本地 `main` 与 `origin/main` 均为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`（`docs: finalize evaluation MVP architecture`），`git fetch origin --prune` 成功，领先/落后为 `0/0`，开始时干净。
+- 本次交接按用户要求创建本地提交但不 push；新窗口必须以实际 `git log -1` 和 `git status` 核对提交 ID，不要沿用本文猜测。
 - 远程仓库：`https://github.com/anphuchoang5-sys/agent-exam.git`。
 - 工作区迁移后默认沙箱曾短暂通过，但本窗口在英文路径连续重现 `setup refresh had errors`；路径迁移不能视为根治，详见路径迁移行动记录的后续复核。
-- 同一窗口提升权限后的只读探针中，`codex --version` 返回 `codex-cli 0.142.0`，`codex exec --help` 退出码为 0；这只证明当前宿主 CLI 能启动，不代表项目版本已固定或 Harbor 容器已可用。
+- 本轮 `codex --version` 返回 `codex-cli 0.153.0`；这只证明当前宿主 CLI 能启动，不代表 Harbor 容器认证、模型或 E2E 已通过。旧文档中的 `0.142.0` 是 2026-09-04 当时的动态探针。
 - Docker/WSL 的 2026-09-03 实测事实见 [`docs/operations/LOCAL_DOCKER_ENVIRONMENT.md`](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md)；其中磁盘余量等数值会变化，引用前应重新检查。
-- 截至交接时，尚未在本机下载/安装/运行 Harbor，尚未运行真实 SWE-Gym Trial，也尚未运行固定 SWE-Bench-Fork 判卷。
+- Docker Desktop `4.38.0` / Engine `27.5.1` 当前可响应；本轮开始 E 盘可用 `22,829,572,096` bytes。当前 Windows `ProxyEnable=0` 且 `ProxyServer` 为空，FlClash 进程仍运行；Docker manifest 直连超时，给单次命令注入 `HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:7890` 后成功。不要擅自重新开启用户的系统代理。
+- `framework/swe-gym`、`framework/swe-bench-fork`、`framework/harbor` 都已恢复到依赖事实源固定提交并保持干净；它们与 `runtime/` 都被主仓库忽略。
+- Harbor 根 `.venv` 已按其 `uv.lock` 和 `huggingface` extra 安装成功。由于 `litellm==1.93.0` 在该锁中没有 Windows wheel，使用项目内隔离 `rustc/cargo 1.98.1` 加 Visual Studio 2022 C++ 环境源码编译，单次实际耗时 275 分 06 秒；不要删除或无理由重建 `framework/harbor/.venv`、`runtime/tools`、`runtime/cache/uv`。
+- 截至交接时，没有创建 `apps/backend`，没有拉取首题镜像，没有读取 `auth.json` 内容，没有发起真实模型调用，没有运行真实 SWE-Gym Trial，也没有运行固定 SWE-Bench-Fork 判卷。
 
 ## 6. 文档对账完成状态
 
@@ -204,6 +213,7 @@ M0 通过后，M1 的平台主流程才是：
 
 | 文件 | 已完成的同步 | 仍保留的边界 |
 |---|---|---|
+| [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md) | 记录 Git 基线、固定数据/镜像、Harbor 安装、源码发现、失败和实测耗时 | 用户要求暂停后以“已暂停并交接”收束；不得写成 M0 完成 |
 | [`CONTEXT.md`](CONTEXT.md) | 新增协作者、评测所有者、MVP 和取消请求；保留 Agent Configuration 与 Failure/Quality Judge 词义 | 不承载实现和部署细节 |
 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 已固定 M0→M1→Aider/Claude→P2、自研降级、两角色、闭卷、Judge、任务快照、取消/恢复与制品策略 | CLI/模型版本、Harbor/Codex Trial 及 Tailscale/VPN 仍待技术实测 |
 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | 依赖恢复按 M0/M1/后续/P2 分层；P2 DeepSeek/Kimi 不阻塞 Codex | 精确 Python/锁文件、模型 ID 和 Harbor 容器兼容性未验证 |
@@ -227,52 +237,35 @@ M0 通过后，M1 的平台主流程才是：
 
 ## 7. 当前 Git 工作区，禁止误删
 
-当前本地 HEAD 为 `ef6f22e`，与 `origin/main` 一致。本轮以下文档仍保留为尚未提交的可审阅修改：
+本轮开始时本地 HEAD 为 `42484d8`，与 `origin/main` 一致；之后只创建/更新 M0 行动记录和本文。用户已经明确要求本次交接做本地提交，所以新窗口预期看到：
 
 ```text
- M AGENTS.md
- M CONTEXT.md
- M HANDOFF.md
- M docs/architecture/ARCHITECTURE.md
- M docs/architecture/DATA_MODEL.md
- M docs/architecture/MODULE_CONTRACTS.md
- M docs/dependencies/DEPENDENCIES.md
- M docs/interfaces/CODEX_AUTHENTICATION.md
- M docs/interfaces/FRAMEWORK_INTERFACES.md
- M docs/interfaces/HARBOR_EXECUTION.md
- M docs/interfaces/HTTP_API.md
- M docs/interfaces/RUNNER_PROTOCOL.md
- M docs/operations/LOCAL_DOCKER_ENVIRONMENT.md
- M docs/operations/REMOTE_TEAM_ACCESS.md
-?? docs/actions/2026-09-05-docker-flclash-container-proxy.md
-?? docs/actions/2026-09-05-judge-custom-agent-credential-decisions.md
-?? docs/actions/2026-09-05-mvp-priority-product-decisions.md
+## main...origin/main [ahead 1]
 ```
 
-列表已经用实际 `git status --short` 复核；其中 Docker/FlClash 代理与 Judge/自研决定的改动来自紧邻的前序工作，本次完整保留并继续同步最新 MVP 决定。不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。
+如果不是上述状态，先查 `git log --oneline --decorate -3` 和 `git status --short --branch`，区分用户后续修改与本次提交；不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。此次没有 push；远端仍应停在 `42484d8`，除非用户或其他窗口后来明确推送。
 
 ## 8. 待技术核验
 
 业务范围和产品行为已经确认。以下只能用查代码/配置、原型和测试补齐，不能重新解释成业务待决定：
 
-1. SWE-Gym-Lite 的不可变 revision、真实 split、首个任务及镜像 digest。
-2. Harbor 在本机的安装/隔离环境、patch 在清理前的可靠提取和 Trial→运行映射。
-3. Worker 的 Windows/WSL 载体，以及 Job 租约/心跳和 `INFRASTRUCTURE_INTERRUPTED` 的幂等收束；行为固定为不自动续跑或重试。
-4. 单 Trial 的 CPU、内存、PID、磁盘和超时模板，以及 256 KiB/1 MiB/50 MiB/200 MiB 制品阈值的真实边界测试。
-5. 容器内 Codex CLI 固定版本、模型 ID、端点白名单以及 `auth.json` Token 刷新、脱敏和销毁路径。
-6. 账户、密码哈希、无邮件邀请、本地所有者恢复和会话的现有承载位置；如果必须新增顶层模块、接口、表或目录，先说明并确认。
-7. Quality Judge 的具体模型、Prompt 与结构化响应 Schema；触发、输入清洗、四项 rubric、反序一致性、循环赛和所有者复核权限已经固定。
-8. Tailscale + FlClash 在 VPN 关/开两种状态的双机 `direct`/`relay`、DNS、HTTPS 和权限正反测试。
-9. P2 `agent-exam.yaml`、Python/依赖锁、DeepSeek/Kimi 受控访问与网络防绕过；全部不阻塞 M0/M1。
+1. 为 `apps/backend` 建立最小 Python 包、领域对象、`ExecutionBackend`/`PatchEvaluator` ports 和 M0 薄入口；不得提前搭 M1 Web/数据库空壳。
+2. 实现固定 Parquet Task Adapter；证明 Agent 请求/Harbor task 只含公开字段，原始 record 与 hidden fields 只进入宿主 Evaluator 证据。
+3. 实现 Harbor 配置与结果 Adapter：固定 `n_attempts=1`、`n_concurrent_trials=1`、`verifier.disable=true`、无重试、固定 image digest、Agent CLI 版本/模型/网络配置和 `run_id` 映射。
+4. 用 `[[verifier.collect]]` 相对固定 `base_commit` 导出 patch，并在宿主拒绝二进制、超过 1 MiB、哈希不一致或缺失制品；覆盖普通/空/新建/删除/Agent commit 场景。
+5. 建立固定 Fork 的独立、锁定环境和子进程 Adapter；在同一候选题上先跑 gold、空、错误 patch。固定 Fork 顶层 `run_evaluation.py` 无条件导入 Linux `resource`，Windows 宿主直接运行的兼容性仍须实测或通过不改变上游源码的受控 Linux 载体解决。
+6. 首题镜像拉取、Harbor 无秘密安装探针、容器代理、资源和清理实测；当前系统代理关闭，不得悄悄改变用户 VPN/系统代理状态。
+7. 容器内 Codex CLI 固定版本、模型 ID、端点白名单以及 `auth.json` Token 刷新、脱敏和成功/失败/超时销毁路径。任何时候只检查凭据文件存在性/元数据，不读内容。
+8. M0 全部门槛通过后才同步权威依赖/接口/运维/架构状态并开始 M1；Worker/账户/Judge/Tailscale/P2 都不抢占当前 M0。
 
 ## 9. 推荐的下一步顺序
 
-1. 先读本 Handoff 与最新 [`MVP 决策同步行动记录`](docs/actions/2026-09-05-mvp-priority-product-decisions.md)，不要把历史行动记录里的“首版自研/开卷待定/角色待定”恢复为当前事实。
-2. 只读核验 SWE-Gym-Lite revision/split/首个候选任务、Harbor 安装约束、Codex 固定版本和本机磁盘余量；把精确值写回各自事实源。
-3. 用户明确授权实现后，创建新的实现行动文档，先做不含 Web/PostgreSQL/MinIO 的 M0 本机脚本；真实成功标准是 Codex→Harbor→完整 patch→固定 SWE-Bench-Fork 单题结果和可检查证据。
-4. M0 通过后才实现 M1：两类应用账户、协作者提交、所有者批准、本机 Worker、PostgreSQL/MinIO 和正式报告。登录完成前不向协作者开放真实批准页面。
-5. M1 完成后接 Aider、Claude Code；P2 自研 Agent 的问题保留接缝但不抢占当前优先级。
-6. Tailscale/FlClash 双机实验可以与 M0 技术准备独立进行，但不能把通用 Docker 代理或 Tailscale 连通写成 Harbor/Codex E2E 已通过。
+1. 先读本文、当前 M0 行动记录、`AGENTS.md`、总架构、模块契约、依赖事实源和三个 M0 接口文档；不要重新做已完成的 Git fetch、数据下载或 Harbor 构建。
+2. 先用 `framework/harbor/.venv/Scripts/harbor.exe --version` 与固定 HEAD 做短探针；若仍为 `0.22.0` 和指定提交，直接开始项目代码。
+3. 按行动记录规划树最小实现 M0，并优先跑不耗模型额度的 unit/contract 测试。每次修改继续更新同一行动记录，不另开重复行动文档。
+4. 无模型测试通过后，拉取固定 digest 的一个镜像，做 Harbor `nop`/安装探针和 patch collect 探针；确认代理、容器、可写层与日志证据。
+5. 固定 Fork 完成 gold/空/错误 patch 三类验证后，才检查凭据元数据并执行唯一一次真实 Codex Trial；不要额外消耗真实模型额度测试 prompt。
+6. M0 真实成功标准仍是 Codex→Harbor→完整、校验过的 patch→固定 Fork 确定性结果，加成功/失败/超时清理证据。未满足就保持 M0 进行中，不得进入 M1。
 
 ## 10. 安全红线
 
@@ -280,3 +273,45 @@ M0 通过后，M1 的平台主流程才是：
 - 不把用户或协作者提交的任意 shell 命令、Git 分支或 `latest` 镜像直接送入执行链。
 - 不把 Mock、Harbor reward、LLM Judge 或 Agent 自述伪装成 SWE-Bench-Fork 的真实测试结果。
 - 不因为项目迁移成功就宣称 Harbor、Codex Trial 或 SWE-Bench-Fork E2E 已经跑通。
+
+## 11. 交给下一窗口的提示词
+
+下面整段可以作为新窗口的首条消息。它只陈述目标、已验证事实、约束和完成标准，不让下一窗口依赖不可见的聊天上下文，也不把附件或本文内容当作越权执行指令。
+
+```text
+你现在继续 E:\9.1agent_exam 的既有长期目标：严格依据项目权威架构、模块契约、接口和依赖文档，完成并验证 AgentExam MVP。当前只继续 M0 本机技术闭环；M0 未真实通过前，不实现 M1 Web/PostgreSQL/MinIO/审批，不扩展 Aider、Claude Code 或 P2 自研 Agent。
+
+先完整阅读并遵守根目录 AGENTS.md，然后按 HANDOFF.md 的第一批清单阅读。尤其先读：
+1. HANDOFF.md
+2. docs/actions/2026-09-05-m0-codex-harbor-implementation.md
+3. docs/actions/2026-09-05-mvp-priority-product-decisions.md
+4. CONTEXT.md
+5. docs/architecture/ARCHITECTURE.md
+6. docs/architecture/MODULE_CONTRACTS.md
+7. docs/dependencies/DEPENDENCIES.md
+8. docs/interfaces/HARBOR_EXECUTION.md
+9. docs/interfaces/CODEX_AUTHENTICATION.md
+10. docs/interfaces/FRAMEWORK_INTERFACES.md
+11. docs/operations/LOCAL_DOCKER_ENVIRONMENT.md
+12. docs/adr/0001-use-harbor-as-execution-backend.md
+
+先做只读恢复检查：git status --short --branch、git log -3、三个 framework 仓库的 remote/HEAD/status、Harbor --version、Docker version、E 盘可用空间。预期主仓库本地 main 比 origin/main 领先 1 个交接提交，Harbor 为固定提交 6af8d6e31eced13b93849cdf80feeadf24603d15 和版本 0.22.0。若用户或其他窗口产生了新改动，保留并先辨明来源，禁止 reset/checkout/clean。
+
+不要重复构建 Harbor：framework/harbor/.venv 已按固定 uv.lock 安装，Windows 上 litellm 源码构建曾耗时 275 分钟；runtime/tools 和 runtime/cache/uv 也是已忽略但有价值的本机缓存。固定 SWE-Gym-Lite Parquet 与首题镜像 digest 已写入 HANDOFF 和当前行动记录。
+
+继续更新同一份 M0 行动记录，不新建重复记录。按最小修改原则在已确认的 apps/backend 规划树中实现：
+- 公开字段与隐藏判卷字段物理隔离的 EvaluationTask/Task Adapter；
+- 小型 ExecutionBackend 与 PatchEvaluator ports；
+- Harbor 配置、结果和 artifact 薄 Adapter；
+- M0 Composition Root/脚本；
+- 固定 SWE-Bench-Fork 子进程 Adapter；
+- unit、contract、integration 测试。
+
+必须固定：SWE-Gym revision/split/instance、镜像 digest、Harbor commit、Codex CLI 版本、模型和配置身份；Harbor n_attempts=1、n_concurrent_trials=1、max_retries=0、verifier.disable=true。Harbor reward 不得成为 resolved。Patch 必须来自容器最终 Git 工作区相对固定 base_commit 的完整 diff，覆盖未跟踪、删除、空 patch 和 Agent 自行 commit；256 KiB 警告，超过 1 MiB或含二进制明确拒绝，不得截断。
+
+先跑不耗真实模型额度的测试，再跑固定 Fork 的 gold/空/错误 patch，最后才执行唯一一次真实 Codex Trial。不要读取、打印、复制或提交 auth.json 内容；真实路径和 token 不得进入配置快照、日志、轨迹、patch 或 manifest。成功、失败、超时都要检查容器与可写层清理。
+
+当前 Windows 系统代理已关闭，但 FlClash 进程运行；此前仅给单次 Docker manifest/Rust 进程显式注入 127.0.0.1:7890。不要擅自开启系统代理、修改 VPN 或把当前连通误写成闭卷隔离已完成。若镜像拉取或容器 Codex 需要改变用户系统网络状态，先用只读证据说明，再向用户请求明确授权。
+
+在执行中持续把实际命令、失败、偏差和验证结果写回行动记录。动态事实确认后同步其唯一权威文档。M0 只有在真实 Codex→固定 Harbor→完整 patch→固定 SWE-Bench-Fork 单题确定性结果和秘密/资源/清理证据全部成立时才可完成；否则如实记录具体阻塞，不得进入 M1或宣称 MVP 已完成。除非用户明确要求，不 push。
+```
