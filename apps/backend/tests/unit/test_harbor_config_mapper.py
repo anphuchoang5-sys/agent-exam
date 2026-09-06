@@ -19,25 +19,25 @@ from eval_platform.domain.agent import AgentConfiguration
 from eval_platform.domain.task import EvaluationTask
 
 
-def _agent() -> AgentConfiguration:
+def _agent(model_name: str = "model-must-be-confirmed") -> AgentConfiguration:
     return AgentConfiguration(
         configuration_id="codex-prototype",
         agent_name="codex",
         agent_version="0.153.0",
         model_provider="openai",
-        model_name="model-must-be-confirmed",
+        model_name=model_name,
         authentication_type="chatgpt_auth_json",
         credential_configuration_id="owner-codex-login",
         critical_config={"reasoning_effort": "medium"},
     )
 
 
-def _task() -> EvaluationTask:
+def _task(instance_id: str = "python__mypy-15413") -> EvaluationTask:
     return EvaluationTask(
         dataset_id="SWE-Gym/SWE-Gym-Lite",
         dataset_revision="a" * 40,
         split="train",
-        instance_id="python__mypy-15413",
+        instance_id=instance_id,
         repo="python/mypy",
         base_commit="b" * 40,
         problem_statement="Public issue",
@@ -67,6 +67,7 @@ def test_job_plan_freezes_harbor_safety_settings(tmp_path: Path) -> None:
     )
 
     assert plan.run_ids == ("m0-test-run",)
+    assert plan.bindings[0].run_id == "m0-test-run"
     assert plan.config["n_attempts"] == 1
     assert plan.config["n_concurrent_trials"] == 1
     assert plan.config["retry"]["max_retries"] == 0
@@ -129,3 +130,49 @@ def test_agent_fingerprint_is_stable_and_deeply_immutable() -> None:
     assert agent.fingerprint == before
     with pytest.raises(TypeError):
         agent.critical_config["new"] = "value"  # type: ignore[index]
+
+
+def test_job_plan_rejects_incomplete_agent_task_matrix(tmp_path: Path) -> None:
+    first_task = _task("task-one")
+    second_task = _task("task-two")
+    first_agent = _agent("model-one")
+    second_agent = _agent("model-two")
+    request = ExecutionJobRequest(
+        job_id="partial-matrix",
+        runs=(
+            ExecutionRunRequest("run-one", first_task, first_agent),
+            ExecutionRunRequest("run-two", second_task, second_agent),
+        ),
+        limits=RunLimits(900, 1, 4096, 8192),
+        backend_revision=HARBOR_REVISION,
+        artifact_contract_version=ARTIFACT_CONTRACT_VERSION,
+    )
+    task_dirs = {
+        first_task.instance_id: tmp_path / "one",
+        second_task.instance_id: tmp_path / "two",
+    }
+
+    with pytest.raises(ValueError, match="complete Agent x task matrix"):
+        build_job_plan(request, jobs_dir=tmp_path / "jobs", task_dirs=task_dirs)
+
+
+def test_job_plan_rejects_duplicate_agent_task_combination(tmp_path: Path) -> None:
+    task = _task()
+    agent = _agent()
+    request = ExecutionJobRequest(
+        job_id="duplicate-combination",
+        runs=(
+            ExecutionRunRequest("run-one", task, agent),
+            ExecutionRunRequest("run-two", task, agent),
+        ),
+        limits=RunLimits(900, 1, 4096, 8192),
+        backend_revision=HARBOR_REVISION,
+        artifact_contract_version=ARTIFACT_CONTRACT_VERSION,
+    )
+
+    with pytest.raises(ValueError, match="combination must be unique"):
+        build_job_plan(
+            request,
+            jobs_dir=tmp_path / "jobs",
+            task_dirs={task.instance_id: tmp_path / "task"},
+        )

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 
 
@@ -25,6 +26,10 @@ class ArtifactRef:
     size_bytes: int
     sha256: str
     content_type: str
+    retention_class: str = "prototype"
+    truncated: bool = False
+    deleted_at: datetime | None = None
+    created_at: datetime | None = None
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -39,6 +44,33 @@ class ArtifactRef:
 
 
 @dataclass(frozen=True, slots=True)
+class UsageSummary:
+    n_input_tokens: int | None = None
+    n_cache_tokens: int | None = None
+    n_output_tokens: int | None = None
+    cost_usd: float | None = None
+
+    def __post_init__(self) -> None:
+        values = (self.n_input_tokens, self.n_cache_tokens, self.n_output_tokens)
+        if any(value is not None and value < 0 for value in values):
+            raise ValueError("Token usage must not be negative")
+        if self.cost_usd is not None and self.cost_usd < 0:
+            raise ValueError("Cost must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceSummary:
+    wall_time_sec: float | None = None
+    cpu_time_sec: float | None = None
+    peak_memory_bytes: int | None = None
+
+    def __post_init__(self) -> None:
+        values = (self.wall_time_sec, self.cpu_time_sec, self.peak_memory_bytes)
+        if any(value is not None and value < 0 for value in values):
+            raise ValueError("Resource usage must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionTrialResult:
     run_id: str
     backend_job_ref: str
@@ -46,6 +78,10 @@ class ExecutionTrialResult:
     termination_reason: TerminationReason
     patch_ref: ArtifactRef | None
     trajectory_ref: ArtifactRef | None
+    raw_config_ref: ArtifactRef | None = None
+    raw_result_ref: ArtifactRef | None = None
+    usage: UsageSummary | None = None
+    resource_summary: ResourceSummary | None = None
     warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:

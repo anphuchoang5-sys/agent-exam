@@ -2,7 +2,7 @@
 
 > 交接时间：2026-09-06
 >
-> 当前阶段：M0 第一批领域/Port/Task/Harbor 配置与制品校验代码已完成并通过 18 项无模型测试；真实 Harbor Trial 和固定 Fork 判卷尚未运行
+> 当前阶段：真实 Harbor NOP Docker Trial 已通过；Harbor 结果映射器仅有未验证草稿，固定 Fork 与真实 Codex Trial 尚未运行
 >
 > 用途：帮助从 `E:\9.1agent_exam` 打开的下一条 Codex 任务恢复上下文
 >
@@ -20,16 +20,16 @@ E:\9.1实训  →  E:\9.1agent_exam
 
 最新范围收敛为：M0 先用本机脚本跑通 Codex→Harbor→patch→SWE-Bench-Fork 单题真实闭环，不先做 Web/数据库；M1 再接 Web、PostgreSQL、MinIO、两类角色和所有者批准，完成 Codex-only MVP；之后接 Aider、Claude Code；自研 Agent 降为 P2，只保留 Python 进程 Interface 和 DeepSeek/Kimi 安全接缝。Quality Judge 的触发、清洗、四项 rubric、匿名反序双评和循环赛已经固定；过程指标只展示；MVP 只闭卷；取消/中断不自动重试；任务原始 JSON、制品保留和大小上限也已确认。
 
-2026-09-05 至 09-06 已按用户授权启动长期 M0 目标。前一阶段完成 Git 最新性核验、恢复并安装固定 Harbor、固定 SWE-Gym-Lite 数据 revision、选择首题候选并核验镜像 digest。恢复后又建立 `apps/backend`，实现了公开/隐藏任务数据隔离、领域对象、`ExecutionBackend`/`PatchEvaluator` Ports、Harbor 配置映射、collect hook 和 patch 制品校验；18 项 unit/contract 测试通过，固定摘要镜像也已拉取并核验 `/testbed` base commit。尚未运行 Harbor `nop` 或真实 Codex Trial，也未实现固定 Fork Evaluator。所有真实进度、失败和命令边界见当前行动记录 [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md)。用户随后要求停止并交接；下一窗口应从 Harbor 无模型 Trial 起继续，不得重建 Harbor 或重复已经通过的第一批实现。
+2026-09-05 至 09-06 已按用户授权启动长期 M0 目标。前一阶段完成 Git 最新性核验、恢复并安装固定 Harbor、固定 SWE-Gym-Lite 数据 revision、选择首题候选并核验镜像 digest。恢复后又建立 `apps/backend`，实现了公开/隐藏任务数据隔离、领域对象、`ExecutionBackend`/`PatchEvaluator` Ports、Harbor 配置映射、collect hook 和 patch 制品校验；18 项 unit/contract 测试通过，固定摘要镜像也已拉取并核验 `/testbed` base commit。此后真实执行固定 Harbor `nop` Docker Trial，经过三个可追溯的失败修正后，第四份证据 `runtime/prototype/m0-harbor-nop-20260906-04` 以 `1 passed in 18.40s` 通过：Verifier 关闭、空 patch 与元数据完整、单目录 artifact 收集成功、CLI UTF-8 正常退出且 Compose 资源无残留。当前结果映射器只是未验证草稿，固定 Fork Evaluator 与真实 Codex Trial仍未实现/运行。所有真实进度、失败和命令边界见当前行动记录 [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md)。用户要求立即停止并交接；下一窗口不得重建 Harbor 或重复已经通过的 NOP 探针。
 
 迁移证据见 [`docs/actions/2026-09-04-workspace-path-migration.md`](docs/actions/2026-09-04-workspace-path-migration.md)。
 
 ## 2. 恢复任务时先做什么
 
 1. 确认工作区是 `E:\9.1agent_exam`，不要再使用旧路径。
-2. 运行 `git status --short --branch`；本次交接会创建第二个仅本地提交，预期工作区干净且本地 `main` 比 `origin/main` 领先 2 个提交。不得自行 push，除非用户再次明确要求。
+2. 运行 `git status --short --branch`；本次交接已创建第三个仅本地提交，预期工作区干净且本地 `main` 比 `origin/main` 领先 3 个提交。不得自行 push，除非用户再次明确要求。
 3. 按下面的层级阅读，不要只看总架构就开始修改。
-4. 第 6 节所列业务规则已经同步；SWE-Gym-Lite revision/split、候选单题、镜像 digest、Harbor 提交和 Harbor 环境已经固定。第一批项目薄 Adapter 与无模型测试已经完成；下一步直接运行 Harbor `nop` Trial 并补齐 Execution Adapter/结果映射，不要重新下载 Harbor或重写现有模块。
+4. 第 6 节所列业务规则已经同步；固定数据、镜像、Harbor 环境与真实 NOP Trial 已验证。下一步先收紧并测试未完成的结果映射草稿，再补 Execution Adapter；不要重新下载 Harbor、重跑已经通过的 NOP 探针或重写现有模块。
 5. 当前遗留项是技术核验，不得把已经确认的业务规则重新列成待决定；若实现发现必须新增顶层 Module、Interface、数据库表或目录，先说明现有职责为何不能承载并取得确认。
 
 ### 2.1 第一批：开始任何修改前必须完整阅读
@@ -197,7 +197,7 @@ M0 通过后，M1 的平台主流程才是：
 - 旧工作区 `E:\9.1实训` 已不存在。
 - Git 分支：`main`。
 - 本轮原始基线：本地 `main` 与 `origin/main` 均为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`（`docs: finalize evaluation MVP architecture`）。第一次交接创建了本地提交 `0caedda`；恢复时再次 `git fetch origin --prune`，本地/远端领先落后为 `1/0` 且工作区干净。
-- 本次交接按用户要求把第一批 M0 代码、同步文档和锁文件创建为第二个本地提交但不 push；新窗口必须以实际 `git log -2` 和 `git status` 核对提交 ID，不要沿用本文猜测。
+- 第二次交接把第一批 M0 代码、同步文档和锁文件创建为本地提交 `37f04d2`；本次交接已把 NOP 探针、已完成的 artifact/config 变更、未完成结果映射草稿和交接文档创建为第三个本地提交，仍未 push。新窗口必须以实际 `git log -4` 和 `git status` 核对提交 ID。
 - 远程仓库：`https://github.com/anphuchoang5-sys/agent-exam.git`。
 - 工作区迁移后默认沙箱曾短暂通过，但本窗口在英文路径连续重现 `setup refresh had errors`；路径迁移不能视为根治，详见路径迁移行动记录的后续复核。
 - 本轮 `codex --version` 返回 `codex-cli 0.153.0`；这只证明当前宿主 CLI 能启动，不代表 Harbor 容器认证、模型或 E2E 已通过。旧文档中的 `0.142.0` 是 2026-09-04 当时的动态探针。
@@ -205,8 +205,11 @@ M0 通过后，M1 的平台主流程才是：
 - Docker Desktop `4.38.0` / Client、Server `27.5.1` 当前可响应，Docker 可见内存 `10,429,505,536` bytes；恢复时 E 盘可用 `19,709,878,272` bytes。当前 Windows `ProxyEnable=0` 且 `ProxyServer` 为空，FlClash 进程仍运行；Docker manifest/镜像拉取和项目 `uv` 网络步骤仅对单次进程注入 `HTTP_PROXY/HTTPS_PROXY=http://127.0.0.1:7890` 后成功。不要擅自重新开启用户的系统代理。
 - `framework/swe-gym`、`framework/swe-bench-fork`、`framework/harbor` 都已恢复到依赖事实源固定提交并保持干净；它们与 `runtime/` 都被主仓库忽略。
 - Harbor 根 `.venv` 已按其 `uv.lock` 和 `huggingface` extra 安装成功。由于 `litellm==1.93.0` 在该锁中没有 Windows wheel，使用项目内隔离 `rustc/cargo 1.98.1` 加 Visual Studio 2022 C++ 环境源码编译，单次实际耗时 275 分 06 秒；不要删除或无理由重建 `framework/harbor/.venv`、`runtime/tools`、`runtime/cache/uv`。
-- `apps/backend` 已建立 Python 3.13 项目，`uv.lock` 已生成；固定 Task Adapter、领域对象、两个 Ports、Harbor 配置映射、collect hook 和 patch 校验已实现。`ruff format --check`、`ruff check`、严格 `mypy` 通过，unit + contract 共 18 项通过。
-- 截至交接时，没有读取 `auth.json` 内容，没有发起真实模型调用，没有运行 Harbor Trial，也没有运行固定 SWE-Bench-Fork 判卷。Harbor 进程 Adapter、结果映射、固定 Fork Evaluator 与 M0 Composition Root 尚未实现。
+- `apps/backend` 已建立 Python 3.13 项目，`uv.lock` 已生成；固定 Task Adapter、领域对象、两个 Ports、Harbor 配置映射、collect hook 和 patch 校验已实现。第二次交接基线的 `ruff format --check`、`ruff check`、严格 `mypy` 和 18 项 unit/contract 测试通过；本次结果映射草稿加入后的全套静态检查尚未通过/完成，不能沿用旧结论。
+- 固定 Harbor NOP Docker Trial 已真实通过：证据目录 `runtime/prototype/m0-harbor-nop-20260906-04`，pytest 输出 `1 passed in 18.40s`。这只证明无模型 Agent 的生成环境、collect/artifact 和清理链路，不代表真实 Codex 或 SWE-Bench-Fork E2E 通过。
+- `result_mapper.py` 当前是 296 行的未验证草稿，超过 Python 默认 200 行指标，且 `_usage()` 对 `slots=True` dataclass 使用 `__dict__` 是已知运行时缺陷；没有 `test_harbor_result_mapper.py`，也尚未接入 NOP 集成测试。下一窗口必须先拆分/修复/测试，不能直接继续堆 `adapter.py`。
+- 本次交接检查的真实结果：`git diff --check`、strict mypy 通过，unit + contract 为 `20 passed in 0.75s`；Ruff 未通过，两个文件需格式化并有 4 个 lint 问题。这个提交是明确标记的 WIP 恢复点，不是绿灯基线。
+- 截至交接时，没有读取 `auth.json` 内容，也没有发起真实模型调用或运行固定 SWE-Bench-Fork 判卷。Harbor 进程 Adapter、固定 Fork Evaluator 与 M0 Composition Root 尚未实现。
 
 ## 6. 文档对账完成状态
 
@@ -214,7 +217,7 @@ M0 通过后，M1 的平台主流程才是：
 
 | 文件 | 已完成的同步 | 仍保留的边界 |
 |---|---|---|
-| [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md) | 记录 Git 基线、固定数据/镜像、Harbor 安装、第一批代码、测试、失败和实测耗时 | 用户要求暂停后以“已暂停并交接”收束；不得写成 M0 完成 |
+| [`docs/actions/2026-09-05-m0-codex-harbor-implementation.md`](docs/actions/2026-09-05-m0-codex-harbor-implementation.md) | 记录 Git 基线、固定数据/镜像、Harbor 安装、第一批代码、NOP 四轮探针、草稿和实测耗时 | 用户要求暂停后以“已暂停并交接”收束；不得写成 M0 完成 |
 | [`CONTEXT.md`](CONTEXT.md) | 新增协作者、评测所有者、MVP 和取消请求；保留 Agent Configuration 与 Failure/Quality Judge 词义 | 不承载实现和部署细节 |
 | [`docs/architecture/ARCHITECTURE.md`](docs/architecture/ARCHITECTURE.md) | 已固定 M0→M1→Aider/Claude→P2、自研降级、两角色、闭卷、Judge、任务快照、取消/恢复与制品策略 | CLI/模型版本、Harbor/Codex Trial 及 Tailscale/VPN 仍待技术实测 |
 | [`docs/dependencies/DEPENDENCIES.md`](docs/dependencies/DEPENDENCIES.md) | 依赖恢复按 M0/M1/后续/P2 分层，并同步固定数据、Harbor 安装、Python 项目锁和摘要镜像状态 | 模型 ID、Codex 容器安装和固定 Fork 运行兼容性未验证 |
@@ -238,10 +241,10 @@ M0 通过后，M1 的平台主流程才是：
 
 ## 7. 当前 Git 工作区，禁止误删
 
-第一次交接提交为 `0caedda docs: hand off M0 implementation progress`，未 push。恢复后新增第一批 M0 代码、锁文件，并同步本行动记录、Handoff 与受影响的权威状态文档。用户已经明确要求本次交接做本地提交，所以新窗口预期看到：
+前两次本地提交为 `0caedda docs: hand off M0 implementation progress` 与 `37f04d2 feat: add M0 evaluation foundations and handoff`，均未 push。本轮新增真实 NOP 探针及修正，并停在未完成的结果映射草稿；已按用户要求创建第三个本地 WIP 提交。新窗口预期看到：
 
 ```text
-## main...origin/main [ahead 2]
+## main...origin/main [ahead 3]
 ```
 
 如果不是上述状态，先查 `git log --oneline --decorate -4` 和 `git status --short --branch`，区分用户后续修改与本次提交；不得使用 `git reset --hard`、`git checkout --` 或清理未跟踪文件。此次没有 push；远端仍应停在 `42484d8`，除非用户或其他窗口后来明确推送。
@@ -250,8 +253,8 @@ M0 通过后，M1 的平台主流程才是：
 
 业务范围和产品行为已经确认。以下只能用查代码/配置、原型和测试补齐，不能重新解释成业务待决定：
 
-1. 使用现有 Task Adapter 与配置映射运行一个 Harbor `nop` Trial；证明 Docker build、`verifier.disable=true`、collect hook、四个 artifact 目标、空 patch 和清理实际成立。证据写入忽略的 `runtime/prototype/<run-id>`。
-2. 在现有 `adapters/execution/harbor/` 内补齐薄进程 Adapter 与结果映射：调用固定 `harbor.exe run -c ... --yes`，解析实际 `job/result.json` 和 Trial 目录，映射到 `ExecutionTrialResult`；不把 Harbor 类型泄漏给 application 层。
+1. 先处理已提交但未完成的 `result_mapper.py`：拆到每个 Python 文件不超过 200 行，修复 `slots=True` 对象无 `__dict__` 的已知缺陷，并补 `test_harbor_result_mapper.py`。Harbor 落盘 Job `result.json` 故意不含 `trial_results`，必须枚举子 Trial `result.json` 并用 task path + agent config 严格绑定。
+2. 把结果映射接入真实 NOP 集成测试后，再在现有 `adapters/execution/harbor/` 内补薄进程 Adapter：调用固定 `harbor.exe run --config ... --yes`，强制 UTF-8 子进程环境，并把结果映射到 `ExecutionTrialResult`；不把 Harbor 类型泄漏给 application 层。
 3. 用真实容器覆盖 collect hook 的普通/空/新建/删除/Agent 自行 commit 场景；宿主继续拒绝二进制、超过 1 MiB、哈希不一致或缺失制品，不能放松已经通过的校验。
 4. 建立固定 Fork 的独立、锁定环境和 `adapters/evaluation/swe_bench.py`；在同一候选题上先跑 gold、空、错误 patch。固定 Fork 顶层 `run_evaluation.py` 无条件导入 Linux `resource`，Windows 宿主直接运行的兼容性仍须实测或通过不改变上游源码的受控 Linux 载体解决。
 5. 补齐 M0 Composition Root/脚本与受控证据 manifest；先将上述无模型路径全部跑通并复核容器、网络、资源和清理。
@@ -262,9 +265,9 @@ M0 通过后，M1 的平台主流程才是：
 ## 9. 推荐的下一步顺序
 
 1. 先读本文、当前 M0 行动记录、`AGENTS.md`、总架构、模块契约、依赖事实源和三个 M0 接口文档；只做短恢复检查，不要重新下载数据、重建 Harbor、重拉已有摘要镜像或重写现有代码。
-2. 在 `apps/backend` 复跑锁定环境的 ruff/mypy/pytest，确认 18 项基线仍通过；若失败先诊断环境/后续改动，不要跳过。
-3. 直接生成现有固定 task/config 并跑 Harbor `nop` Trial，保存实际 Job/Trial/artifact/清理证据；发现配置字段偏差时只修现有 Harbor Adapter seam。
-4. 根据真实输出补齐 Harbor 进程 Adapter与结果映射，再扩充容器 patch 场景；随后实现固定 Fork Adapter，并完成 gold/空/错误 patch 三类验证。
+2. 先检查提交中的草稿 diff；将 `result_mapper.py` 拆到 200 行以内并修复已知 `__dict__` 缺陷，补结果映射单测，然后复跑 ruff/mypy/pytest。不要把第二次交接的 18 项通过当成当前草稿已通过。
+3. 让现有 NOP 集成测试通过正式结果映射器，再用新的唯一证据目录按需复跑一次；已有 `...-04` 证据已证明原始 NOP 链路，不需要反复跑 Docker。
+4. 补齐 Harbor 进程 Adapter，再扩充容器 patch 场景；随后实现固定 Fork Adapter，并完成 gold/空/错误 patch 三类验证。
 5. 无模型闭环全通过后，确认 Codex 版本/模型/reasoning、只检查凭据元数据，再执行唯一一次真实 Codex Trial；不要额外消耗真实模型额度测试 prompt。
 6. M0 真实成功标准仍是 Codex→Harbor→完整、校验过的 patch→固定 Fork 确定性结果，加成功/失败/超时清理证据。未满足就保持 M0 进行中，不得进入 M1。
 
@@ -296,15 +299,17 @@ M0 通过后，M1 的平台主流程才是：
 11. docs/operations/LOCAL_DOCKER_ENVIRONMENT.md
 12. docs/adr/0001-use-harbor-as-execution-backend.md
 
-先做只读恢复检查：git status --short --branch、git log -4、三个 framework 仓库的 remote/HEAD/status、Harbor --version、Docker version、E 盘可用空间。预期主仓库工作区干净、本地 main 比 origin/main 领先 2 个交接提交，Harbor 为固定提交 6af8d6e31eced13b93849cdf80feeadf24603d15 和版本 0.22.0。若用户或其他窗口产生了新改动，保留并先辨明来源，禁止 reset/checkout/clean。
+先做只读恢复检查：git status --short --branch、git log -4、三个 framework 仓库的 remote/HEAD/status、Harbor --version、Docker version、E 盘可用空间。预期主仓库工作区干净、本地 main 比 origin/main 领先 3 个本地提交，Harbor 为固定提交 6af8d6e31eced13b93849cdf80feeadf24603d15 和版本 0.22.0。若用户或其他窗口产生了新改动，保留并先辨明来源，禁止 reset/checkout/clean。
 
 不要重复构建 Harbor：framework/harbor/.venv 已按固定 uv.lock 安装，Windows 上 litellm 源码构建曾耗时 275 分钟；runtime/tools 和 runtime/cache/uv 也是已忽略但有价值的本机缓存。固定 SWE-Gym-Lite Parquet 和固定摘要镜像都已在本机，镜像 `/testbed` HEAD 已核验。
 
-继续更新同一份 M0 行动记录，不新建重复记录。`apps/backend` 已有且 18 项测试通过：公开/隐藏任务隔离、领域对象、ExecutionBackend/PatchEvaluator Ports、Harbor config mapper、collect hook 和 artifact 校验。复用这些实现，不要创建重复接口或重搭目录。下一步先运行不耗模型额度的 Harbor nop Trial，再在现有 Harbor Adapter seam 内补齐 subprocess Adapter 与 result mapper；之后实现固定 SWE-Bench-Fork Adapter 和 M0 Composition Root，并补 unit/contract/integration 测试。
+继续更新同一份 M0 行动记录，不新建重复记录。`apps/backend` 的第二次交接基线有 18 项测试通过；真实 Harbor NOP Docker Trial 也已在 `runtime/prototype/m0-harbor-nop-20260906-04` 以 `1 passed in 18.40s` 通过，证明 UTF-8 CLI、Verifier 关闭、单目录 artifact、空 patch 及 Compose 清理。不要重新构建 Harbor或重复已经通过的原始 NOP 探针。
+
+本次提交里的 `result_mapper.py` 只是 296 行未验证草稿，超过项目 200 行指标，且 `_usage()` 对 `slots=True` dataclass 使用 `__dict__` 是已知缺陷；当前没有结果映射单测，也未接入 NOP 集成测试。先在现有 Harbor Adapter seam 内拆分并修复它，补 `test_harbor_result_mapper.py`，复跑 format/lint/strict mypy/普通 pytest，再让 NOP 集成测试通过正式映射器。之后才补 subprocess Adapter、固定 SWE-Bench-Fork Adapter 和 M0 Composition Root。Harbor 落盘 Job `result.json` 不含 `trial_results`，必须枚举子 Trial 目录并用 task path + agent config 严格映射；不得按内存对象结构猜读。
 
 必须固定：SWE-Gym revision/split/instance、镜像 digest、Harbor commit、Codex CLI 版本、模型和配置身份；Harbor n_attempts=1、n_concurrent_trials=1、max_retries=0、verifier.disable=true。Harbor reward 不得成为 resolved。Patch 必须来自容器最终 Git 工作区相对固定 base_commit 的完整 diff，覆盖未跟踪、删除、空 patch 和 Agent 自行 commit；256 KiB 警告，超过 1 MiB或含二进制明确拒绝，不得截断。
 
-先复跑不耗真实模型额度的检查，再跑 Harbor nop、容器 patch 场景和固定 Fork 的 gold/空/错误 patch，最后才执行唯一一次真实 Codex Trial。真实 Trial 前需要向用户确认会进入评测身份的 Codex CLI 版本、当前可用模型和 reasoning effort；测试中的 model-must-be-confirmed 不是默认值。不要读取、打印、复制或提交 auth.json 内容；真实路径和 token 不得进入配置快照、日志、轨迹、patch 或 manifest。成功、失败、超时都要检查容器与可写层清理。
+先修复草稿并复跑不耗真实模型额度的检查，再跑结果映射后的单次 NOP、容器 patch 场景和固定 Fork 的 gold/空/错误 patch，最后才执行唯一一次真实 Codex Trial。真实 Trial 前需要向用户确认会进入评测身份的 Codex CLI 版本、当前可用模型和 reasoning effort；测试中的 model-must-be-confirmed 不是默认值。不要读取、打印、复制或提交 auth.json 内容；真实路径和 token 不得进入配置快照、日志、轨迹、patch 或 manifest。成功、失败、超时都要检查容器与可写层清理。
 
 当前 Windows 系统代理已关闭，但 FlClash 进程运行；此前仅给单次 Docker manifest/Rust 进程显式注入 127.0.0.1:7890。不要擅自开启系统代理、修改 VPN 或把当前连通误写成闭卷隔离已完成。若镜像拉取或容器 Codex 需要改变用户系统网络状态，先用只读证据说明，再向用户请求明确授权。
 

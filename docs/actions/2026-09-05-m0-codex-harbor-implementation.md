@@ -2,11 +2,12 @@
 
 ## 状态与情况说明
 
-- 状态：已暂停并交接；M0 未完成。2026-09-06 已完成第一批项目代码与无模型验证，用户随后要求停止当前实现、汇总给下一窗口并本地提交。
+- 状态：已暂停并交接；M0 未完成。真实 Harbor NOP Docker Trial 已通过，结果映射器停在未验证草稿，固定 Fork 与真实 Codex Trial 尚未开始。
 - 来源请求：用户要求先核对 Git 为最新状态，再以长期目标开始实现 MVP，并严格遵守架构、模块契约和接口等权威文档。
 - 当前范围：只实施 M0 本机技术原型。使用固定 SWE-Gym-Lite 单题、固定 Harbor、真实 Codex 和固定 SWE-Bench-Fork，形成可检查的 patch 与判卷证据；M0 通过后另建 M1 行动记录。
 - Git 基线：2026-09-05 已执行 `git fetch origin --prune`；本地 `main` 与 `origin/main` 均为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`，领先/落后为 `0/0`，开始时工作区干净。
 - 恢复基线：2026-09-06 再次执行 `git fetch origin --prune` 成功；本地 `main` 为交接提交 `0caedda`，`origin/main` 仍为 `42484d8`，`HEAD...origin/main` 为 `1/0`，恢复时工作区干净。本轮不自行 push。
+- 第二次恢复基线：交接提交 `37f04d2` 后再次执行 `git fetch origin --prune` 成功；工作区干净，本地 `main` 相对 `origin/main` 为 `2/0`。本轮继续不自行 push。
 - 已读取边界：`AGENTS.md`、`HANDOFF.md`、`CONTEXT.md`、最新 MVP 决策行动记录、总架构、模块契约、依赖事实源、Harbor/框架/Codex 认证接口、本机 Docker 事实和 Harbor ADR。
 - 已确认依赖身份：SWE-Gym `b681068ca20628c6987b7416cc4cf03f06b77ba5`、SWE-Bench-Fork `242429c188fcfd06aad13fce9a54d450470bf0ac`、Harbor `6af8d6e31eced13b93849cdf80feeadf24603d15`。
 - 当前动态事实：本机 Python 为 `3.13.2`；Codex CLI 为 `0.153.0`，不同于旧文档探针的 `0.142.0`，尚未选作项目固定版本；Docker Desktop `4.38.0` / Engine `27.5.1` 当前可响应；E 盘开始时可用 `22,829,572,096` bytes；三个框架源码现均已恢复到权威文档固定提交并保持干净。
@@ -34,7 +35,9 @@
 
 实施偏差记录：原计划先自行寻找通用 Harbor patch extension point；实际固定提交已提供 collect hook 与 artifact manifest，故改为用任务级 collect hook 在容器销毁前生成 patch，再由项目 Adapter 做强校验。曾尝试读取 `framework/harbor/adapters/swegym/pyproject.toml`，该文件不存在；该 Adapter 不是独立 Python 包，必须通过 Harbor 根环境或项目薄适配使用。项目环境最初在默认沙箱内访问 PyPI 因 Windows socket 权限错误 10013 失败，后续仅为对应 `uv` 进程注入 `127.0.0.1:7890` 并使用项目内缓存完成锁定和安装，没有改变系统代理。
 
-本次实际进度：已经建立 `apps/backend` 的 Python 3.13 包和锁文件，实现领域对象、两个 application ports、固定 Parquet Task Adapter、Harbor 配置映射、collect hook 与 patch 制品强校验，并用固定 Harbor 类型和真实固定 Parquet 完成 18 项 unit/contract 测试。固定摘要镜像也已拉取并做无网络只读探针。尚未实现 Harbor 进程 Adapter、结果映射、固定 Fork Evaluator 或原型 Composition Root，也尚未运行 Harbor `nop` Trial、任何真实 Codex Trial和固定 Fork 判卷。
+本次实际进度：已经建立 `apps/backend` 的 Python 3.13 包和锁文件，实现领域对象、两个 application ports、固定 Parquet Task Adapter、Harbor 配置映射、collect hook 与 patch 制品强校验，并用固定 Harbor 类型和真实固定 Parquet 完成 18 项 unit/contract 测试。固定摘要镜像也已拉取并做无网络只读探针。此后真实 Harbor `nop` Docker Trial 在 `runtime/prototype/m0-harbor-nop-20260906-04` 通过，证明 UTF-8 CLI、关闭 Verifier、单目录 artifact、空 patch 及 Compose 清理。Harbor 结果映射只有未验证草稿；进程 Adapter、固定 Fork Evaluator、原型 Composition Root、任何真实 Codex Trial和固定 Fork 判卷尚未实现/运行。
+
+本次恢复的立即措施已经完成：集成探针只把 Agent 临时替换为上游 `nop`，不注册为生产 Agent。实测发现 Harbor 的 Job `result.json` 不落盘 `trial_results`，真实结果须枚举子 Trial 目录；Windows 子进程必须显式使用 UTF-8；artifact 改为一次收集 `/logs/artifacts` 到 `artifacts/agentexam`，避免隐式收集与显式单文件来源重叠。根据这些事实已开始结果映射草稿，但用户要求立即停止，故没有继续修复或测试。
 
 完成标准：真实 Codex 在固定 SWE-Gym-Lite 单题上通过固定 Harbor Trial 产生经过大小、类型和 SHA-256 校验的完整 patch 与可追溯过程证据；固定 SWE-Bench-Fork 在独立干净环境生成可信确定性报告；成功、失败和清理证据中均未发现凭据内容或真实秘密路径。只有全部满足，M0 才标记完成并进入 M1。
 
@@ -83,13 +86,17 @@ E:\9.1agent_exam\
 │  │        ├─ __init__.py        # Execution Adapter 包标记
 │  │        └─ harbor\
 │  │           ├─ __init__.py     # Harbor Adapter 包标记
-│  │           ├─ config_mapper.py# 项目请求到固定 Harbor JobConfig 的唯一映射
-│  │           └─ artifacts.py    # patch 大小、文本、二进制、哈希与元数据强校验
+│  │           ├─ config_mapper.py# 项目请求到固定 Harbor JobConfig 与运行绑定的唯一映射
+│  │           ├─ result_mapper.py# 未完成草稿：Trial 子目录到项目结果的严格映射
+│  │           ├─ adapter.py      # 计划新增：UTF-8 Harbor CLI 生命周期与错误边界
+│  │           └─ artifacts.py    # patch/原始结果大小、文本、哈希与元数据强校验
 │  └─ tests\
 │     ├─ unit\test_task_adapter.py          # 固定数据、公开/隐藏隔离与 task 渲染
 │     ├─ unit\test_harbor_config_mapper.py # 固定配置、身份和秘密路径拒绝
 │     ├─ unit\test_patch_artifacts.py      # 空/文本/阈值/二进制/哈希校验
-│     └─ contract\test_harbor_contract.py  # 真实 Harbor 类型与固定 Parquet 契约
+│     ├─ unit\test_harbor_result_mapper.py # 尚未创建：身份、缺失、失败和制品映射
+│     ├─ contract\test_harbor_contract.py  # 真实 Harbor 类型与固定 Parquet 契约
+│     └─ integration\test_harbor_nop.py    # 已实现并实测：真实 Docker Trial、空 patch、制品与清理
 
 忽略的运行时路径：
 ├─ framework\harbor\.venv\
@@ -103,10 +110,10 @@ E:\9.1agent_exam\
 ├─ runtime\cache\uv\ 与 runtime\cache\swe-gym-lite\
 │  # 同盘包缓存和固定数据文件
 └─ Docker image cache
-   # 已拉取固定 python__mypy-15413 摘要镜像；仍未运行 Harbor Trial
+   # 已拉取固定 python__mypy-15413 摘要镜像，并用于通过的 Harbor NOP Trial
 ```
 
-设计模式与关系：`execution.py`/`evaluator.py` 是 Ports；`swe_gym.py` 是已实现的 Task Adapter；`config_mapper.py` 与 `artifacts.py` 是 Harbor Adapter 的内部边界。`HarborExecutionAdapter`、结果映射、`swe_bench.py` 和 M0 Composition Root 尚未实现。M0 不实现 Repository、Job State、HTTP Command 或生产 Composition Root，因为这些属于通过技术门槛后的 M1。
+设计模式与关系：`execution.py`/`evaluator.py` 是 Ports；`swe_gym.py` 是已实现的 Task Adapter；`config_mapper.py` 与 `artifacts.py` 是 Harbor Adapter 的内部边界。`result_mapper.py` 也是同一 Harbor Adapter 内部职责，但当前仅是未验证草稿；`HarborExecutionAdapter`、`swe_bench.py` 和 M0 Composition Root 尚未实现。M0 不实现 Repository、Job State、HTTP Command 或生产 Composition Root，因为这些属于通过技术门槛后的 M1。
 
 ## 自验证方式
 
@@ -145,5 +152,16 @@ E:\9.1agent_exam\
 - 代码与安全边界：固定 Task Adapter 校验 Parquet 大小与 SHA-256，只把题面、仓库、base commit 和固定 image digest 写入 Harbor task；隐藏判卷字段只保留在宿主 `EvaluatorTaskData`。Harbor 配置映射强制单次/串行/零重试、关闭 Harbor verifier、固定 Docker 资源与显式 Codex 版本/模型/推理强度，不接受凭据路径或 ID。patch 校验拒绝超过 1 MiB、二进制、非 UTF-8、哈希/大小不一致和疑似自然语言输出，超过 256 KiB只告警且绝不截断。
 - 自动检查：`ruff format --check`、`ruff check`、严格 `mypy` 均通过；`pytest` 的 unit + contract 共 18 项通过。交接前完整复跑结果为 `18 passed in 0.89s`。契约测试直接加载固定 Parquet，并使用固定 Harbor 的真实 `JobConfig` 与 `Task(..., disable_verification=True)` 解析生成配置。项目自有 Python 文件最大 183 行，各层目录未超过 8 个文件。
 - 固定镜像探针：`docker run --rm --network none` 确认 `/testbed` HEAD 为固定 base commit `e7b917ec7532206b996542570f4b68a33c3ff771`，容器用户为 `0:0`，bash 位于 `/usr/bin/bash`，Git 为 `2.34.1`；镜像内没有 Node/npm，因此 Codex 安装阶段仍需要受控网络和 Harbor 的 NVM/npm 路径实测。
-- 本次暂停的未执行项：尚未运行 Harbor `nop` Trial，因此 collect hook、artifact 目标名、Trial 目录、结果解析和清理都只有源码/契约证据；尚未覆盖新建、删除、Agent commit 的真实 Git diff；尚未实现或运行固定 Fork gold/空/错误 patch；尚未检查凭据元数据或调用模型；尚未确定真实 Trial 的 Codex 模型与 reasoning effort。M0 和 MVP 均不得标记完成。
+- 第二次交接时的未执行项中，Harbor `nop` Trial、空 patch、artifact 目录和清理现已实测通过；新建、删除、Agent commit 的真实 Git diff 仍未覆盖。固定 Fork gold/空/错误 patch、凭据元数据、真实模型和 Codex 模型/reasoning effort 仍未检查或运行。M0 和 MVP 均不得标记完成。
 - 第二次交接验证：代码的 format/lint/strict mypy/18 项测试全部复跑通过；`git diff --check` 通过；项目自有 Python 文件和每层目录数量均符合 200 行/8 文件指标；7 份本轮 Markdown 代码围栏均成对、相对链接均存在；对本轮代码与文档扫描常见 API key、Bearer token 和 JWT 形态无命中。默认沙箱再次因 Docker named pipe 权限无法重跑 Engine/image inspect，但已有本轮提升权限只读探针和实际 pull/run 成功证据，因此不把这次权限错误误记为 Docker Engine 故障。
+- 第二次恢复 Git：交接提交 `37f04d2` 后 `git fetch origin --prune` 再次退出 0；工作区开始时干净，本地/远端领先落后为 `2/0`。
+- NOP 集成测试基线：新增的 Docker 集成测试默认关闭，普通测试结果为 `18 passed, 1 skipped`；Ruff 与 strict mypy 同时通过。只有显式设置 `AGENTEXAM_RUN_HARBOR_INTEGRATION=1` 才会启动固定 Harbor/Docker。
+- NOP 首次运行失败：显式探针在 pytest setup 阶段因 `runtime/prototype` 父目录尚不存在而返回 `WinError 3`，没有进入测试函数、Harbor 或 Docker。提升权限进程另对普通 `.pytest_cache` 报写权限警告，但不是本次主失败。后续创建精确父目录，并以 `-p no:cacheprovider` 关闭非必要缓存后重试；不得把这次结果记成 Trial 失败。
+- NOP 第二次运行部分成功：固定 Docker Trial 实际完成 1/1，约 20 秒；持久化 Trial 的 `exception_info=null`、Agent 为 `nop 1.0.0`、Verifier 未运行，四个 patch 文件均由 Harbor 收集且没有遗留对应 Compose 容器。CLI 随后在 Windows GBK 控制台打印汇总字符 `•` 时触发 `UnicodeEncodeError`，因此外层进程退出 1；这是真实的宿主编码兼容问题，不是 Trial 失败。修复是在受控 Harbor 子进程显式设置 `PYTHONUTF8=1` 和 `PYTHONIOENCODING=utf-8`，不修改上游源码。
+- NOP 第二次运行接口发现：落盘的 Job `result.json` 为减小热路径写入而故意不含 `trial_results`；真实 Trial 结果只在 Job 子目录各自的 `result.json` 中，未来结果 Adapter 必须枚举并严格校验唯一身份，不能按先前内存模型猜读 Job 文件。Harbor 还会隐式收集约定目录 `/logs/artifacts`，原四个显式单文件声明造成来源重叠警告和重复副本；Task 契约已改为一次收集整个约定目录到 `artifacts/agentexam`，宿主校验器读取该受控目录。
+- NOP 第三次运行部分成功：UTF-8 子进程使 Harbor CLI 正常退出，单个 Trial 无异常且 Verifier 关闭；测试随后因断言落盘 `TrialConfig` 必须显式含 `environment.delete` 而失败。源码和实际 JSON 表明 Harbor 以 `exclude_defaults=true` 保存 Trial config，默认 `delete=true` 会省略。测试改为核对提交给 Harbor 的冻结输入明确为 `true`、落盘省略符合默认序列化，并以对应 Compose 容器/网络/卷均不存在作为实际清理证据。
+- NOP 第四次运行部分成功：Harbor CLI/Trial 和单目录 artifact 收集均成功，宿主强校验随后发现目录内仍是旧元数据名 `model.patch.sha256/.bytes/.binary`，与稳定制品契约 `patch.sha256/.bytes/.binary` 不一致。原先四个显式 artifact 声明曾顺带重命名文件，合并为单目录后这一隐式行为消失；修复只把 collect hook 的三个输出名改为契约名称，不放宽校验或增加重复映射。
+- NOP 最终成功：修正稳定元数据名后，证据 `runtime/prototype/m0-harbor-nop-20260906-04` 以 `1 passed in 18.40s` 通过。实际 Job 1/1 完成、Trial 无异常、Verifier 关闭、0-byte patch 与哈希/大小/二进制元数据通过宿主校验、manifest 只有一个目录项，且对应 Compose container/network/volume 均无残留。该结论只适用于 NOP 无模型探针。
+- 结果映射草稿：新增 `HarborRunBinding`，配置映射强制请求形成完整 Agent×Task 笛卡尔积并为每个 Run 记录稳定 task/agent key；领域结果增加原始配置/结果、usage 和资源摘要接缝。`result_mapper.py` 已按真实子 Trial 目录开始映射，但暂停时为 296 行，超过项目 Python 200 行指标；其 `_usage()` 对 `slots=True` dataclass 使用 `__dict__` 是已知运行时错误；尚无单测、未接 NOP 集成测试，且加入这些草稿后的全套 ruff/mypy/普通 pytest 尚未复跑。下一窗口必须先修复并验证，不能把草稿记为完成。
+- 本次暂停：用户明确要求停止、汇总给下一窗口并本地提交。只更新 `HANDOFF.md` 与本行动记录，不继续实现 Adapter；提交前仅执行适合交接的 diff/静态/测试核对，并如实记录失败。
+- 本次交接检查：`git diff --check` 通过；strict mypy 对 17 个源文件通过；unit + contract 共 `20 passed in 0.75s`。Ruff 未通过：`config_mapper.py` 与 `result_mapper.py` 需要格式化，lint 共 4 项（1 个多余前向引用引号、2 个超长行、1 个应使用 `datetime.UTC`）；`result_mapper.py` 的 296 行也不符合 200 行指标。由于用户要求立即停止，本窗口不再修复这些草稿问题，下一窗口必须先处理。

@@ -139,10 +139,7 @@ def render_harbor_task(task: EvaluationTask, root: Path, limits: RunLimits) -> P
 def _task_toml(task: EvaluationTask, limits: RunLimits) -> str:
     return f"""schema_version = "1.4"
 artifacts = [
-  {{ source = "/logs/artifacts/model.patch", destination = "model.patch" }},
-  {{ source = "/logs/artifacts/model.patch.sha256", destination = "patch.sha256" }},
-  {{ source = "/logs/artifacts/model.patch.bytes", destination = "patch.bytes" }},
-  {{ source = "/logs/artifacts/model.patch.binary", destination = "patch.binary" }},
+  {{ source = "/logs/artifacts", destination = "agentexam" }},
 ]
 
 [metadata]

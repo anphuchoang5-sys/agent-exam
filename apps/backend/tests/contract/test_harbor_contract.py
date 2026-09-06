@@ -92,5 +92,5 @@ def test_fixed_harbor_accepts_generated_job_and_public_task(tmp_path: Path) -> N
         "retry": 0,
         "verifier_disabled": True,
         "collect_hooks": 1,
-        "artifacts": 4,
+        "artifacts": 1,
     }

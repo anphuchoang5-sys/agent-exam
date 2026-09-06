@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -17,7 +19,18 @@ _SAFE_ID = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}")
 @dataclass(frozen=True, slots=True)
 class HarborJobPlan:
     config: dict[str, Any]
-    run_ids: tuple[str, ...]
+    bindings: tuple["HarborRunBinding", ...]
+
+    @property
+    def run_ids(self) -> tuple[str, ...]:
+        return tuple(binding.run_id for binding in self.bindings)
+
+
+@dataclass(frozen=True, slots=True)
+class HarborRunBinding:
+    run_id: str
+    task_path_key: str
+    agent_key: str
 
 
 def build_job_plan(
@@ -34,12 +47,25 @@ def build_job_plan(
         raise ValueError("job_id is not safe for a Harbor job name")
     agents: dict[str, dict[str, Any]] = {}
     tasks: dict[str, dict[str, str]] = {}
+    combinations: dict[tuple[str, str], str] = {}
     for run in request.runs:
-        agents.setdefault(run.agent.fingerprint, _map_agent(run.agent))
+        fingerprint = run.agent.fingerprint
+        agents.setdefault(fingerprint, _map_agent(run.agent))
         task_dir = task_dirs.get(run.task.instance_id)
         if task_dir is None:
             raise ValueError(f"No rendered Harbor task for {run.task.instance_id}")
         tasks.setdefault(run.task.instance_id, {"path": str(task_dir.resolve())})
+        combination = (run.task.instance_id, fingerprint)
+        if combination in combinations:
+            raise ValueError("Each Agent and task combination must be unique")
+        combinations[combination] = run.run_id
+    expected = {
+        (task_id, fingerprint)
+        for task_id in tasks
+        for fingerprint in agents
+    }
+    if set(combinations) != expected:
+        raise ValueError("Execution runs must form a complete Agent x task matrix")
     limits = request.limits
     config: dict[str, Any] = {
         "job_name": request.job_id,
@@ -62,9 +88,15 @@ def build_job_plan(
         "agents": list(agents.values()),
         "tasks": list(tasks.values()),
     }
-    return HarborJobPlan(
-        config=config, run_ids=tuple(run.run_id for run in request.runs)
+    bindings = tuple(
+        HarborRunBinding(
+            run_id=run.run_id,
+            task_path_key=harbor_task_path_key(tasks[run.task.instance_id]["path"]),
+            agent_key=harbor_agent_key(agents[run.agent.fingerprint]),
+        )
+        for run in request.runs
     )
+    return HarborJobPlan(config=config, bindings=bindings)
 
 
 def _map_agent(agent: AgentConfiguration) -> dict[str, Any]:
@@ -87,3 +119,20 @@ def _map_agent(agent: AgentConfiguration) -> dict[str, Any]:
             "web_search": "disabled",
         },
     }
+
+
+def harbor_task_path_key(path: str) -> str:
+    return os.path.normcase(str(Path(path).resolve()))
+
+
+def harbor_agent_key(agent: Mapping[str, Any]) -> str:
+    selected = {
+        "kwargs": agent.get("kwargs", {}),
+        "model_name": agent.get("model_name"),
+        "name": agent.get("name"),
+    }
+    if not isinstance(selected["name"], str) or not isinstance(
+        selected["kwargs"], Mapping
+    ):
+        raise ValueError("Harbor Agent config has no stable identity")
+    return json.dumps(selected, sort_keys=True, separators=(",", ":"))

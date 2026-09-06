@@ -19,8 +19,8 @@ while IFS=$'\t' read -r added deleted _path; do
     break
   fi
 done < <(git diff --numstat "$base_commit" -- .)
-sha256sum "$tmp" | cut -d ' ' -f 1 > "$out_dir/model.patch.sha256"
-wc -c < "$tmp" | tr -d ' ' > "$out_dir/model.patch.bytes"
-printf '%s\n' "$binary" > "$out_dir/model.patch.binary"
+sha256sum "$tmp" | cut -d ' ' -f 1 > "$out_dir/patch.sha256"
+wc -c < "$tmp" | tr -d ' ' > "$out_dir/patch.bytes"
+printf '%s\n' "$binary" > "$out_dir/patch.binary"
 mv "$tmp" "$out_dir/model.patch"
 trap - EXIT
