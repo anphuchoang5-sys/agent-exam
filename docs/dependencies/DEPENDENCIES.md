@@ -1,6 +1,6 @@
 # 项目依赖唯一事实源
 
-> 文档状态：持续维护；M0 三项上游身份、固定数据/镜像、Harbor 环境、后端锁文件和 NOP Trial 已核验，Codex/Fork 依赖仍待验证
+> 文档状态：持续维护；M0 三项上游身份、固定数据/镜像、Harbor 环境、后端锁文件、NOP Trial 和四类非空 patch 已核验，Codex/Fork 依赖仍待验证
 >
 > 最后更新：2026-09-06；上游、Harbor 与 CLI 最后核验：2026-09-06
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
@@ -150,7 +150,7 @@ python -m pip install -e .
 - 固定 SWE-Bench-Fork 的 `swebench.harness.run_evaluation` 仍是唯一确定性最终判卷入口，Harbor Reward 不能覆盖其结论。
 - Harbor 的精确接口、转换与退出门槛由 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) 维护；采用决定见 [`ADR-0001`](../adr/0001-use-harbor-as-execution-backend.md)。
 
-当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和 Compose 清理均通过；Codex、非空 patch、网络/凭据和固定 Fork 仍待验证。
+当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和 Compose 清理均通过；固定摘要、禁网容器又覆盖了修改、新建、删除和 Agent commit 四类非空 patch，并经宿主生产校验器验证。Codex、网络/凭据、Harbor 外层超时清理和固定 Fork 仍待验证。
 
 ## 7. 恢复固定源码
 
@@ -207,7 +207,7 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；Codex 认证政策已经确认，不再作为待选择项，但项目固定版本、模型 ID、端点和容器兼容性仍待固定或实测；
 6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；
 7. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
-8. Harbor Job/Trial 目录、空 patch collect 和结果映射已由 NOP 固定；CLI 进程 Adapter 已实现并通过假进程单测，仍待真实 CLI E2E、外层超时清理、真实 Codex/非空 patch 与完整原型验收；
+8. Harbor Job/Trial 目录、空 patch collect 和结果映射已由 NOP 固定；修改/新建/删除/Agent commit 四类非空 patch 已由固定摘要、禁网容器验证；CLI 进程 Adapter 已接真实 Harbor NOP，仍待外层超时清理、真实 Codex 与完整原型验收；
 9. 恢复脚本、依赖缓存和供应链校验流程。
 
 ## 10. 本次核验证据摘要

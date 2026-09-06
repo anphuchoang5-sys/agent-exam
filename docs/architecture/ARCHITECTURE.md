@@ -1,6 +1,6 @@
 # AI Coding Agent 评测平台总架构
 
-> 文档状态：总体方案已确认，细节持续讨论；M0 Task/Harbor 配置、NOP Docker Trial、结果映射与薄进程 Adapter 单测已通过，Codex→Fork 完整闭环未完成
+> 文档状态：总体方案已确认，细节持续讨论；M0 Task/Harbor 配置、NOP Docker Trial、四类非空 patch、结果映射与薄进程 Adapter 已分层验证，Codex→Fork 完整闭环未完成
 > 最后更新：2026-09-06
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
@@ -427,7 +427,7 @@ E:\9.1agent_exam\
 | 云端 Agent 必须联网，而公开题目的原 PR 也可能在线 | 闭卷可能被运行时查答案，开卷工具能力也可能不等价 | 闭卷仅放行平台登记的模型访问路径及必需端点并禁用 Web 工具；开卷单列实验榜并记录网络/工具配置，精确代理待实测 |
 | 不可信仓库和 Agent 代码 | 主机与凭据泄漏 | 固定登记 Agent、双沙箱、最小挂载、秘密脱敏，不接受任意仓库执行；自研 Agent 不取得真实模型 Key |
 | Codex 个人登录凭据进入临时 Trial、日志、轨迹或制品 | 个人账号被盗用，且评测证据不再适合共享 | 执行节点最小临时注入；日志脱敏；明确排除 `auth.json`、`$CODEX_HOME` 和秘密目录；成功、失败、超时路径都销毁容器与可写层 |
-| Harbor `TrialResult` 没有标准 `model_patch` | 无法把 Agent 结果交给固定 Fork | 已用任务 collect hook + 宿主强校验通过 NOP 空 patch；仍须验证真实 Codex 和非空/删除/提交场景，缺失即失败且不猜补丁 |
+| Harbor `TrialResult` 没有标准 `model_patch` | 无法把 Agent 结果交给固定 Fork | 已用任务 collect hook + 宿主强校验通过 NOP 空 patch，以及固定摘要、禁网容器中的修改/新建/删除/Agent commit；仍须验证真实 Codex 路径，缺失即失败且不猜补丁 |
 | Harbor 接口升级或 Job 目录格式变化 | Adapter 漂移、历史不可复现 | 固定完整 commit；原始 config/result 入 MinIO；升级重跑契约测试 |
 | 多 Agent×多任务导致 Job 很长 | 笔电运行数小时且磁盘增长 | 创建前显示 Trial 数；预设小批量；并发 1；耗时只按真实历史估计 |
 | Aider 无结构化工具事件 | 过程指标不能完全同口径 | 缺失标为“不支持/未知”，不伪造 0 |
@@ -464,7 +464,7 @@ E:\9.1agent_exam\
 
 1. 固定 Codex CLI 项目版本、模型 ID 和端点白名单，并实测 Harbor 容器内 ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
 2. 读取并固定 `SWE-Gym/SWE-Gym-Lite` 的不可变 revision、真实 split 和 1～3 个具体任务；不让用户猜字段。
-3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；薄进程 Adapter 已落实有界日志和宿主进程树终止，生产执行器接真实 Harbor NOP 也已通过。继续用本地脚本验证外层杀死 Harbor 后的 Compose 清理、非空补丁、资源/网络和固定 Fork，通过前不搭 Web/数据库流程。
+3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志和宿主进程树终止，生产执行器接真实 Harbor NOP 也已通过。继续用本地脚本验证外层杀死 Harbor 后的 Compose 清理、资源/网络和固定 Fork，通过前不搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。
 5. 在真实 Trial 中测量 patch、日志和原始制品规模；默认阈值先按 C-37/C-38，实现证据表明需要调整时再请求确认。
 6. 完成校园网 + FlClash 开启/关闭下的 Tailscale 双机共存测试，失败时才评估 Cloudflare Tunnel + Access。

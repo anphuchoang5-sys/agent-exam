@@ -1,6 +1,6 @@
 # Harbor 执行后端接口
 
-> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射、有界日志和宿主进程树清理已核验；真实 Codex Trial 与 Harbor 超时后的 Compose 清理待验收
+> 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射、四类非空 patch、有界日志和宿主进程树清理已核验；真实 Codex Trial 与 Harbor 超时后的 Compose 清理待验收
 >
 > 最后更新：2026-09-06
 >
@@ -153,7 +153,7 @@ Harbor 固定提交的 `TrialResult` 没有标准 `model_patch` 字段。Harbor 
 5. 二进制 patch 返回 `BINARY_PATCH_NOT_ALLOWED`，不进入 Harness；MVP 只接受文本统一 diff。
 6. 同一字节内容保存到 MinIO，并作为 SWE-Bench-Fork prediction 的 `model_patch`。
 
-M0 已选择固定 Harbor 支持的任务级 `verifier.collect` hook：在容器销毁前相对任务 `base_commit` 生成 `model.patch`、SHA-256、字节数和二进制标志，再把整个 `/logs/artifacts` 目录收集到宿主 `artifacts/agentexam`。真实 NOP 已验证空 patch 与元数据、Verifier 关闭、UTF-8 CLI 退出和 Compose 资源清理；新建/修改/删除/Agent 自行 commit 以及真实 Codex 仍须继续实测。
+M0 已选择固定 Harbor 支持的任务级 `verifier.collect` hook：在容器销毁前相对任务 `base_commit` 生成 `model.patch`、SHA-256、字节数和二进制标志，再把整个 `/logs/artifacts` 目录收集到宿主 `artifacts/agentexam`。真实 NOP 已验证空 patch 与元数据、Verifier 关闭、UTF-8 CLI 退出和 Compose 资源清理；固定摘要、禁网容器测试又验证了跟踪文件修改、新文件、删除和 Agent 自行 commit 四种非空结果都能相对固定 `base_commit` 生成完整 patch，并通过宿主强校验。真实 Codex 仍须继续实测。
 
 ## 8. 运行身份映射
 
@@ -235,7 +235,7 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
-当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB，超限与进程树清理失败都写入 manifest 并传播为运行告警。unit/contract 共 42 项通过；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 路径也通过，证明无模型路径、空 patch、关闭 Verifier 后的 artifact、UTF-8 CLI 和正常 Compose 清理。公开 `HarborExecutionAdapter.execute()` 的编排仍由受控替身单测覆盖；真实父子进程超时探针只证明宿主进程树终止，不证明外层杀死 Harbor 后 Compose 子资源必然清理。真实 Codex、网络/凭据/轨迹、非空 patch 场景、Harbor 超时后的 Compose 清理和固定 Fork 仍未完成，不能据此把 M0 标记完成。
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB，超限与进程树清理失败都写入 manifest 并传播为运行告警。unit/contract 共 42 项通过；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 路径也通过，证明无模型路径、空 patch、关闭 Verifier 后的 artifact、UTF-8 CLI 和正常 Compose 清理。固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 集成测试为 `4 passed in 5.91s`，测试专用容器无残留。公开 `HarborExecutionAdapter.execute()` 的编排仍由受控替身单测覆盖；真实父子进程超时探针只证明宿主进程树终止，不证明外层杀死 Harbor 后 Compose 子资源必然清理。真实 Codex、网络/凭据/轨迹、Harbor 超时后的 Compose 清理和固定 Fork 仍未完成，不能据此把 M0 标记完成。
 
 ### 13.2 M1：Codex 平台 MVP
 
