@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import subprocess
 from collections.abc import Callable
@@ -17,6 +16,11 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
 from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
 from eval_platform.adapters.execution.harbor.result_mapper import map_job_results
 from eval_platform.adapters.execution.harbor.result_values import process_start_failure
+from eval_platform.adapters.execution.harbor_entry import (
+    harbor_command,
+    harbor_environment,
+)
+from eval_platform.adapters.execution.network import validate_hosts
 from eval_platform.adapters.tasks.swe_gym import render_harbor_task
 from eval_platform.application.ports.execution import (
     ExecutionJobRequest,
@@ -41,8 +45,10 @@ class HarborExecutionAdapter:
     evidence_root: Path
     project_root: Path
     task_renderer: TaskRenderer = render_harbor_task
+    network_hosts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        validate_hosts(self.network_hosts)
         if not self.harbor_executable.is_file() or self.harbor_executable.is_symlink():
             raise FileNotFoundError("The fixed Harbor executable is unavailable")
         if not self.project_root.is_dir():
@@ -61,6 +67,7 @@ class HarborExecutionAdapter:
             request,
             jobs_dir=run_root / "jobs",
             task_dirs=task_dirs,
+            network_hosts=self.network_hosts,
         )
         config_path = run_root / "harbor-config.json"
         config_path.write_text(
@@ -95,21 +102,8 @@ class HarborExecutionAdapter:
         run_root: Path,
         config_path: Path,
     ) -> tuple[ExecutionTrialResult, ...]:
-        env = os.environ.copy()
-        env.update(
-            {
-                "HARBOR_TELEMETRY": "disabled",
-                "PYTHONIOENCODING": "utf-8",
-                "PYTHONUTF8": "1",
-            }
-        )
-        command = [
-            str(self.harbor_executable.resolve()),
-            "run",
-            "--config",
-            str(config_path.resolve()),
-            "--yes",
-        ]
+        env = harbor_environment()
+        command = harbor_command(self.harbor_executable, config_path)
         outcome = run_bounded_process(
             command,
             cwd=self.project_root.resolve(),

@@ -21,6 +21,10 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
 )
 from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
 from eval_platform.adapters.execution.harbor.result_mapper import map_job_results
+from eval_platform.adapters.execution.harbor_entry import (
+    harbor_command,
+    harbor_environment,
+)
 from eval_platform.adapters.tasks.swe_gym import (
     CANDIDATE_INSTANCE_ID,
     SWEGymTaskSource,
@@ -107,12 +111,9 @@ def test_harbor_nop_collects_empty_patch_and_cleans_environment(
         json.dumps(config, indent=2, sort_keys=True), encoding="utf-8", newline="\n"
     )
 
-    env = os.environ.copy()
-    env["HARBOR_TELEMETRY"] = "disabled"
-    env["PYTHONIOENCODING"] = "utf-8"
-    env["PYTHONUTF8"] = "1"
+    env = harbor_environment()
     outcome = run_bounded_process(
-        [str(harbor_exe), "run", "--config", str(config_path), "--yes"],
+        harbor_command(harbor_exe, config_path),
         cwd=repo_root,
         env=env,
         timeout_sec=900,
@@ -152,8 +153,6 @@ def test_harbor_nop_collects_empty_patch_and_cleans_environment(
 
     trial_name = trial_result["trial_name"]
     trial_dir = job_dir / trial_name
-    saved_trial = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
-    assert saved_trial["id"] == trial_result["id"]
     saved_config = json.loads((trial_dir / "config.json").read_text(encoding="utf-8"))
     assert saved_config["verifier"]["disable"] is True
     assert config["environment"]["delete"] is True

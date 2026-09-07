@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from eval_platform.adapters.execution.network import validate_hosts
 from eval_platform.application.ports.execution import ExecutionJobRequest
 from eval_platform.domain.agent import AgentConfiguration
 
@@ -42,6 +43,7 @@ def build_job_plan(
     *,
     jobs_dir: Path,
     task_dirs: Mapping[str, Path],
+    network_hosts: tuple[str, ...] = (),
 ) -> HarborJobPlan:
     if request.backend_revision != HARBOR_REVISION:
         raise ValueError("Harbor revision is not registered")
@@ -75,6 +77,7 @@ def build_job_plan(
         "retry": {"max_retries": 0},
         "environment": {
             "type": "docker",
+            "extra_allowed_hosts": list(validate_hosts(network_hosts)),
             "delete": True,
             "force_build": False,
             "cpu_enforcement_policy": "limit",

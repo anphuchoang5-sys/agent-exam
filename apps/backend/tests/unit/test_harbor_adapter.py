@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 
+from eval_platform.adapters.execution import harbor_entry
 from eval_platform.adapters.execution.harbor import adapter as adapter_module
 from eval_platform.adapters.execution.harbor.adapter import HarborExecutionAdapter
 from eval_platform.adapters.execution.harbor.config_mapper import (
@@ -59,6 +60,7 @@ def _request(job_id: str = "adapter-test") -> ExecutionJobRequest:
 def _adapter(tmp_path: Path) -> HarborExecutionAdapter:
     executable = tmp_path / "harbor.exe"
     executable.write_bytes(b"placeholder")
+    executable.with_name("python.exe").touch()
     return HarborExecutionAdapter(executable, tmp_path / "evidence", tmp_path)
 
 
@@ -133,10 +135,11 @@ def test_executes_fixed_cli_and_maps_result(
     assert result.run_id == "run-one" and result.patch_ref is not None
     command, kwargs = calls[0]
     assert command[1:] == [
-        "run",
+        str(Path(harbor_entry.__file__).resolve()),
         "--config",
         str((tmp_path / "evidence/adapter-test/harbor-config.json").resolve()),
-        "--yes",
+        "--harbor-root",
+        str((tmp_path / "harbor.exe").resolve().parents[2]),
     ]
     assert kwargs["env"]["HARBOR_TELEMETRY"] == "disabled"
     assert kwargs["env"]["PYTHONIOENCODING"] == "utf-8"

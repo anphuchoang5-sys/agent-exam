@@ -199,7 +199,7 @@ M0 入口 `prototype_codex_harbor_e2e.py` 通过既有 `ExecutionBackend`/`Patch
 
 ## 7. Codex CLI Adapter
 
-项目已确认首个真实原型使用 Harbor 内置 Codex Agent，认证采用评测机所有者本人通过 ChatGPT Pro 登录产生的 `auth.json`。该政策不等于容器内 Codex 已可运行；项目固定 CLI 版本、模型 ID、端点白名单、Token 刷新、脱敏、清理和网络策略仍须固定或实测。
+项目已确认首个真实原型使用 Harbor 内置 Codex Agent，认证采用评测机所有者本人通过 ChatGPT Pro 登录产生的 `auth.json`；首轮 CLI 版本、模型与推理强度已由 [依赖总表](../dependencies/DEPENDENCIES.md#2-当前依赖总表) 固定。该决定不等于容器内 Codex 已可运行；账号实际可用性、端点白名单、Token 刷新、脱敏、清理和网络策略仍须核验。
 
 ### 7.1 已核验官方接口
 
@@ -241,9 +241,13 @@ Runner RunEnvelope
 
 历史记录：2026-09-01 从旧工作区尝试 `codex --version` / `codex exec --help` 时，WindowsApps 中打包的 `codex.exe` 被操作系统拒绝启动。该结果不再作为当前宿主 CLI 状态。
 
-当前宿主探针：2026-09-06 `codex --version` 返回 `codex-cli 0.153.0`；2026-09-04 的 `0.142.0` 只保留在变更记录中作为当时事实。当前宿主可启动不代表项目已经固定该版本，也不代表 Harbor 容器内 Codex 可运行。
+当前宿主探针：2026-09-07 `codex --version` 与用户已确认的首轮版本一致；唯一版本值见 [依赖总表](../dependencies/DEPENDENCIES.md#2-当前依赖总表)。早期探针只代表当时环境，不再把项目版本列为待确认；宿主可启动仍不代表 Harbor 容器内 Codex 可运行。
 
-限制：同一窗口的默认沙箱命令启动器在命令执行前返回 `setup refresh had errors`，而提升权限后探针成功；因此该故障应归入 Codex Windows 沙箱/宿主运行环境，不应误写为 CLI 命令失败。上述结果也没有固定项目 CLI 版本、验证真实账号、发起模型请求或证明 Harbor 容器内 Codex 可用。
+固定 Harbor `Codex.install()` 先调用 `_installed_codex_satisfies_version()`，用容器 `codex --version` 的解析值与显式 `version` 精确比较；相同则直接复用，不再执行下载。不同或命令失败时进入上游在线安装路径，涉及系统工具、Node/npm 和 Codex 下载。2026-09-07 的早期替身检查验证同版本/不同版本/命令失败为 true/false/false；后续真实无凭据安装契约也已通过，见下段。不得给未核验的安装域名开放网络或静默使用 `latest`。
+
+2026-09-07 安装实测：按 [依赖第 2.1 节](../dependencies/DEPENDENCIES.md#21-codex-无凭据安装制品) 校验并解包固定平台包，在固定题目镜像的临时容器内离线复制工具。容器 `--network none`、无宿主挂载、去能力，CLI 以 UID 65534 执行版本与 `exec --help` 成功。测试 Environment 仅允许上游固定版本检查命令，并将其转交真实 Docker exec；调用真实 `Codex.install()` 后恰好只有该版本检查，未进入在线安装、认证 setup 或 run。这不是完整 Harbor Trial，不能据此推断模型/资源/认证兼容性。正常删除临时容器并验证无残留；命令、测试结果及边界见 M0 行动记录。
+
+历史限制：早期窗口的默认沙箱命令启动器在命令执行前返回 `setup refresh had errors`，而提升权限后探针成功；因此该故障应归入 Codex Windows 沙箱/宿主运行环境，不应误写为 CLI 命令失败。当时的探针没有验证真实账号、发起模型请求或证明 Harbor 容器内 Codex 可用；项目版本后来由用户明确确认，见依赖事实源。
 
 ## 8. Aider CLI Adapter
 
@@ -383,12 +387,12 @@ P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键�
 
 ## 15. 当前未解决接口问题
 
-网络进展：2026-09-07 已增加显式无凭据真实 Harbor 网络测试，使用受控 HTTP 对照和已解析 IPv4 排除 DNS 失败的假阳性。测试配置尚未接入生产 Adapter，真实模型端点与其他协议仍未验收；逐项事实统一见 [Harbor 执行接口](./HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。`--check-network` 仍然只代表内核前提，不改成完整就绪信号。
+网络进展：2026-09-07 的显式无凭据真实 Harbor 网络测试使用受控 HTTP 对照和已解析 IPv4 排除 DNS 失败的假阳性。生产 Adapter 已接入受限配置和固定源码引导，并通过无模型正常、串联及超时回归；真实模型端点与其他协议仍未验收。逐项事实统一见 [Harbor 执行接口](./HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。`--check-network` 仍然只代表内核前提，不改成完整就绪信号。
 
 1. Lite revision、`train` split、候选 `python__mypy-15413`、Parquet 哈希与镜像 digest 已固定；候选能否成为 M0 正式首题取决于真实闭环。
 2. 固定 Fork 已通过现有 Ubuntu WSL2 载体及 Evaluator 内部镜像/资源适配完成五类真实补丁判卷；下一步连接真实 Codex 的最终 patch，不能将无模型测试视作完整 M0。
 3. Harbor 固定环境、实际 Job/Trial 目录、空 `model.patch` 受控提取及 Trial→`run_id` 结果映射已由 NOP 验证；CLI 进程 Adapter 已实现有界日志、宿主进程树终止和外层超时精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均接真实 Harbor NOP 通过；固定摘要、禁网容器已覆盖修改/新建/删除/Agent commit 四类非空 patch。仍须验证真实 Codex 路径。
-4. 固定 Codex 项目 CLI 版本、模型 ID、reasoning effort 和端点白名单，并验证 Harbor 容器内安装、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径；2026-09-06 宿主 `0.153.0` 只是一条环境探针，不是已选基线。
+4. Codex 首轮 CLI 版本、模型与推理强度已由用户确认，固定制品与无凭据安装见依赖总表第 2.1 节；接下来核验端点白名单、账号实际可用性、完整 Trial 工具/资源兼容、ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
 5. Aider 仓库内 `.aider.conf.yml`/`.env` 的彻底隔离方式。
 6. Claude Code `--restricted` 与评测所需工具组合、账号/费用/网络策略。
 7. P2 `agent-exam.yaml` 的完整 schema、Python 版本、依赖锁格式，以及平台怎样把已确认进程 Interface 包装进 Harbor；不再待选 Harbor `BaseAgent` 或进程协议，且不阻塞 MVP。

@@ -136,7 +136,7 @@ flowchart TB
 - Orchestrator 只依赖小型 `ExecutionBackend` interface，不直接理解 Harbor `JobConfig`、Trial 目录或异常。
 - Harbor 负责 Agent 环境，不替代 PostgreSQL 业务队列、MinIO 长期制品、SWE-Bench-Fork 判卷、Judge 或人工复核。
 - Web、公开 Job 请求、FastAPI、PostgreSQL 和 MinIO 不接收 `auth.json`、DeepSeek/Kimi Key 内容或真实宿主路径；只保存非秘密的认证类型和逻辑配置身份。执行节点仅在运行时从本机秘密配置解析凭据引用。Codex 的 `auth.json` 使用方式与自研 Agent 的受控模型访问方式不同，完整约束见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)。
-- 闭卷 Agent 生成沙箱只允许平台登记的模型访问路径及其必需端点，并禁用 Web 搜索/抓取工具；MVP 不创建开卷运行，未来开卷只允许平台统一 Web 工具。验证沙箱候选为断网干净环境。2026-09-05 已验证本机 Docker Desktop 内部代理可以经 FlClash 完成通用容器 HTTPS，但也证实容器可经 `host.docker.internal` 触达宿主 FlClash；所以该配置只是连通能力，不是防绕过边界。Harbor Trial 的显式代理注入、受控模型访问白名单、宿主/公网直连阻断和工具公平性仍待原型确认，动态事实见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md)。
+- 闭卷 Agent 生成沙箱只允许平台登记的模型访问路径及其必需端点，并禁用 Web 搜索/抓取工具；MVP 不创建开卷运行，未来开卷只允许平台统一 Web 工具。验证沙箱候选为断网干净环境。现有 Execution Adapter 清空主容器代理变量并接入固定 Harbor 原生受控侧车；通用 Docker/FlClash 连通不等于该侧车的真实模型出站已通过。实际配置、受控网络测试及 DNS/ICMP 的证据限制见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md#无凭据追加边界取证2026-09-07)，凭据风险见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md#61-2026-09-07-风险评估发现)。完整闭卷与凭据验收仍未完成；未确认一刀切封禁 DNS/ICMP，也未批准风险豁免。
 
 ## 5. 一次运行的输入输出
 
@@ -312,17 +312,23 @@ E:\9.1agent_exam\
 │  │  │  ├─ adapters\
 │  │  │  │  # 把真实上游接口翻译为 application ports
 │  │  │  │  ├─ tasks\swe_gym.py
-│  │  │  │  │  # Adapter：SWE-Gym 字段 → EvaluationTask
+│  │  │  │  │  # Adapter：SWE-Gym 字段 → EvaluationTask；生成公开 Task 与受限 Compose
 │  │  │  │  ├─ agents\
 │  │  │  │  │  # MVP 只转换项目预登记知名 Agent；自研提交 manifest 属于 P2
 │  │  │  │  │  ├─ registry.py # 已登记配置 → Harbor AgentConfig；不接收任意命令
 │  │  │  │  │  └─ manifest.py # P2 延后：静态解析 Python 自研 Agent manifest；审核前不执行代码
 │  │  │  │  ├─ execution\
+│  │  │  │  │  ├─ codex_install.py # 已实现：固定 Codex 平台包校验和离线安装输入；不读取凭据，不开放真实运行
+│  │  │  │  │  ├─ redaction.py # 已实现：仅驻内存的已知值流式脱敏，供内部日志落盘调用；不是通用秘密检测器
+│  │  │  │  │  ├─ codex_policy.py # 已实现待集成：固定 CLI 权限、目录准备与启动命令校验；不承载凭据
+│  │  │  │  │  ├─ codex_agent.py # 已实现待集成：Adapter 内窄继承上游 Codex，复用 run、覆盖配置/命令/清理；真实凭据绑定关闭
 │  │  │  │  │  ├─ preflight.py # 已实现：固定任务及禁网内核就绪检查；不等同真实网络验收
+│  │  │  │  │  ├─ network.py # 已实现：Execution Backend 内部的精确主机名校验、Compose 模板与固定 blob 导出
+│  │  │  │  │  ├─ harbor_entry.py # 已实现：固定 Python/源码引导原 Harbor CLI、配置防覆盖与真实 Agent 门禁
 │  │  │  │  │  ├─ harbor\
 │  │  │  │  │  │  # HarborExecutionAdapter 内部实现；外部只见 ExecutionBackend
 │  │  │  │  │  │  ├─ adapter.py       # Job 生命周期与项目结果汇总
-│  │  │  │  │  │  ├─ config_mapper.py # 项目 Job → Harbor JobConfig
+│  │  │  │  │  │  ├─ config_mapper.py # 项目 Job → Harbor JobConfig；冻结本机可信白名单
 │  │  │  │  │  │  ├─ result_mapper.py # TrialResult/异常 → ExecutionTrialResult
 │  │  │  │  │  │  └─ artifacts.py     # patch/ATIF/原始结果校验和导入
 │  │  │  │  │  └─ process.py
@@ -353,10 +359,14 @@ E:\9.1agent_exam\
 │  │  │  └─ worker\main.py
 │  │  │     # 单机 Worker Shell：领取、心跳、停止和调用 Orchestrator
 │  │  └─ tests\
+│  │     ├─ test_secret_safety.py # 已实现：跨进程日志的假秘密/分块/异常/上限安全契约，无模型调用
+│  │     ├─ test_codex_policy.py # 已实现：权限配置、冻结命令、指令保真与拒绝篡改契约
+│  │     ├─ test_codex_guard.py # 已实现：启动固定 Harbor Python 跑方法契约，不执行模型命令
+│  │     ├─ codex_guard_probe.py # 已实现：假 Environment 驱动真实上游 run，区分清理尝试与容器实测
 │  │     ├─ unit\         # 领域状态和应用分支的快速测试
 │  │     ├─ contract\     # Fake/真实 Adapter 共用的契约测试
 │  │     └─ integration\  # PostgreSQL、MinIO、Docker、Harness 集成测试
-│  │        ├─ test_harbor_network.py # 已实现：显式无凭据网络探针、受控对照与精确清理
+│  │        ├─ test_harbor_network.py # 已实现：复用生产模板/导出的无凭据网络对照及精确清理
 │  │        └─ network_probe.py # 已实现：固定 Harbor 内部网络接口测试驱动，非生产 Adapter
 │  └─ web\
 │     # Next.js 15 + React 19 展示应用
@@ -472,7 +482,7 @@ E:\9.1agent_exam\
 
 本轮需要用户拍板的产品问题已经回答。下面按实施影响排序查技术事实；若验证结果要求改变产品行为，再回到用户确认：
 
-1. Harbor 内核前提与一组无凭据 HTTP/IPv4 网络探针已通过；范围及缺口见 [执行接口的网络探针](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。先在现有 Execution Adapter 内接入生产配置并补齐未覆盖的隔离路径，再固定 Codex CLI 项目版本、模型 ID、effort 和端点，验证 Token 刷新、脱敏及清理。WSL 更新已完成，不重复更新；不新增顶层网络业务模块，不把测试专用配置当生产已验收。
+1. Harbor 内核前提、受控网络探针及生产配置接线的无模型回归已通过；范围及缺口见 [执行接口的网络探针](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。Codex 首轮三项配置已确认，固定制品校验、禁网容器版本/帮助与 Harbor 预装复用已通过（[依赖总表](../dependencies/DEPENDENCIES.md#21-codex-无凭据安装制品)）；接下来在现有 Execution Adapter 内补齐完整隔离/真实出站路径、端点、完整 Trial 工具/资源兼容、Token 刷新、脱敏及清理。WSL 更新已完成，不重复更新；不新增顶层网络业务模块，不把安装或配置接线通过当完整闭卷或真实 Codex 已验收。
 2. 固定单题的数据 revision、split、内容哈希与摘要镜像已完成（见依赖文档）；未经验证不扩展到全题库。
 3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志、宿主进程树终止和外层超时后的精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均通过真实 NOP。固定 Fork 五类补丁判卷已通过，M0 编排已实现并验证长路径报告导入；下一步完成真实 Codex 的配置与资源/网络/凭据路径，实际串联证据以 M0 行动记录为准；通过前不搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。

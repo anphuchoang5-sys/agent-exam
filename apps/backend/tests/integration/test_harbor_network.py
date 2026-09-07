@@ -10,10 +10,11 @@ import pytest
 
 from eval_platform.adapters.execution.harbor.config_mapper import HARBOR_REVISION
 from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
+from eval_platform.adapters.execution.network import compose_profile, export_sidecar
 from eval_platform.adapters.tasks.swe_gym import CANDIDATE_IMAGE
+from eval_platform.application.ports.execution import RunLimits
 
 pytestmark = pytest.mark.integration
-SIDECAR = "harbor-docker-egress-control-sidecar"
 
 
 def test_fixed_harbor_network_policy_and_bypass_probes(tmp_path):
@@ -35,7 +36,7 @@ def test_fixed_harbor_network_policy_and_bypass_probes(tmp_path):
     (fixture_dir / "docker-compose.json").write_text(
         json.dumps(_definition(CANDIDATE_IMAGE)), encoding="utf-8"
     )
-    _sidecar_source(repo, root)
+    export_sidecar(repo / "framework/harbor", root / "sidecar-source", HARBOR_REVISION)
     allowed = {
         "PATH",
         "PATHEXT",
@@ -134,14 +135,9 @@ def _resources(project):
 
 
 def _definition(image):
-    common = {
-        "cap_drop": ["ALL"],
-        "security_opt": ["no-new-privileges:true"],
-        "pids_limit": 64,
-        "mem_limit": "128m",
-        "cpus": 0.5,
-    }
-    services = {"main": {**common, "image": image}, SIDECAR: dict(common)}
+    services = compose_profile(RunLimits(30, 1, 256, 1024))["services"]
+    services["main"]["image"] = image
+    common = services["main"]
     for name in ("allowed", "blocked"):
         services[name] = {
             **common,
@@ -168,29 +164,3 @@ def _definition(image):
             },
         }
     return {"services": services}
-
-
-def _sidecar_source(repo, root):
-    """Export exact Git blobs so Windows checkout CRLF cannot alter scripts."""
-    prefix = "src/harbor/environments/docker/" + SIDECAR
-    for name in (
-        "Dockerfile",
-        "entrypoint.sh",
-        "gost.yaml",
-        "allowlist.txt",
-        "bin/network-policy",
-    ):
-        data = subprocess.check_output(
-            [
-                "git",
-                "-C",
-                str(repo / "framework/harbor"),
-                "show",
-                f"{HARBOR_REVISION}:{prefix}/{name}",
-            ],
-            timeout=10,
-        )
-        destination = root / "sidecar-source" / name
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with destination.open("xb") as stream:
-            stream.write(data)

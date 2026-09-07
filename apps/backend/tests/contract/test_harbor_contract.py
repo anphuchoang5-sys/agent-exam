@@ -33,7 +33,10 @@ HARBOR_PYTHON = REPO_ROOT / "framework/harbor/.venv/Scripts/python.exe"
 
 
 @pytest.mark.contract
-def test_fixed_harbor_accepts_generated_job_and_public_task(tmp_path: Path) -> None:
+@pytest.mark.parametrize("hosts", [(), ("allowed.agentexam.test",)])
+def test_fixed_harbor_accepts_generated_job_and_public_task(
+    tmp_path: Path, hosts
+) -> None:
     if not PARQUET.is_file() or not HARBOR_PYTHON.is_file():
         pytest.skip("Fixed local data or Harbor environment is not restored")
     bundle = SWEGymTaskSource(PARQUET).load(CANDIDATE_INSTANCE_ID)
@@ -60,6 +63,7 @@ def test_fixed_harbor_accepts_generated_job_and_public_task(tmp_path: Path) -> N
         request,
         jobs_dir=tmp_path / "jobs",
         task_dirs={bundle.public.instance_id: task_dir},
+        network_hosts=hosts,
     )
     config_path = tmp_path / "job.json"
     config_path.write_text(json.dumps(plan.config), encoding="utf-8")
@@ -69,13 +73,20 @@ def test_fixed_harbor_accepts_generated_job_and_public_task(tmp_path: Path) -> N
         "from pathlib import Path;"
         "from harbor.models.job.config import JobConfig;"
         "from harbor.models.task.task import Task;"
+        "from harbor.trial.network_policy import resolve_agent_env_baseline,"
+        "resolve_agent_phase_policy,resolve_verifier_phase_policy;"
         "cfg=JobConfig.model_validate_json(Path(sys.argv[1]).read_text());"
         "task=Task(sys.argv[2],disable_verification=True);"
+        "baseline=resolve_agent_env_baseline(task.config,cfg.environment);"
+        "agent=resolve_agent_phase_policy(task.config,cfg.agents[0],baseline);"
+        "verifier=resolve_verifier_phase_policy(task.config,None,baseline=baseline);"
+        "assert agent==verifier==baseline;"
         "print(json.dumps({'attempts':cfg.n_attempts,"
         "'concurrency':cfg.n_concurrent_trials,'retry':cfg.retry.max_retries,"
         "'verifier_disabled':cfg.verifier.disable,"
         "'collect_hooks':len(task.config.verifier.collect),"
-        "'artifacts':len(task.config.artifacts)}))"
+        "'artifacts':len(task.config.artifacts),"
+        "'network':baseline.model_dump(mode='json')}))"
     )
     completed = subprocess.run(
         [str(HARBOR_PYTHON), "-c", probe, str(config_path), str(task_dir)],
@@ -93,4 +104,5 @@ def test_fixed_harbor_accepts_generated_job_and_public_task(tmp_path: Path) -> N
         "verifier_disabled": True,
         "collect_hooks": 1,
         "artifacts": 1,
+        "network": {"network_mode": "allowlist", "allowed_hosts": list(hosts)},
     }

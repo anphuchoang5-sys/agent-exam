@@ -8,6 +8,7 @@ from typing import Any
 
 import pyarrow.parquet as pq  # type: ignore[import-untyped]
 
+from eval_platform.adapters.execution.network import compose_profile
 from eval_platform.application.ports.execution import RunLimits
 from eval_platform.domain.task import EvaluationTask, EvaluatorTaskData, TaskBundle
 
@@ -133,6 +134,9 @@ def render_harbor_task(task: EvaluationTask, root: Path, limits: RunLimits) -> P
         encoding="utf-8",
         newline="\n",
     )
+    (environment_dir / "docker-compose.yaml").write_text(
+        json.dumps(compose_profile(limits), indent=2), encoding="utf-8", newline="\n"
+    )
     return task_dir
 
 
@@ -159,6 +163,8 @@ timeout_sec = 60.0
 timeout_sec = {float(limits.wall_timeout_sec)}
 
 [environment]
+network_mode = "allowlist"
+allowed_hosts = []
 build_timeout_sec = 1800.0
 cpus = {limits.cpus}
 memory_mb = {limits.memory_mb}

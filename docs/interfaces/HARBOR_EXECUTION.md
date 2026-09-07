@@ -219,7 +219,7 @@ P2 提交只创建 `PENDING_REVIEW` 记录，不会触发 Harbor、Docker build 
 
 ### 13.1 M0：本机 Codex 技术原型
 
-从固定 revision 的 `SWE-Gym/SWE-Gym-Lite` 先选择 1 道真实任务，必要时扩至 3 道，并使用 Harbor 内置 Codex Agent 验证。认证政策已确认为评测机所有者的 ChatGPT Pro `auth.json`；Codex CLI 项目固定版本、模型 ID、端点白名单、Token 刷新、脱敏和清理仍须在运行前固定或实测，当前不能写成容器内已可用。
+从固定 revision 的 `SWE-Gym/SWE-Gym-Lite` 先选择 1 道真实任务，必要时扩至 3 道，并使用 Harbor 内置 Codex Agent 验证。认证政策已确认为评测机所有者的 ChatGPT Pro `auth.json`，首轮 CLI 版本、模型与推理强度见 [依赖总表](../dependencies/DEPENDENCIES.md#2-当前依赖总表)，已确认而不再待选。固定制品和无凭据容器启动/Harbor 预装复用已验证（同表第 2.1 节），但不代表完整 Trial 可用；账号实际可用性、端点白名单、资源兼容、Token 刷新、脱敏和清理仍须在真实运行前核验。
 
 M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批；证据写入受控本机临时目录，标为技术原型，不进入正式排行。验收项：
 
@@ -243,7 +243,14 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 #### 无凭据网络探针（2026-09-07）
 
-固定 Harbor `DockerEnvironment` 的受控 HTTP/IPv4 探针已通过；这是测试专用配置，**不是生产 `HarborExecutionAdapter` 已接入网络策略，也不是完整闭卷验收**。通过 `AGENTEXAM_RUN_NETWORK_INTEGRATION=1` 显式运行 `tests/integration/test_harbor_network.py`；同目录 `network_probe.py` 在固定 Harbor 环境调用原生策略接口。测试用原始 Git blob 避免 Windows CRLF 破坏侧车脚本，固定输入见 [依赖第 6.3 节](../dependencies/DEPENDENCIES.md#63-网络探针的固定镜像与构建输入)。
+固定 Harbor `DockerEnvironment` 的受控 HTTP/IPv4 探针已通过；其安全模板及原始 Git blob 导出已接入生产 `HarborExecutionAdapter`，并经无模型 Trial、判卷串联和超时清理复测。**配置接线已验证，但完整闭卷隔离和真实 Codex 尚未验收。** 通过 `AGENTEXAM_RUN_NETWORK_INTEGRATION=1` 显式运行 `tests/integration/test_harbor_network.py`；同目录 `network_probe.py` 在固定 Harbor 环境调用原生策略接口。固定输入见 [依赖第 6.3 节](../dependencies/DEPENDENCIES.md#63-网络探针的固定镜像与构建输入)。
+
+接线位于既有 Execution Backend 内部，不新增业务 port：
+
+- `tasks/swe_gym.py` 输出显式空 `allowlist` Task 基线及受限 Compose；不继承上游默认 `public`。可信本机构造配置 `HarborExecutionAdapter.network_hosts` 只接受精确 DNS 名称元组，规范化后冻结到 Job 的 `environment.extra_allowed_hosts`；不接受 URL、IP、通配符或宿主别名，不开放给用户 Job 输入。这是语法与配置约束，不是 DNS 重绑定防护。
+- 固定 Harbor 的真实解析契约证明：该列表加入环境基线，setup、Agent 和 verifier 阶段继承同一基线。引导前重新检查 Task、阶段覆盖及完整 Compose，拒绝额外环境参数、挂载或网络配置覆盖。
+- `network.py` 的主容器模板去全部能力、禁止提权、清空大小写代理变量；CPU/内存来自既有 `RunLimits`，内存与含交换总限额相等。PID=64 沿用本次 M0 探针；侧车为 0.5 CPU / 128 MiB / PID=64。这些不是已验收的真实 Codex 资源模板。不设置显式网络，交由原生 Harbor 挂接侧车网络命名空间。
+- `harbor_entry.py` 使用固定 Harbor 环境的 Python 调用原 CLI；校验固定提交、跟踪文件工作树和实际导入来源，导出五个原始 blob 并保存哈希，不修改上游规则。只保留必需宿主环境变量，启用 `PYTHONSAFEPATH` 防止相邻同名 `harbor` 包遮蔽上游；真实 Agent 在加载上游/创建容器前被 `REAL_CODEX_NOT_READY` 拒绝，目前只允许测试 NOP。
 
 | 检查 | 实际行为 |
 |---|---|
@@ -254,9 +261,29 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 | no-network 阶段的两个受控 HTTP 目标 | 已解析 IP 后仍为 curl 52；仅证明这些 TCP 路径被阻断 |
 | 正常停止侧车后再访问两目标 | 已解析 IP 后均 curl 7；该停止场景没有恢复对目标的访问 |
 
-测试拒绝把 DNS 解析失败、命令不存在或其他任意非零退出算作可信阻断；无法建立 public 正对照也不能通过。容器实值还检查无宿主挂载、非 privileged、主容器去全部能力、禁止提权、正数 CPU/内存限额和 PID=64；原生侧车独立保留 NET_ADMIN/NET_RAW。全部本轮 Compose 资源精确清理，共享固定镜像/内容哈希缓存保留。逐项结果、失败修正和最终命令以 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-无凭据网络探针结果) 为准。
+测试拒绝把 DNS 解析失败、命令不存在或其他任意非零退出算作可信阻断；无法建立 public 正对照也不能通过。独立网络夹具还检查无宿主挂载、非 privileged、主容器去全部能力、禁止提权、正数 CPU/内存限额和 PID=64；原生侧车独立保留 NET_ADMIN/NET_RAW。生产模板本身不添加挂载，但真实 Harbor Trial 仍按上游默认挂载 verifier 日志、Agent 日志和 artifacts 三个宿主目录，不能把独立夹具的“无挂载”推广为生产 Trial 无挂载或凭据生命周期已通过。全部本轮 Compose 资源精确清理，共享固定镜像/内容哈希缓存保留。逐项结果及接线失败修正见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-网络配置接线与本地检查点)。
 
-未验收：真实模型端点及 TLS/SNI 路径、IPv6、DNS/ICMP 通道、已有长连接及突发故障/侧车重启、所有配置与生产 Trial 的接线。原生规则允许 DNS resolver 与 ICMP，不能把 Harbor `no-network` 名称理解为 `Docker --network none`。当前生产 Task 渲染也尚未输出本探针的 allowlist/去能力配置；继续禁止真实 Codex 入口。下一步优先在既有 Execution Adapter 内接入并补齐这些限制，若必须改变已确认边界或采用后备 Adapter，先按 ADR 取得确认。
+未验收：真实模型端点及证书校验、IPv6、已有长连接及突发故障/侧车重启、完整 Codex Trial 工具/资源兼容和凭据生命周期。无凭据安装已通过，见依赖第 2.1 节；受控 TLS/SNI 与已实测开放的 DNS/ICMP 边界见下节。仍未证明侧车到真实模型端点的 FlClash 出站路径，清空 Agent 代理变量不等于已解决侧车外网连通。继续禁止真实 Codex 入口；下一步在既有 Execution Adapter 内补齐这些限制，若必须改变已确认边界或采用后备 Adapter，先按 ADR 取得确认。
+
+#### 无凭据追加边界取证（2026-09-07）
+
+状态：受控 TLS 路由符合预期；DNS/ICMP 在受控测试网络内开放已复现，但公网可达性、外泄利用链及风险接受尚未确认。原先“必须先封死这两类协议”的结论超出实测与已确认闭卷政策，现予更正；风险分级和处置建议见 [风险评估](../research/2026-09-07-dns-icmp-risk-assessment.md)，不视为已经批准的策略变更。使用固定原生侧车与项目四容器夹具，在两个受控服务内临时生成自签证书；原 HTTP/代理对照复测，随后执行以下检查：
+
+| 检查 | 实际结果与限定结论 |
+|---|---|
+| TLS public 正对照 | 两目标分别返回自身标记 |
+| TLS allowlist | 允许目标返回标记，禁止目标为 curl 35 / TLS EOF；结合正对照判定此受控路径被阻断 |
+| 连接禁止目标 IP，但使用允许目标的 TLS 域名 | 返回允许目标标记，未取得禁止目标内容；不是所有域名伪装都会报错 |
+| ICMP ping socket | public 与 no-network 均从另一受控测试容器收到携带合成标记的 echo reply；主容器已 CapDrop=ALL 仍可用 SOCK_DGRAM/IPPROTO_ICMP |
+| DNS | public 解析对照别名成功；no-network 下另一个未先查询的受控别名也成功解析，证明该 resolver 通道仍开放 |
+
+原因与固定上游脚本一致：`bin/network-policy` 显式放行所配置 DNS resolver 和 ICMP，`deny-all` 实际只拒绝受控 TCP 出站；去 NET_RAW 不能阻止本机已允许的 ping socket。这证明原生 `no-network` 不等于 Docker `network none`，不是 FlClash 配置故障。闭卷要求保留模型必需网络并拒绝一般联网，不等于零网络报文；是否超出许可范围应按实际目的地与用途判断。当前既不能宣称完整闭卷/凭据验收通过，也不能把内部别名解析及容器间回显写成已证实公网外泄。
+
+证据为忽略目录 `runtime/prototype/m0-network-extra-20260907-03/` 的 `extra-summary.json`、`summary.json`、`containers.json` 与 `extra-cleanup.json`；诊断程序退出 0 表示取证完成，不表示网络安全通过。自签 TLS 使用测试专用 `curl -k`，不证明真实端点证书校验。探针是一次性诊断证据，尚未沉淀为常规自动回归；前两轮失败/无效对照见行动记录。全程无真实凭据/模型调用，专属容器、网络、卷、镜像复核无残留。
+
+#### 假凭据读取与日志能力（2026-09-07）
+
+用户已授权假值安全收尾和后续兼容接线。既有有界进程执行器支持内部 `redactions` 参数，委托 `execution/redaction.py` 处理已知完整值；新增 `codex_policy.py` / `codex_agent.py` 在现有 Adapter 内生成权限并窄继承固定 Codex。实际固定上游 run 的假 Environment 契约、生产生成 profile 的禁网容器对照已通过；兼容类尚未注册到生产 Job，真实凭据绑定和非 NOP 入口继续关闭。完整限制、未接线项与证据唯一维护在 [认证接口第 6.2 节](./CODEX_AUTHENTICATION.md#62-2026-09-07-假凭据安全收尾)，不能把方法契约或独立沙箱对照称为完整 Trial 安全通过。
 
 ### 13.2 M1：Codex 平台 MVP
 

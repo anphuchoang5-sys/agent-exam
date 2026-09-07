@@ -77,6 +77,7 @@ def test_rendered_harbor_task_contains_only_public_view(tmp_path: Path) -> None:
         "environment",
         "environment/Dockerfile",
         "environment/collect-patch.sh",
+        "environment/docker-compose.yaml",
         "instruction.md",
         "task.toml",
     ]

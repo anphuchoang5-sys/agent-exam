@@ -110,8 +110,12 @@ def _request(task: Any, limits: RunLimits) -> ExecutionJobRequest:
     )
 
 
-def _nop_job_plan(request: Any, *, jobs_dir: Path, task_dirs: Any) -> HarborJobPlan:
-    plan = build_job_plan(request, jobs_dir=jobs_dir, task_dirs=task_dirs)
+def _nop_job_plan(
+    request: Any, *, jobs_dir: Path, task_dirs: Any, network_hosts=()
+) -> HarborJobPlan:
+    plan = build_job_plan(
+        request, jobs_dir=jobs_dir, task_dirs=task_dirs, network_hosts=network_hosts
+    )
     config = {**plan.config, "agents": [{"name": "nop", "n_concurrent": 1}]}
     binding = HarborRunBinding(
         "m0-timeout-run",

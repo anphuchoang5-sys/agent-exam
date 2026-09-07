@@ -127,8 +127,10 @@ def test_nop_patch_reaches_real_fork_without_model(tmp_path: Path, monkeypatch):
         assert not probe.stdout.strip(), f"Residual {resource}: {project}"
 
 
-def _nop_plan(request, *, jobs_dir, task_dirs):
-    plan = build_job_plan(request, jobs_dir=jobs_dir, task_dirs=task_dirs)
+def _nop_plan(request, *, jobs_dir, task_dirs, network_hosts=()):
+    plan = build_job_plan(
+        request, jobs_dir=jobs_dir, task_dirs=task_dirs, network_hosts=network_hosts
+    )
     config = {**plan.config, "agents": [{"name": "nop", "n_concurrent": 1}]}
     binding = HarborRunBinding(
         request.runs[0].run_id,

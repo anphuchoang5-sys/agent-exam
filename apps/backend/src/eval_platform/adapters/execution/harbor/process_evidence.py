@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO
 
+from eval_platform.adapters.execution.redaction import Redactor
+
 _READ_CHUNK_BYTES = 64 * 1024
 
 
@@ -36,12 +38,14 @@ class LogCaptureSession:
         stderr: IO[bytes],
         root: Path,
         max_bytes: int,
+        *,
+        redactor: Redactor | None = None,
     ) -> LogCaptureSession:
         results: dict[str, CapturedLog | Exception] = {}
         paths = (root / "harbor.stdout.log", root / "harbor.stderr.log")
         threads = (
-            _capture_thread("stdout", stdout, paths[0], max_bytes, results),
-            _capture_thread("stderr", stderr, paths[1], max_bytes, results),
+            _capture_thread("stdout", stdout, paths[0], max_bytes, results, redactor),
+            _capture_thread("stderr", stderr, paths[1], max_bytes, results, redactor),
         )
         return cls(threads, results, paths, max_bytes)
 
@@ -84,8 +88,10 @@ class LogCaptureSession:
         )
 
 
-def write_log(path: Path, content: bytes, max_bytes: int) -> CapturedLog:
-    return _write_chunks(path, (content,), max_bytes)
+def write_log(
+    path: Path, content: bytes, max_bytes: int, *, redactor: Redactor | None = None
+) -> CapturedLog:
+    return _write_chunks(path, (content,), max_bytes, redactor)
 
 
 def _capture_thread(
@@ -94,11 +100,12 @@ def _capture_thread(
     path: Path,
     max_bytes: int,
     results: dict[str, CapturedLog | Exception],
+    redactor: Redactor | None,
 ) -> threading.Thread:
     def capture() -> None:
         try:
             chunks = iter(lambda: source.read(_READ_CHUNK_BYTES), b"")
-            results[name] = _write_chunks(path, chunks, max_bytes)
+            results[name] = _write_chunks(path, chunks, max_bytes, redactor)
         except Exception as error:  # pragma: no cover - defensive I/O boundary
             results[name] = error
 
@@ -109,9 +116,13 @@ def _capture_thread(
     return thread
 
 
-def _write_chunks(path: Path, chunks: Iterable[bytes], max_bytes: int) -> CapturedLog:
+def _write_chunks(
+    path: Path, chunks: Iterable[bytes], max_bytes: int, redactor: Redactor | None
+) -> CapturedLog:
     saved = 0
     truncated = False
+    if redactor is not None:
+        chunks = redactor.filter(chunks)
     with path.open("xb") as output:
         for chunk in chunks:
             remaining = max_bytes - saved

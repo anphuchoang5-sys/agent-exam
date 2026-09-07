@@ -196,7 +196,7 @@ flowchart LR
 
 M0 当前实现注记：`ExecutionJobRequest`/`ExecutionTrialResult`、Harbor 配置与严格运行身份映射、patch 制品校验已存在；真实 NOP Docker Trial 已证明空 patch、缺失轨迹警告、原始结果引用和正常清理，固定摘要、禁网容器又证明修改、新建、删除和 Agent commit 四类非空 patch 能被生产 hook 与校验器完整处理。`HarborExecutionAdapter.execute()` 已实现；生产有界执行器落实 stdout/stderr 每路 50 MiB 上限、显式截断 manifest、日志线程总收束期限、Windows 进程树/POSIX 进程组终止，并接真实 Harbor NOP 验证。阻塞 collect 探针还证明外层强杀确会留下 Compose 资源；Adapter 现只依据本 Job 落盘 Trial 身份清理并复核精确 project label，真实超时回归通过。固定 Fork 五类独立判卷已通过，见第 6.10 节；真实 Codex 与生成阶段网络/凭据仍未完成。
 
-Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
+Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；生产网络配置已在既有 Backend 内接线，无模型验证及未验收边界统一见其[网络探针小节](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)，不增加公开请求字段或新 port。自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
 
 ### 6.9 Agent Source Review（P2，MVP 不实现）
 

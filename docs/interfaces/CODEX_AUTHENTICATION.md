@@ -29,7 +29,7 @@ OpenAI 官方文档区分两类本地认证：使用 ChatGPT 登录以使用订�
 
 固定版本 Harbor 的 Codex Adapter 支持通过 `CODEX_AUTH_JSON_PATH` 指定本机 `auth.json`，并在运行时把文件上传到 Trial 容器：
 
-- <https://github.com/harbor-framework/harbor/blob/6af8d6e31eced13b93849cdf80feeadf24603d15/src/harbor/agents/installed/codex.py#L1198-L1286>
+- <https://github.com/harbor-framework/harbor/blob/6af8d6e31eced13b93849cdf80feeadf24603d15/src/harbor/agents/installed/codex.py#L1380-L1391>
 
 这只能证明 Harbor 技术上支持该接入方式，不代表可以共享个人 ChatGPT 账号凭据。
 
@@ -96,6 +96,46 @@ DeepSeek/Kimi 真实 Key 只由评测机所有者在本机可信秘密配置中�
 - 未通过凭据泄露检查前，不允许批量运行，也不允许对不可信用户开放。
 
 ## 6. 尚待实测，不伪装成已确认
+
+### 6.1 2026-09-07 风险评估发现
+
+- **固定源码事实**：上述 `run()` 把登录文件上传到 `/tmp/codex-secrets/auth.json`，在指定 Agent 用户时改为该用户所有，并从 `$CODEX_HOME/auth.json` 链接过去；随后用 `--dangerously-bypass-approvals-and-sandbox` 运行 Codex。目录命名和容器外层隔离不能证明同一用户的仓库进程读不到文件。是否采用额外读取隔离仍是实现/验收问题，不因此更改已确认认证方式。
+- **方法级合成验证**：固定 Harbor `Trial._scrub_jobs_dir()` 只搜集敏感环境变量的值做文本替换；已验证它可以抹除合成环境变量值和合成文件路径，但不会自动解析该文件内的假 Token。项目 `process_evidence.write_log()` 同样原样保存假 Token。完整证据、来源与优先级见 [风险评估](../research/2026-09-07-dns-icmp-risk-assessment.md)；这不是实际登录信息泄露，也没有执行完整 Trial。
+- **待验收边界**：成功/失败/超时清理、文件内 Token（含刷新后的值）、日志/轨迹/patch 和可写挂载中的秘密覆盖都尚未通过。网络封禁不能代替这些检查；仅排除名为 `auth.json` 的文件也不能证明内容未被复制进其他输出。当前真实入口继续关闭，本次评估没有授权读取真实凭据或接受剩余风险。
+
+### 6.2 2026-09-07 假凭据安全收尾
+
+状态：用户已授权假值检查及现有适配层内的小修；日志能力已增强、独立沙箱读取限制有正反对照、专属容器清理已验证。**完整 Harbor Trial 凭据安全未通过**，不包含真实认证或网络剩余风险豁免。
+
+| 项目 | 本轮证据 | 能证明 / 不能证明 |
+|---|---|---|
+| 凭据读取正对照 | 固定任务镜像，UID 65534，同用户创建的假 `auth.json` 为 0600；直接路径和 `$CODEX_HOME/auth.json` 链接均可读 | 仅靠同用户权限及目录名不足以隔离读取；没有真实凭据 |
+| Codex 沙箱拒绝读取 | 固定 CLI `0.153.0` 的 `codex sandbox -- <command>` 配合权限 profile：根目录只读、题目目录可写、两个假凭据目录 deny；题目读写正常，两条凭据路径均不可读 | 独立 Linux 沙箱命令对照通过；没有增加 capability 或关闭 seccomp，也不是完整 Codex 模型会话/Harbor Trial |
+| 已知值日志脱敏 | `run_bounded_process(..., redactions=(...))` 将仅驻内存的值交给内部 `Redactor`，双流在落盘前替换；启动异常返回值也处理 | 已传入的完整值跨分块、超时/失败和日志上限测试通过；不会自动发现认证文件内/刷新后的 Token，不抵御任意编码 |
+| 正常/报错/超时清理 | 三个独立禁网假凭据容器，分别返回 0/7/124；测试 finally 显式调用生产精确 Compose 清理 helper，标签资源复核为空 | 证明该 helper 能移除这三种测试容器及其可写层；不证明完整 Harbor 的每条退出路径均已接线、挂载目录无残留 |
+
+首次沙箱调用误用了旧式 `codex sandbox linux ...`：退出 101，未执行读取程序，不能算拒绝读取通过。读取本包帮助后改为上述实际命令，复测退出 0，包含题目读写正对照及两条 `credential-denied`。CLI 还提示临时目录下不能创建 PATH aliases；直接调用沙箱成功不能代替后续完整工具链兼容性验证。
+
+复现证据为忽略目录 `runtime/prototype/credential-boundary-20260907-01/`（三种结束路径及首次命令失败）和 `...-02/`（命令纠正后读取对照）；专用脚本为同级 `credential-boundary-probe.py` / `credential-fixture.py`。全部使用现有缓存镜像、`--pull=never --network none`、无挂载、去全部 capability、禁止提权和资源限额；本轮未改上游、代理或网络放行规则。
+
+上述日志小修的准确测试数量和命令见 [行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-假凭据检查与日志小修)。它只处理传入的已知完整值；当前 NOP Adapter 仍不提供真实秘密列表，不能说所有 Trial 已自动脱敏。
+
+#### 下一阶段：固定 Harbor 启动兼容（同日）
+
+用户要求解释日志实现并继续后，新增了现有 Execution Adapter 内部的 `codex_policy.py` 和 `codex_agent.py`，**仍是待完整集成的兼容实现，不是已开放的 Agent**：
+
+- `permission_config()` 生成固定本地权限：题目目录和临时目录可写，凭据目录、CODEX_HOME、日志和 `/proc` 禁止访问；禁止仓库命令联网，关闭审批升级和 Web 搜索。它不是模型进程的端点控制，不能代替已有容器网络策略。官方 [权限说明](https://learn.chatgpt.com/docs/permissions) 提醒旧 sandbox 配置/参数会覆盖 profile，因此兼容层不混用这两套配置。
+- `guarded_codex_class()` 窄继承固定上游 Codex，复用原 `run()`，仅接受已核对的启动/辅助命令。它移除启动处的 bypass 与 nvm shell 初始化，保留模型/effort/Web 关闭配置和原始指令正文；命令结构不匹配时在执行前拒绝，不做全文字符串替换。部署时仍须提供已验证的预装 CLI PATH。
+- 兼容类要求显式非 root 数值 UID，不读取宿主环境中的 API Key、强制登录或 Base URL；真实凭据解析刻意返回 `CODEX_CREDENTIAL_BINDING_NOT_READY`。测试子类只返回自行生成的假文件。**未修改上游源码、未注册到生产 AgentFactory，`harbor_entry` 仍拒绝非 NOP。**
+- 外层 finally 覆盖上游配置上传之前/期间的失败，以及运行失败和取消；清理失败不再被该外层吞掉。固定 Harbor 方法契约使用不执行命令的 RecordingEnvironment，验证正常、配置上传失败、运行失败、注入取消、清理失败五种路径；这是方法调用/清理尝试证据，不是完整 Trial 资源销毁证明，也不是墙钟超时实测。
+
+独立 Docker 对照发现固定 CLI 在不存在的题目 `.codex` 拒绝访问路径上启动失败。仅移除 `/proc` 拒绝或 `/tmp` 可写均未解决；预建空 `.codex` 目录后保持全部限制即可运行。兼容层因此增加目录准备并拒绝工作目录/`.codex` 是符号链接；没有放宽 deny、增加 capability 或修改 seccomp。复测使用生产生成的同一 profile 和准备命令：题目读写通过、两条假凭据读取拒绝、凭据目录写入拒绝、安全配置改写拒绝。PATH aliases 的临时目录警告仍存在，不代表完整工具链可用。
+
+证据保存于 `runtime/prototype/codex-guard-20260907-01/`（失败）、`...-02/`（单变量定位）、`...-03/`（修复后完整对照）；三轮专属容器均清理且复核无残留。准确命令与检查结果见 [兼容接线行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-固定-harbor-启动兼容接线)。
+
+**剩余接线明确保留**：生产 Job 引导尚未使用该兼容类，真实凭据绑定仍关闭；固定任务的非 root 用户、目录权限和预装 PATH 尚未通过完整 Trial 验证。Harbor 自己写的 session/trajectory、挂载目录和 patch 内容拒绝/脱敏、刷新值登记、外层进程超时/崩溃及完整生命周期仍待实现和验证；不得用字符串替换静默修改待判卷 patch。当前产物不是完整 Harbor 安全验收，不授权真实凭据或模型调用。
+
+### 6.3 其他尚待实测项
 
 - 当前 Codex CLI 与固定 Harbor Adapter 组合能否稳定刷新 ChatGPT 登录 Token。
 - Trial 结束后容器和凭据副本是否在所有成功、失败、超时路径上删除。

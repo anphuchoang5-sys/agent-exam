@@ -2,7 +2,7 @@
 
 > 文档状态：持续维护；固定 Fork 的 Linux 依赖锁、CLI 和五类真实补丁判卷已验证；真实 Codex 与完整 M0 仍待验证
 >
-> 最后更新：2026-09-07；网络镜像核验：2026-09-07；CLI 最后核验：2026-09-06
+> 最后更新：2026-09-07；网络镜像核验：2026-09-07；CLI 最后核验：2026-09-07
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
 
 ## 1. 文档边界
@@ -34,7 +34,7 @@
 | Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | Harbor NOP/超时与固定 Fork 五类真实补丁集成已验证；环境细节见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
 | PostgreSQL | 结构化业务数据存储与 MVP 平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；M0 本机脚本原型不依赖；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
-| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 待确认 | 否 | 已确认首个原型使用 Harbor 内置 Codex Adapter，认证政策为评测机所有者的 ChatGPT Pro `auth.json`（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；2026-09-06 宿主动态探针为 `codex-cli 0.153.0`，但项目固定版本、容器模型、端点和运行兼容性仍待确认或实测 |
+| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 首轮 `0.153.0`，用户于 2026-09-07 确认 | 否 | 使用 Harbor 内置 Codex Adapter，认证沿用评测机所有者的 ChatGPT Pro（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；固定包校验、禁网容器启动和 Harbor 预装复用已通过，见第 2.1 节；完整 Trial、网络和凭据仍待验收 |
 | Aider CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | Claude Code CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | 本地自研 Agent | P2 扩展 Agent | 待实现 | 是，由提交者固定 Git commit 提交，审核后登记 | 只保留扩展接缝；P2 首版只支持 Python 和固定进程 Interface，完整 manifest、Python 版本、依赖锁格式与 Harbor 包装不阻塞 MVP |
@@ -43,6 +43,26 @@
 “待确认”不等于推荐使用最新版；在版本被确认并写入本文件前，不得把本机偶然安装的版本当成团队基线。
 
 依赖恢复与验证必须服从顺序：M0 只恢复 Harbor、SWE-Gym Lite 单题所需数据/镜像、SWE-Bench-Fork 和 Codex；M1 再加入 Web、PostgreSQL、MinIO；M1 通过后才处理 Aider/Claude Code；自研 Agent 与 DeepSeek/Kimi 为 P2。不得因为 P2 依赖未定而推迟 Codex 闭环。
+
+Codex 的版本选择已完成，不再根据宿主升级或 `latest` 自动变化。[官方安装文档](https://learn.chatgpt.com/docs/cli) 提供独立安装器和 npm `@openai/codex`；本项目采用该包发布的 Linux 平台制品完成无凭据离线安装探针，身份见第 2.1 节。Harbor 复用同版本预装 CLI 的条件见 [框架接口第 7 节](../interfaces/FRAMEWORK_INTERFACES.md#7-codex-cli-adapter)。
+
+2026-09-07 用户确认首轮模型 ID 为 `gpt-5.6-terra`，随后确认 reasoning effort（推理强度）为 `medium`；提供方仍为 OpenAI，认证仍用既定 ChatGPT 登录政策。首轮 CLI、模型与推理强度选择已完成，实际配置沿用现有 `critical_config.reasoning_effort` 显式传入。该选择不等于已经证明本账号或固定容器 CLI 能实际调用；不自动换模型或强度，不把测试占位符当真实配置，也不因本次确认打开尚未验收的真实入口。
+
+### 2.1 Codex 无凭据安装制品
+
+2026-09-07 已从官方 npm registry 的主包元数据核对 Linux x64 optional dependency，并下载对应平台包。仅核验 registry 公布的完整性值与实际包字节，未验证签名/来源证明链，不将校验和称为完整供应链审计。
+
+| 输入 | 固定值或事实 |
+|---|---|
+| 平台包 | `@openai/codex@0.153.0-linux-x64`；目标 `x86_64-unknown-linux-musl` |
+| 下载地址 | `https://registry.npmjs.org/@openai/codex/-/codex-0.153.0-linux-x64.tgz` |
+| 大小 | `129210185` bytes |
+| SHA-512 | `b0517e83ba75a3ab1954be8f1ddf494d8acfda3df16a8dd07aee409e072b0f96eb5ab09cfb0f627c124226e45233bdbc59f8235cc2fd3d03dd1cf69949e1c010` |
+| 包布局 | 8 个普通文件；包含 Codex、code-mode host、rg、bwrap、zsh 和平台布局元数据 |
+| 本机证据 | 忽略目录 `runtime/prototype/m0-codex-install-20260907-01/`；归档保留，解包逐文件 SHA-256 写入 `installation-input.json` |
+| 实现 | [`codex_install.py`](../../apps/backend/src/eval_platform/adapters/execution/codex_install.py)；先核验大小/整包 hash/严格成员列表/平台身份，再创建独占解包目录；不执行 npm 脚本或下载最新版 |
+
+使用既有固定任务摘要镜像创建临时禁网容器，离线复制已校验工具包；以非 root 用户执行版本/帮助，通过固定 Harbor 真实 `Codex.install()` 的版本检查复用已安装工具。未重建基础镜像、未安装 Node/npm 或升级宿主，未运行认证 setup 或模型。该探针不证明完整 Trial 工具/资源兼容、账号可用性或生产凭据接线；真实入口仍关闭。命令与结果见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
 
 ## 3. 第三方框架源码策略
 
@@ -171,7 +191,7 @@ Windows：uv pip install --target framework/swe-bench-fork/.venv/lib/python3.12/
 | Alpine | `alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11` | Harbor 原生内核探针；该镜像没有 httpd applet，不作测试 HTTP 服务 |
 | GOST | `gogost/gost:3.2.7-nightly.20260602@sha256:afc0137758ab4ce399d47a299f9abbacbf522b52a17e59cbb4b4e7a1a66e9196` | 原生透明网络侧车的基础镜像；版本来自固定源码，不是选择 nightly 最新值 |
 
-侧车由固定提交的 `src/harbor/environments/docker/harbor-docker-egress-control-sidecar/` 五个文件构建，复用 Harbor 原生内容哈希命名及构建缓存。Windows 检出中的 CRLF 会使脚本解释器无效；测试使用 `git show <固定提交>:<路径>` 导出原始 blob 到独立证据目录，并仅在测试进程替换构建上下文路径，规则/源码行为不变。没有修改上游工作树或全局 Git 配置；该兼容处理尚未接入生产 Adapter。允许/禁止 HTTP 对照服务复用第 4.2 节任务摘要镜像中的 Python 标准库，无额外 Python 依赖。探针结果和安全范围见 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#131-m0本机-codex-技术原型)。
+侧车由固定提交的 `src/harbor/environments/docker/harbor-docker-egress-control-sidecar/` 五个文件构建，复用 Harbor 原生内容哈希命名及构建缓存。Windows 检出中的 CRLF 会使脚本解释器无效；既有 Execution Backend 内部 `network.py` 使用 `git show <固定提交>:<路径>` 导出原始 blob 到独立证据目录，保存固定 revision 和五项 SHA-256，拒绝覆盖或非固定/跟踪文件有修改的上游工作树。生产 `harbor_entry.py` 与网络测试共用该导出，只在各自进程替换构建上下文路径，规则/源码行为不变。没有修改上游工作树或全局 Git 配置；接线后的无模型实测已通过。允许/禁止 HTTP 对照服务复用第 4.2 节任务摘要镜像中的 Python 标准库，无额外 Python 依赖。探针结果和安全范围见 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。
 
 ## 7. 恢复固定源码
 
@@ -225,7 +245,7 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 2. M0 已采用并拉取候选预构建实例镜像；其固定 digest 和 `/testbed` base commit 已核验，Harbor/Codex/Harness 兼容性仍待实测；
 3. Python、FastAPI、Node.js、Next.js 15、React 19、Docker/Compose、PostgreSQL、MinIO 的精确版本和部署形态；
 4. SWE-Bench-Fork 已有 Linux Python 3.12 哈希锁与单题实测；新增题目/升级依赖时重新验证，不默认把当前单题扩展成全题库通过；
-5. Codex、Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式；Codex 认证政策已经确认，不再作为待选择项，但项目固定版本、模型 ID、端点和容器兼容性仍待固定或实测；
+5. Codex 首轮 CLI 版本、模型 ID、推理强度与认证政策已确认；制品身份及无凭据容器安装见第 2.1 节，账号实际可用性、端点、完整 Trial 兼容性和凭据接线仍待核验。Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式仍待确认；
 6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；
 7. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
 8. Harbor Job/Trial 目录、空 patch collect 和结果映射已由 NOP 固定；修改/新建/删除/Agent commit 四类非空 patch 已由固定摘要、禁网容器验证；CLI 进程 Adapter 的正常 NOP、外层超时精确 Compose 清理和日志有界收束均已验证，仍待真实 Codex 与完整原型验收；
@@ -244,5 +264,5 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 | SWE-Bench-Fork 安装入口 | `setup.py` / `pyproject.toml` 存在；Python `>=3.8`，依赖未锁版本 |
 | 数据集来源 | 固定 Lite revision、`train` split、230 条记录、候选单题和 Parquet 内容哈希已核验 |
 | 镜像来源 | 候选 Docker Hub 镜像的 linux/amd64 digest、拉取结果与 `/testbed` base commit 已核验 |
-| Codex 宿主 CLI 探针 | 2026-09-06 `codex --version` 返回 `codex-cli 0.153.0`；它仍不是项目固定版本，容器运行未验证 |
+| Codex 宿主 CLI 探针 | 2026-09-07 `codex --version` 返回值与第 2 节已确认首轮版本一致；容器运行未验证 |
 | 动态验证 | Harbor NOP/超时、collect-patch 四场景及固定 Fork 五类真实判卷通过；Codex Trial 仍未执行 |

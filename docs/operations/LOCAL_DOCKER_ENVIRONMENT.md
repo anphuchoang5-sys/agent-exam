@@ -60,7 +60,7 @@ memory=10GB
 - 用户级 Docker CLI 配置只新增 `proxies.default`，HTTP 与 HTTPS 均指向 `http://http.docker.internal:3128`；原有 `auths`、`credsStore`、context、feature 和 plugin 字段保留。
 - `NO_PROXY` 当前覆盖 loopback、Docker 的宿主/内部代理名称、`.local` 和 RFC1918 私网。它是应用兼容配置，不是安全边界；不同客户端对 CIDR 的支持并不完全一致。
 - FlClash 仍为 `mixed-port: 7890`、`allow-lan: false`、`tun.enable: false`，宿主监听仍是 `127.0.0.1:7890`。本次没有修改 FlClash 配置，也没有创建 7890 防火墙规则。
-- Harbor 是动态创建 Trial 的执行后端，不能假设它读取宿主 Docker CLI 配置。正式 `HarborExecutionAdapter` 仍须从本机受控配置把代理变量映射到已登记 Codex `AgentConfig.env`；公开 Job 不得提供任意代理值。
+- Harbor 动态创建 Trial，不能假设它读取宿主 Docker CLI 代理配置。2026-09-07 的执行模板已清空 Agent 主容器代理变量，由固定 Harbor 侧车约束出站；不再沿用早期“向 AgentConfig.env 直接注入通用代理”的建议。侧车自身如何经 FlClash 到真实端点仍待验收，唯一网络边界见 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)；公开 Job 不得提供代理值。
 
 ### 3.3 固定 Fork 验证环境
 
@@ -84,9 +84,25 @@ memory=10GB
 
 ### 3.5 无凭据网络探针
 
-2026-09-07 在当前 Docker/WSL 上运行固定 Harbor 原生网络侧车和两个受控 HTTP 服务；已解析 IPv4 的允许/禁止对照、两条宿主代理 CONNECT、去能力、策略切换及正常停止侧车场景通过。具体行为、未覆盖协议和生产未接线边界唯一维护在 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)，实际命令/失败/证据见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-无凭据网络探针结果)。没有读取凭据、调用模型、重启 Docker/WSL 或修改代理/防火墙。
+2026-09-07 在当前 Docker/WSL 上运行固定 Harbor 原生网络侧车和两个受控 HTTP 服务；已解析 IPv4 的允许/禁止对照、两条宿主代理 CONNECT、去能力、策略切换及正常停止侧车场景通过。其后完成生产配置接线，重新通过上述网络对照及无模型 Trial/判卷/超时回归。具体行为与未覆盖边界唯一维护在 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)，实际命令/失败/证据见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-网络配置接线与本地检查点)。没有读取凭据、调用模型、重启 Docker/WSL 或修改代理/防火墙。
 
 本次按固定摘要新增 Alpine/GOST 两个上游镜像，并保留原生哈希命名的两个侧车构建缓存（首轮 CRLF 检出构建和后续原始 Git blob 构建）；输入身份见 [依赖第 6.3 节](../dependencies/DEPENDENCIES.md#63-网络探针的固定镜像与构建输入)。测试资源精确清理，容器/网络/卷/唯一镜像数为 `18/5/15/25`，仍有 13 个原有容器运行；镜像比之前多 4 个是本次明确保留的缓存，不是残留 Trial 容器或卷。未删除其他应用资源，未对其他应用做业务验收。
+
+生产接线后的三轮无凭据实测结束，再次只读核对 Engine `27.5.1`，上述计数仍为 `18/5/15/25`、运行容器仍为 13；本次接线复用已有镜像缓存。正常/超时 Trial 与网络夹具的专属资源清理断言通过；没有执行全局 prune 或删除共享镜像。
+
+### 3.6 项目运行状态只读核对
+
+2026-09-07 12:33（UTC+8）用户询问 Dify 容器是否为 AgentExam。只读查询 `desktop-linux`：Docker 共 18 个容器、0 个运行、25 个镜像；`docker ps` 为空，名称含 `agentexam` 的容器查询为空。`docker compose ls --all --format json` 显示另一套 `dify` 项目，状态为 `exited(14)`，配置文件在 `D:\rag\dify\docker-compose.yaml`，不是本项目。Windows 进程查询也未发现命令行匹配项目路径或已知评测入口的 Python/Node/Harbor/Uvicorn 进程；未检查 WSL 内所有进程，不将这一检查称为全系统审计。
+
+查询时本项目未在跑评测，也未启动 M1 网页平台。第 3.5 节的 13 个运行容器是之前测试结束时的历史快照，不代表本次查询状态。本次没有执行启动、停止、删除、重启或代理变更。用户随后明确说明 Dify 是其为释放运行内存主动关闭；这是用户补充的原因，不是从容器退出码推断出的故障诊断。本轮文档同步没有重新查询容器状态。
+
+### 3.7 无凭据 Codex 安装探针
+
+2026-09-07 使用依赖总表第 2.1 节所列固定 Codex 包，在既有任务摘要镜像的临时容器内离线安装工具。探针仅执行版本/帮助和 Harbor 版本复用检查；运行命令使用 UID 65534、空白受控环境、禁网、无宿主挂载、去全部能力、禁止提权、1 CPU / 1 GiB / PID=64。这是安装探针额度，不是已验收的真实 Trial 资源模板。
+
+前后 Docker 均为 18 个容器、0 个运行、25 个镜像；专属标签容器已删除并复查为空，原镜像和其他应用容器未改。保留约 129 MB 的下载归档及约 335 MB 的解包证据，未产生新 Docker 镜像；E 盘可用空间从约 19.12 GB 到约 18.66 GB。没有重启 Docker/WSL、修改代理或启动 Dify。入口和边界见 [依赖第 2.1 节](../dependencies/DEPENDENCIES.md#21-codex-无凭据安装制品)。
+
+网络追加取证结束后再次核对仍为 18 个容器、0 个运行、25 个镜像；安装专属标签和最后一轮网络 Compose project 的容器/网络/卷/镜像查询均为空，E 盘可用 `18656620544` bytes。网络结果见 [追加边界取证](../interfaces/HARBOR_EXECUTION.md#无凭据追加边界取证2026-09-07)：清理成功不代表隔离通过，DNS/ICMP 缺口仍需修复。
 
 ## 4. 迁移和回退纪律
 

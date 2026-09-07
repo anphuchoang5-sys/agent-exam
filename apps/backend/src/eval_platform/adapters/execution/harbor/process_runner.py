@@ -15,6 +15,7 @@ from eval_platform.adapters.execution.harbor.process_evidence import (
     LogCaptureSession,
     write_log,
 )
+from eval_platform.adapters.execution.redaction import Redactor
 
 _CLEANUP_TIMEOUT_SEC = 5
 _LOG_CAPTURE_TIMEOUT_SEC = 5
@@ -39,9 +40,11 @@ def run_bounded_process(
     timeout_sec: int | float,
     evidence_root: Path,
     max_log_bytes: int = RAW_ARTIFACT_MAX_BYTES,
+    redactions: tuple[bytes, ...] = (),
 ) -> ProcessOutcome:
     if timeout_sec <= 0 or max_log_bytes < 0:
         raise ValueError("Process limits must be valid")
+    redactor = Redactor(redactions)
     stdout_path = evidence_root / "harbor.stdout.log"
     stderr_path = evidence_root / "harbor.stderr.log"
     try:
@@ -49,18 +52,25 @@ def run_bounded_process(
     except OSError as error:
         stdout = write_log(stdout_path, b"", max_log_bytes)
         message = f"{type(error).__name__}: {error}".encode("utf-8", errors="replace")
-        stderr = write_log(stderr_path, message, max_log_bytes)
+        stderr = write_log(stderr_path, message, max_log_bytes, redactor=redactor)
+        safe_error = error
+        if redactions:
+            safe_error = type(error)(
+                b"".join(
+                    redactor.filter((str(error).encode("utf-8", "replace"),))
+                ).decode("utf-8", "replace")
+            )
         start_warnings = ["HARBOR_PROCESS_START_FAILED"]
         _add_truncation_warnings(start_warnings, stdout, stderr)
         outcome = ProcessOutcome(
-            -1, False, stdout, stderr, tuple(start_warnings), error
+            -1, False, stdout, stderr, tuple(start_warnings), safe_error
         )
         _write_manifest(evidence_root, outcome, max_log_bytes)
         return outcome
 
     assert process.stdout is not None and process.stderr is not None
     capture = LogCaptureSession.start(
-        process.stdout, process.stderr, evidence_root, max_log_bytes
+        process.stdout, process.stderr, evidence_root, max_log_bytes, redactor=redactor
     )
     warnings: list[str] = []
     timed_out = False
