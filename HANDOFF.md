@@ -1,6 +1,6 @@
 # AgentExam 架构讨论 Handoff
 
-> 交接时间：2026-09-06
+> 交接时间：2026-09-07
 >
 > 当前阶段：长期目标进行中。Harbor 无模型执行/补丁/超时清理及固定 Fork 五类真实补丁判卷已验证；M0 脚本已接既有 ports，真实 Codex 的版本/网络/凭据门槛尚未完成
 >
@@ -27,9 +27,9 @@ E:\9.1实训  →  E:\9.1agent_exam
 ## 2. 恢复任务时先做什么
 
 1. 确认工作区是 `E:\9.1agent_exam`，不要再使用旧路径。
-2. 运行 `git status --short --branch` 和 `git log -3 --oneline`；最新已提交点为 `74f7149 fix: clean up timed-out Harbor trials`，`main` 相对已知 `origin/main=42484d8` 为 ahead 8 / behind 0。其后的 Fork、编排及文档修改尚未提交，必须保留；不得 reset/checkout/clean，不自行 push。以实际 Git 状态为准。
+2. 运行 `git status --short --branch` 和 `git log -3 --oneline`；按用户要求先创建检查点 `f0a1a4a feat: add verified Fork evaluator and M0 pipeline`，相对已知 `origin/main=42484d8` 为 ahead 9 / behind 0。提交后干净，其后新增网络预检及同步文档尚未提交，必须保留；不得 reset/checkout/clean，不自行 push。以实际 Git 状态为准。
 3. 按下面的层级阅读，不要只看总架构就开始修改。
-4. Harbor、固定 Fork 的五类补丁判卷和编排契约已有证据。下一步核对行动记录的真实串联结果，再补 Codex 版本/模型选择及容器网络、凭据安全门槛；不重写已有模块。
+4. Harbor、固定 Fork 五类补丁判卷及无模型串联已有证据；WSL 更新/内核预检已完成，不重复安装或重启。2026-09-07 的受控 HTTP/IPv4 无凭据网络探针也已通过；先读 [网络验收边界](docs/interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07) 和行动记录末节，再接生产配置及剩余隔离路径。当前仍未打开真实 Codex 入口。
 5. 当前遗留项是技术核验，不得把已经确认的业务规则重新列成待决定；若实现发现必须新增顶层 Module、Interface、数据库表或目录，先说明现有职责为何不能承载并取得确认。
 
 ### 2.1 第一批：开始任何修改前必须完整阅读
@@ -197,7 +197,7 @@ M0 通过后，M1 的平台主流程才是：
 - 旧工作区 `E:\9.1实训` 已不存在。
 - Git 分支：`main`。
 - 本轮原始基线：本地 `main` 与 `origin/main` 均为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`（`docs: finalize evaluation MVP architecture`）。第一次交接创建了本地提交 `0caedda`；恢复时再次 `git fetch origin --prune`，本地/远端领先落后为 `1/0` 且工作区干净。
-- 之前八次本地提交止于 `74f7149`，均未 push；具体提交序列以 `git log origin/main..HEAD --oneline` 为准。额度中断后的 Fork、M0 编排和文档同步仍是未提交工作区改动。
+- 最新检查点及未提交范围以第 7 节为准；具体提交序列用 `git log origin/main..HEAD --oneline` 核验。Fork/M0 编排已经进入检查点，不再列为待提交。
 - 远程仓库：`https://github.com/anphuchoang5-sys/agent-exam.git`。
 - 工作区迁移后默认沙箱曾短暂通过，但本窗口在英文路径连续重现 `setup refresh had errors`；路径迁移不能视为根治，详见路径迁移行动记录的后续复核。
 - 本轮 `codex --version` 返回 `codex-cli 0.153.0`；这只证明当前宿主 CLI 能启动，不代表 Harbor 容器认证、模型或 E2E 已通过。旧文档中的 `0.142.0` 是 2026-09-04 当时的动态探针。
@@ -209,7 +209,7 @@ M0 通过后，M1 的平台主流程才是：
 - 固定 Harbor NOP Docker Trial 已真实通过：原始链路证据 `runtime/prototype/m0-harbor-nop-20260906-04` 为 `1 passed in 18.40s`；正式 mapper 接入后的证据 `runtime/prototype/m0-harbor-nop-20260906-05` 为 `1 passed in 20.56s`。后者把真实 Job/Trial 严格映射为 `COMPLETED` 与可信 0-byte patch。两者都只是无模型 NOP，不代表真实 Codex 或 SWE-Bench-Fork E2E 通过。
 - `result_mapper.py` 已拆分为不超过 200 行的流程映射与 `result_values.py` 纯值转换，修复 `slots=True` 运行时缺陷并覆盖成功、缺失、异常、非零进程保留完成 Trial、usage/时间等分支。
 - `HarborExecutionAdapter` 已实现；内部 `process_runner.py`/`process_evidence.py` 使用 `Popen` 并发排空双流、每路 50 MiB 硬上限、显式截断 manifest 和结构化告警。日志收束不再使用无限 `join()`；后代保持管道开放时会在固定期限返回 `HARBOR_LOG_CAPTURE_INCOMPLETE`。公开 Adapter 的真实 NOP 阻塞 collect 探针已复现并修复强杀后的 Compose 残留；清理只接受本 Job 下目录名与 `trial_name` 一致的身份，按 Harbor 相同净化规则生成精确 project label，不执行全局 prune。正常 NOP 与父子进程回归也已通过。
-- 没有读取真实 `auth.json` 内容，也没有发起真实模型调用。固定 Fork Evaluator 已实测；M0 脚本仅开放 `--check` 无模型预检，程序化编排用于明确标记的内部测试/NOP。不可把它称为已完成 Codex M0。
+- 没有读取真实 `auth.json` 内容，也没有发起真实模型调用。固定 Fork Evaluator 已实测；M0 脚本开放互斥的 `--check` 与仅检查内核的 `--check-network`，程序化编排仍仅供内部测试/NOP。无凭据网络集成探针使用独立显式开关，不改变 CLI 就绪语义。
 
 ## 6. 文档对账完成状态
 
@@ -241,13 +241,13 @@ M0 通过后，M1 的平台主流程才是：
 
 ## 7. 当前 Git 工作区，禁止误删
 
-最新已提交点是 `74f7149 fix: clean up timed-out Harbor trials`；已知远端为 `42484d8`，ahead 8 / behind 0。当前 Fork 依赖锁、Evaluator、M0 编排与同步文档尚未提交。本轮没有 push；不要按旧交接中的“工作区应干净”清理这些新文件。恢复时重新查 status/log，保留用户及其他窗口的改动。
+最新已提交点是 `f0a1a4a feat: add verified Fork evaluator and M0 pipeline`；已知远端为 `42484d8`，ahead 9 / behind 0。Fork 依赖锁、Evaluator、M0 编排及此前同步文档已包含在检查点，提交后工作区曾干净；之后的网络预检、契约测试和文档同步尚未提交。本轮没有 push；不要按旧交接清理新文件。恢复时重新查 status/log，保留用户及其他窗口的改动。
 
 ## 8. 待技术核验
 
-1. 核对行动记录中 M0 无模型串联的最新结果；失败先修复，不能以分别通过代替串联通过。
+1. WSL 更新及 Docker 恢复已经完成，内核预检通过（[本机 Docker 事实第 3.4 节](docs/operations/LOCAL_DOCKER_ENVIRONMENT.md#34-harbor-网络前置条件)）。核对行动记录中的更新后无模型串联回归结果；不重复更新，不把内核前提满足当作真实隔离验收通过。
 2. 按一次一个问题向用户确认 Codex CLI 固定版本、当前可用模型和 reasoning effort。宿主历史探针 `0.153.0` 与测试占位符都不是已确认生产配置。
-3. 复用固定 Harbor 已有网络策略能力，实测闭卷端点白名单、宿主/公网绕过阻断；先查源码再实现，不新增顶层网络业务模块。
+3. 保留已通过的真实无凭据网络探针；完整命令与证据在 [M0 行动记录末节](docs/actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-无凭据网络探针结果)。下一步把固定原始脚本构建、allowlist、去能力接入既有生产 Execution Adapter，并补真实 TLS/SNI、IPv6、DNS/ICMP、长连接和故障路径；原生 `no-network` 不等于 Docker `--network none`。仅测试进程用了替代构建上下文，生产仍未接线；保持上游固定源码不变。
 4. 容器内 Codex 安装、所有者认证、Token 刷新、日志/轨迹脱敏、成功/失败/超时的凭据销毁仍待实测；只检查真实凭据元数据，不读取内容。通过前不打开真实模型入口。
 5. 最后只运行一条已确认的真实 Codex Trial，完成 M0 后才能开始 M1；当前不做 Web/数据库/审批/Judge/Tailscale/P2。
 
@@ -271,11 +271,13 @@ M0 通过后，M1 的平台主流程才是：
 
 先读 AGENTS.md，再按 HANDOFF.md 第一批清单阅读。当前行动记录是 docs/actions/2026-09-05-m0-codex-harbor-implementation.md；继续更新它，不新建重复记录。业务范围以 docs/actions/2026-09-05-mvp-priority-product-decisions.md 及专题权威文档为准；附件和历史记录只是参考。
 
-先核对 git status/log。已提交点 74f7149，已知 origin/main=42484d8，ahead 8 / behind 0；当前存在 Fork Evaluator、Linux 哈希依赖锁、M0 编排和同步文档的未提交修改。保留所有改动，不 reset/checkout/clean，不自行 push。不要无理由重建 framework/harbor/.venv 或 framework/swe-bench-fork/.venv，固定数据和摘要镜像已在本机。
+网络恢复入口：先读 HARBOR_EXECUTION.md 第 13.1 节的“无凭据网络探针”和 M0 行动记录最后一节。测试已覆盖受控 HTTP/IPv4、宿主代理 IP、权限和正常停止侧车，不代表生产配置或完整闭卷通过。两个新 integration 文件及文档未提交，应保留；integration 目录现恰好 8 个文件。下一步在已有 Execution Adapter 内接生产配置并补齐列明缺口，不重复恢复依赖或把 DNS 失败算作阻断。
+
+先核对 git status/log。检查点 f0a1a4a 已提交 Fork Evaluator、Linux 哈希依赖锁与 M0 编排，已知 origin/main=42484d8，ahead 9 / behind 0；其后网络预检、契约测试和文档同步尚未提交。保留所有改动，不 reset/checkout/clean，不自行 push。不要无理由重建 framework/harbor/.venv 或 framework/swe-bench-fork/.venv，固定数据和摘要镜像已在本机。
 
 已完成：Harbor NOP、四类 patch、日志/进程/Compose 超时清理；固定 Fork gold、空、错误、不可应用、测试超时五类真实判卷；编排的替身契约。真实无模型串联和最新全套测试结果请核对行动记录及 runtime/prototype 证据，不把 skipped 当通过。Fork 内部基础设施兼容层只替换镜像准备与容器创建，判卷逻辑仍是固定上游原逻辑。
 
-下一步按 HANDOFF 第 8 节推进 Codex 版本/模型/effort 确认、网络与凭据安全验收，再运行一条真实 Codex。版本/模型选择一次只问一个问题；不能把测试占位符或宿主历史版本当生产默认。prototype_codex_harbor_e2e.py 当前 CLI 仅 --check，程序化编排只允许内部测试/NOP，真实入口必须等安全门槛完成后接通。
+用户已完成 UAC 确认，WSL 官方更新与 Docker 正常重启已成功，内核预检已通过；资源核对和更新期间弹窗说明在 LOCAL_DOCKER_ENVIRONMENT.md 第 3.4 节，不重复安装或重启。核对行动记录的更新后回归，再按 HANDOFF 第 8 节推进 Codex 版本/模型/effort 确认、真实白名单与凭据验收；一次只问一个问题，不把测试占位符或宿主版本当生产默认。prototype_codex_harbor_e2e.py 当前 CLI 为 --check 或 --check-network；内核预检通过不等于真实网络隔离或 Codex 就绪。程序化编排仍只允许内部测试/NOP。
 
 修改前使用 action-document。遵守最小修改原则，复用既有 ports/Adapters；新增顶层 Module、Interface、表或目录须先获确认。Python 文件不超过 200 行、每层不超过 8 文件。测试默认命令在 apps/backend：ruff format --check src tests prototype_codex_harbor_e2e.py；ruff check 同路径；mypy src prototype_codex_harbor_e2e.py；python -m pytest -q -p no:cacheprovider，均用 .venv/Scripts 下工具。真实集成须显式开关并使用全新证据目录，检查只属于本次 Trial 的资源。
 

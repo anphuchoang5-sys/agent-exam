@@ -2,7 +2,7 @@
 
 > 文档状态：持续维护；Harbor 无模型执行与固定 Fork 五类真实补丁判卷已验证，真实 Codex Trial 仍待实测
 >
-> 最后更新：2026-09-06
+> 最后更新：2026-09-07
 > 权威范围：本文件维护 SWE-Gym、Harbor、SWE-Bench-Fork 和目标 Agent CLI 的真实上游接口入口。Harbor 字段级映射见 [`HARBOR_EXECUTION.md`](./HARBOR_EXECUTION.md)；Codex 与自研 Agent 凭据政策见 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md)；依赖来源与固定版本见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)。
 
 ## 1. 先把最容易混淆的事说清楚
@@ -181,7 +181,7 @@ Harness 还在当前工作目录生成 `<model_name_or_path>.<run_id>.json` 汇�
 
 Windows 导入 WSL 生成的报告时，完整配置指纹和嵌套目录可能使路径超过 260 字符。Evaluator 内部使用扩展本机路径读取并继续输出原有相对 object key；不改系统全局设置、不缩短指纹。该问题已经过超长路径单测、原失败报告重放和真实无模型串联回归验证。
 
-M0 入口 `prototype_codex_harbor_e2e.py` 通过既有 `ExecutionBackend`/`PatchEvaluator` 串联。当前仅显式标记的内部测试/NOP 可调用，真实 Codex 入口尚未接通；`--check` 只验证本地固定任务并报告未完成门槛，不运行容器或模型。Harbor NOP→生产 collect patch→固定 Fork 的非空补丁串联已实测，通过不等于真实 Codex M0 完成。
+M0 入口 `prototype_codex_harbor_e2e.py` 通过既有 `ExecutionBackend`/`PatchEvaluator` 串联。当前仅显式标记的内部测试/NOP 可调用，真实 Codex 入口尚未接通；`--check` 只验证本地固定任务并报告未完成门槛，不运行容器或模型。新增互斥的 `--check-network` 委托现有 Execution Adapter 内部 `preflight.py`，运行固定摘要、禁网的一次性内核探针并保存不可覆盖证据；除内核配置前提满足外均非零退出，始终不宣称真实 Codex 就绪。本机更新后的通过证据与复测纪律见 [Docker 事实第 3.4 节](../operations/LOCAL_DOCKER_ENVIRONMENT.md#34-harbor-网络前置条件)。Harbor NOP→生产 collect patch→固定 Fork 的非空补丁串联已实测，通过不等于真实 Codex M0 完成。
 
 ## 6. Harbor Execution Backend
 
@@ -382,6 +382,8 @@ P2 自研 Agent 必须固定 Git commit、登记模型提供方/模型和关键�
 7. 只有证据通过后，才启用新的 Agent Configuration；历史成绩保留旧版本身份。
 
 ## 15. 当前未解决接口问题
+
+网络进展：2026-09-07 已增加显式无凭据真实 Harbor 网络测试，使用受控 HTTP 对照和已解析 IPv4 排除 DNS 失败的假阳性。测试配置尚未接入生产 Adapter，真实模型端点与其他协议仍未验收；逐项事实统一见 [Harbor 执行接口](./HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。`--check-network` 仍然只代表内核前提，不改成完整就绪信号。
 
 1. Lite revision、`train` split、候选 `python__mypy-15413`、Parquet 哈希与镜像 digest 已固定；候选能否成为 M0 正式首题取决于真实闭环。
 2. 固定 Fork 已通过现有 Ubuntu WSL2 载体及 Evaluator 内部镜像/资源适配完成五类真实补丁判卷；下一步连接真实 Codex 的最终 patch，不能将无模型测试视作完整 M0。

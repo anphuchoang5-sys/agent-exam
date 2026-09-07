@@ -2,7 +2,7 @@
 
 > 文档状态：架构已确认；固定提交接口、M0 配置/Task 契约、NOP Docker Trial/结果映射、四类非空 patch、有界日志、宿主进程树及外层 Compose 超时清理已核验；真实 Codex Trial 待验收
 >
-> 最后更新：2026-09-06
+> 最后更新：2026-09-07
 >
 > Harbor 固定版本：以 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 中的完整提交为唯一事实源
 > 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；Codex 与自研 Agent 的凭据所有权和秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
@@ -235,7 +235,28 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 任何一项失败都必须先诊断；如果补丁出口、资源治理或轨迹在限定验证周期内无法稳定满足，则按 ADR 回退到 `ProcessExecutionAdapter`。
 
-当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB；超限、进程树清理失败或日志收束不完整均显式传播为运行告警。当前完整测试数量以 M0 行动记录为准；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 正常路径为 `1 passed in 18.87s`，固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 为 `4 passed in 5.91s`。公开 `HarborExecutionAdapter.execute()` 的阻塞 collect 探针先真实复现外层强杀留下 1 个容器、1 个网络和 1 个本地镜像；生产修复只从本 Job 路径名一致的 Trial 配置推导固定规则的 Compose project，并按 label 删除、复核容器/网络/卷/本地镜像，复测为 `1 passed in 49.47s`，前后 Docker 对象计数相同。固定 Fork 五类独立补丁判卷已通过，M0 入口已连接既有 ports 并维护原型证据；真实 Codex 与生成阶段网络/凭据/轨迹仍未完成，不能据此把 M0 标记完成。编排只允许内部测试/NOP，CLI 仅提供 `--check`；无模型串联结果及 Windows 长路径修复见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
+当前实施状态（2026-09-06）：固定公开 Task 渲染、隐藏字段隔离、Harbor 配置/运行身份映射、collect hook、宿主 patch 强校验、Trial 结果映射和薄 `HarborExecutionAdapter` 已实现。stdout/stderr 由生产有界执行器同时排空，每路最多持久化 50 MiB；超限、进程树清理失败或日志收束不完整均显式传播为运行告警。当前完整测试数量以 M0 行动记录为准；生产有界执行器接真实 Harbor CLI 和正式 mapper 的 NOP 正常路径为 `1 passed in 18.87s`，固定摘要、禁网容器中的修改/新建/删除/Agent commit 四类非空 patch 为 `4 passed in 5.91s`。公开 `HarborExecutionAdapter.execute()` 的阻塞 collect 探针先真实复现外层强杀留下 1 个容器、1 个网络和 1 个本地镜像；生产修复只从本 Job 路径名一致的 Trial 配置推导固定规则的 Compose project，并按 label 删除、复核容器/网络/卷/本地镜像，复测为 `1 passed in 49.47s`，前后 Docker 对象计数相同。固定 Fork 五类独立补丁判卷已通过，M0 入口已连接既有 ports 并维护原型证据；真实 Codex 与生成阶段网络/凭据/轨迹仍未完成，不能据此把 M0 标记完成。编排只允许内部测试/NOP，CLI 提供 `--check` 与 `--check-network`，两者均不启动真实模型；无模型串联结果及 Windows 长路径修复见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
+
+网络预检补充：M0 CLI 现提供互斥的 `--check` 与 `--check-network`；前者只检查任务，后者检查内核前提，均不调用模型。固定 Harbor 的 `models/task/config.py` 已有 `network_mode`（`public` / `no-network` / `allowlist`）和 `allowed_hosts`。Docker Implementation 的 `_egress_control_kernel_support()` 检查 `CONFIG_NFT_FIB_INET=[ym]`，能力不足时由 `validate_network_policy_support()` 拒绝不受支持策略；这是固定源码事实，不是白名单 Trial 已通过。项目新增的 `adapters/execution/preflight.py` 属于执行适配层内部诊断，不新增 port，不替代后续真实端点和防绕过测试。
+
+本机已在获授权的 WSL 更新与 Docker 重启后通过内核预检，实际值和恢复证据唯一维护在 [Docker 事实第 3.4 节](../operations/LOCAL_DOCKER_ENVIRONMENT.md#34-harbor-网络前置条件)。预检无凭据、禁网、固定摘要、禁止拉取、按唯一标签清理；未知或清理未验证均返回非零。不得自动降为 `public`，也不得仅凭内核配置受支持就打开真实 Codex 入口。
+
+#### 无凭据网络探针（2026-09-07）
+
+固定 Harbor `DockerEnvironment` 的受控 HTTP/IPv4 探针已通过；这是测试专用配置，**不是生产 `HarborExecutionAdapter` 已接入网络策略，也不是完整闭卷验收**。通过 `AGENTEXAM_RUN_NETWORK_INTEGRATION=1` 显式运行 `tests/integration/test_harbor_network.py`；同目录 `network_probe.py` 在固定 Harbor 环境调用原生策略接口。测试用原始 Git blob 避免 Windows CRLF 破坏侧车脚本，固定输入见 [依赖第 6.3 节](../dependencies/DEPENDENCIES.md#63-网络探针的固定镜像与构建输入)。
+
+| 检查 | 实际行为 |
+|---|---|
+| 初始 allowlist、public 正对照、恢复 allowlist | 允许目标返回自身标记；禁止目标仅在 public 返回自身标记，其余为 curl 52 |
+| 已解析 IP 的宿主 FlClash / Desktop 代理访问外部 HTTPS | public 两条均 exit 0；allowlist 两条均 curl 56 / CONNECT aborted，不依赖 DNS 失败判定 |
+| 伪造 Host 为允许目标、连接地址仍为禁止目标 | 实际返回允许目标标记，未取得禁止目标内容；不是“所有伪造请求均被拒绝” |
+| 主容器设置 GOST 套接字标记 | CapDrop=ALL 时出现 PermissionError，不能冒充侧车的豁免流量 |
+| no-network 阶段的两个受控 HTTP 目标 | 已解析 IP 后仍为 curl 52；仅证明这些 TCP 路径被阻断 |
+| 正常停止侧车后再访问两目标 | 已解析 IP 后均 curl 7；该停止场景没有恢复对目标的访问 |
+
+测试拒绝把 DNS 解析失败、命令不存在或其他任意非零退出算作可信阻断；无法建立 public 正对照也不能通过。容器实值还检查无宿主挂载、非 privileged、主容器去全部能力、禁止提权、正数 CPU/内存限额和 PID=64；原生侧车独立保留 NET_ADMIN/NET_RAW。全部本轮 Compose 资源精确清理，共享固定镜像/内容哈希缓存保留。逐项结果、失败修正和最终命令以 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-无凭据网络探针结果) 为准。
+
+未验收：真实模型端点及 TLS/SNI 路径、IPv6、DNS/ICMP 通道、已有长连接及突发故障/侧车重启、所有配置与生产 Trial 的接线。原生规则允许 DNS resolver 与 ICMP，不能把 Harbor `no-network` 名称理解为 `Docker --network none`。当前生产 Task 渲染也尚未输出本探针的 allowlist/去能力配置；继续禁止真实 Codex 入口。下一步优先在既有 Execution Adapter 内接入并补齐这些限制，若必须改变已确认边界或采用后备 Adapter，先按 ADR 取得确认。
 
 ### 13.2 M1：Codex 平台 MVP
 

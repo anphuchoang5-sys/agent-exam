@@ -2,7 +2,7 @@
 
 > 文档状态：持续维护；固定 Fork 的 Linux 依赖锁、CLI 和五类真实补丁判卷已验证；真实 Codex 与完整 M0 仍待验证
 >
-> 最后更新：2026-09-06；上游、Harbor 与 CLI 最后核验：2026-09-06
+> 最后更新：2026-09-07；网络镜像核验：2026-09-07；CLI 最后核验：2026-09-06
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
 
 ## 1. 文档边界
@@ -161,6 +161,17 @@ Windows：uv pip install --target framework/swe-bench-fork/.venv/lib/python3.12/
 - Harbor 的精确接口、转换与退出门槛由 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) 维护；采用决定见 [`ADR-0001`](../adr/0001-use-harbor-as-execution-backend.md)。
 
 当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和正常 Compose 清理均通过；固定摘要、禁网容器又覆盖了修改、新建、删除和 Agent commit 四类非空 patch，并经宿主生产校验器验证。阻塞 collect 探针复现外层强杀残留并验证生产 Adapter 的精确 Compose project 清理和日志有界收束。固定 Fork 已完成第 5 节的五类验证；真实 Codex 与生成阶段网络/凭据仍待验证。
+
+### 6.3 网络探针的固定镜像与构建输入
+
+2026-09-07 为 M0 无凭据网络探针拉取固定 Harbor 源码已引用的两个镜像，并核对摘要：
+
+| 输入 | 固定身份 | 用途 |
+|---|---|---|
+| Alpine | `alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11` | Harbor 原生内核探针；该镜像没有 httpd applet，不作测试 HTTP 服务 |
+| GOST | `gogost/gost:3.2.7-nightly.20260602@sha256:afc0137758ab4ce399d47a299f9abbacbf522b52a17e59cbb4b4e7a1a66e9196` | 原生透明网络侧车的基础镜像；版本来自固定源码，不是选择 nightly 最新值 |
+
+侧车由固定提交的 `src/harbor/environments/docker/harbor-docker-egress-control-sidecar/` 五个文件构建，复用 Harbor 原生内容哈希命名及构建缓存。Windows 检出中的 CRLF 会使脚本解释器无效；测试使用 `git show <固定提交>:<路径>` 导出原始 blob 到独立证据目录，并仅在测试进程替换构建上下文路径，规则/源码行为不变。没有修改上游工作树或全局 Git 配置；该兼容处理尚未接入生产 Adapter。允许/禁止 HTTP 对照服务复用第 4.2 节任务摘要镜像中的 Python 标准库，无额外 Python 依赖。探针结果和安全范围见 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#131-m0本机-codex-技术原型)。
 
 ## 7. 恢复固定源码
 

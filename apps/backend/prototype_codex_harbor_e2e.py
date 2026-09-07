@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import uuid
 from dataclasses import asdict
 from pathlib import Path
 from typing import Literal
@@ -16,10 +17,9 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
     build_job_plan,
     validate_job_id,
 )
-from eval_platform.adapters.tasks.swe_gym import (
-    CANDIDATE_INSTANCE_ID,
-    DATASET_REVISION,
-    SWEGymTaskSource,
+from eval_platform.adapters.execution.preflight import (
+    network_preflight,
+    task_preflight,
 )
 from eval_platform.application.ports.evaluator import (
     EvaluationError,
@@ -164,30 +164,23 @@ def _date(value: object) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--check", action="store_true", required=True)
-    parser.parse_args()
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--check-network", action="store_true")
+    arguments = parser.parse_args()
     repo = Path(__file__).resolve().parents[2]
-    source = SWEGymTaskSource(
-        repo / "runtime/cache/swe-gym-lite" / DATASET_REVISION / "train-0000.parquet"
-    )
-    bundle = source.load(CANDIDATE_INSTANCE_ID)
-    print(
-        json.dumps(
-            {
-                "prototype": True,
-                "task_snapshot_verified": True,
-                "instance_id": bundle.public.instance_id,
-                "real_codex_ready": False,
-                "pending": [
-                    "fixed Codex version/model/effort",
-                    "network allowlist",
-                    "secret lifecycle",
-                ],
-            },
-            indent=2,
+    report = task_preflight(repo)
+    accepted = True
+    if arguments.check_network:
+        directory = (
+            repo / "runtime/prototype" / f"network-preflight-{uuid.uuid4().hex[:12]}"
         )
-    )
-    return 0
+        network = network_preflight(directory)
+        report["network"] = network
+        report["evidence_directory"] = str(directory)
+        accepted = network["status"] == "SUPPORTED_KERNEL"
+    print(json.dumps(report, indent=2))
+    return 0 if accepted else 2
 
 
 if __name__ == "__main__":

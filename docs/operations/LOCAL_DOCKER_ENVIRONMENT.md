@@ -2,7 +2,7 @@
 
 > 状态：已动态验证
 >
-> 最后核验：2026-09-06
+> 最后核验：2026-09-07
 > 权威范围：本机 Docker/WSL 的实际版本、数据位置、资源上限、磁盘余量和验证状态
 
 ## 1. 这份文档解决什么问题
@@ -18,16 +18,17 @@
 | 物理内存 | 约 15.636 GiB | 整台 Windows 笔电的内存 |
 | Docker Desktop | `4.38.0.181591` | Windows 上管理 Docker 的桌面程序 |
 | Docker Engine | `27.5.1` | 真正创建和运行容器的后台引擎 |
-| WSL | `2.4.12.0`，WSL2 后端 | Docker Linux 容器使用的轻量 Linux 虚拟环境 |
+| WSL | `2.7.13.0`，WSL2 后端 | 2026-09-06 经用户授权及系统 UAC 确认，官方更新成功 |
+| Docker 容器所见内核 | `6.18.33.2-microsoft-standard-WSL2` | 重启 Docker 后实际生效；Harbor 内核配置前提已通过，非网络隔离验收 |
 | Windows 系统代理 | 已关闭；FlClash 进程仍监听 `127.0.0.1:7890` | 2026-09-06 `ProxyEnable=0`；需要联网的本轮命令仅使用进程级代理，不改变系统设置 |
 | Docker Desktop 代理 | `ProxyHTTPMode=system` | Desktop 读取 Windows 系统代理；Engine 内部显示 `http.docker.internal:3128` |
 | Docker CLI 容器代理 | `http://http.docker.internal:3128` | 新的 CLI 创建容器/构建自动注入 HTTP(S) 代理；Harbor 动态 Trial 仍须显式映射 |
 | WSL 内存上限 | `10GB` | 所有 WSL2 虚拟机可动态使用的上限，不会启动时立刻占满 |
-| Docker 实际可见内存 | `10,429,505,536` bytes，约 `9.713 GiB` | 2026-09-06 Engine 动态探针；10 GB 扣除 WSL/Linux 自身开销后的可用量 |
+| Docker 实际可见内存 | `10,425,643,008` bytes，约 `9.710 GiB` | 2026-09-06 更新/重启后 Engine 动态值；WSL 配置仍为 10 GB |
 | Docker 数据目录 | `E:\dockerdata\DockerDesktopWSL\DockerDesktopWSL` | Docker Desktop 实际记录的镜像、容器与卷所在目录 |
 | 主数据盘文件 | `...\disk\docker_data.vhdx`，约 21.34 GiB | 一个虚拟 Linux 磁盘文件；不得在 Docker 运行时手工剪切 |
 | D 盘可用空间 | 约 29.13 GiB | 迁移完成后的核验值 |
-| E 盘可用空间 | `19,118,747,648` bytes，约 17.81 GiB | 2026-09-06 M0 无模型串联复测后动态值；会随依赖、镜像和运行制品变化 |
+| E 盘可用空间 | `19,116,986,368` bytes，约 17.80 GiB | 2026-09-07 网络探针动态值；会随依赖、镜像和运行制品变化 |
 
 Docker Desktop 会在用户选择的 `E:\dockerdata\DockerDesktopWSL` 下再创建自己的 `DockerDesktopWSL` 子目录，所以实际路径多一层。这是 Docker Desktop 保存的真实设置，不是重复迁移。
 
@@ -66,6 +67,26 @@ memory=10GB
 2026-09-06 固定 Fork 实测补充：现有 Ubuntu WSL2（Python `3.12.3`）可以通过 `/var/run/docker.sock` 连接同一 Docker Desktop Engine；Fork 的隔离依赖安装在项目被忽略的 `framework/swe-bench-fork/.venv`。真实 gold、空、错误、不可应用、测试超时五类判卷均通过。验证容器来自既有固定摘要镜像，实际 `NetworkMode=none`、CPU `1`、内存/内存加交换上限均 `4 GiB`、PID `256`、`CapDrop=ALL`、禁止提权、无宿主挂载；未创建新镜像。测试结束后 Docker 容器/网络/卷/唯一镜像数为 `18/5/15/21`，本轮 Evaluator label 查询为空，E 盘可用 `19,154,898,944` bytes。该结果只覆盖判卷阶段，不代表 Codex 生成阶段的网络与秘密隔离已经通过。运行命令和证据目录见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
 
 无模型串联最终复核（2026-09-06）：Harbor NOP＋测试专用无关改动，经生产 collect 与独立 Fork 完成真实判卷；串联路径的 Windows 长路径导入修复后通过。Docker 容器/网络/卷/唯一镜像仍为 `18/5/15/21`，Evaluator label 容器为 0；固定 Fork 源码工作区干净。先前四批独立验证与本轮两次串联的八份清理记录均通过。该证据仍不包含真实 Codex 或凭据。
+
+### 3.4 Harbor 网络前置条件
+
+当前状态：**内核配置前提已通过，真实白名单/防绕过尚未验收**。更新前 `5.15.167.4-microsoft-standard-WSL2` 缺少 `CONFIG_NFT_FIB_INET`，`--check-network` 为 exit 2 / UNSUPPORTED_KERNEL，历史证据保留在 `runtime/prototype/network-preflight-9f314c10d4d9/`。用户授权 WSL 更新并亲自确认 UAC 后，原 `wsl --update` 返回 0，MSI 1033/11707 事件确认 WSL 2.7.13.0 安装成功；没有重复运行安装器。
+
+固定 Harbor 的网络策略接口和能力判断见 [执行接口](../interfaces/HARBOR_EXECUTION.md#131-m0本机-codex-技术原型)。2026-09-06 更新后的这次预检仅检查内核；后续真实网络探针见第 3.5 节。`SUPPORTED_KERNEL` 只能表示内核配置前提满足，不能代表模块已加载、白名单/防绕过通过或真实 Codex 可运行；无法确定时同样非零退出。固定 Fork 的独立禁网判卷已通过，不受这一原生白名单前提阻塞。
+
+更新期间 Docker 报告 “WSL distro terminated abruptly”，后端日志确认 WSL proxy 退出及 `running wsl-bootstrap: exit status 1`，当时本助手尚未手动 shutdown/restart。重启前同一预检实际 Docker run=125、清理查询失败，证据 `network-preflight-b950cd08235d/` 保留。这与安装过程中的 WSL 中断相符，不据此推断数据丢失。随后按授权执行官方 `docker desktop restart --timeout 90`，exit 0、Desktop running、新内核实际生效；没有手动 `wsl --shutdown`、重启 Windows、升级 Docker、修改代理/防火墙或清空发行版。正常重启命令见 [Docker 官方说明](https://docs.docker.com/reference/cli/docker/desktop/restart/)。
+
+重启后运行 `.venv/Scripts/python.exe prototype_codex_harbor_e2e.py --check-network`：exit 0 / SUPPORTED_KERNEL、kernel_supported=true、cleanup verified=true、remaining=[]；证据 `runtime/prototype/network-preflight-254a062ee2b4/network-preflight.json`。探针使用固定摘要、禁止拉取、禁网、只读、去能力、无挂载、低资源的一次性容器，无模型/秘密。全部网络预检标签查询无残留，包含此前因 daemon 不可用而无法确认清理的探针。
+
+更新前后快照保存在 `runtime/prototype/wsl-update-20260906/before.json` 和 `after.json`。18 个容器、15 个卷、21 个唯一镜像身份逐项一致；5 个网络名称保留，仅默认 `bridge` 的 ID 变化，其余网络身份未变。Docker 按既有重启策略从 0 个运行容器恢复为 13 个运行容器，本助手没有新建这些服务或修改重启策略；只验证资源身份与引擎可用，未做这些其他应用的业务健康验收。后续真实白名单、宿主/公网绕过阻断和模型/凭据生命周期仍须单独验证。
+
+更新后既有 Harbor NOP→生产 patch→固定 Fork 串联回归已通过；测试结束再次核对现有容器/网络/卷/镜像身份与更新后快照完全一致，Fork 清理验证无残留、Desktop 仍 running。命令、耗时、证据及默认跳过项详见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#uac-确认后的恢复结果)。没有把这次无模型回归记为真实 Codex 验收。
+
+### 3.5 无凭据网络探针
+
+2026-09-07 在当前 Docker/WSL 上运行固定 Harbor 原生网络侧车和两个受控 HTTP 服务；已解析 IPv4 的允许/禁止对照、两条宿主代理 CONNECT、去能力、策略切换及正常停止侧车场景通过。具体行为、未覆盖协议和生产未接线边界唯一维护在 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)，实际命令/失败/证据见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md#2026-09-07-无凭据网络探针结果)。没有读取凭据、调用模型、重启 Docker/WSL 或修改代理/防火墙。
+
+本次按固定摘要新增 Alpine/GOST 两个上游镜像，并保留原生哈希命名的两个侧车构建缓存（首轮 CRLF 检出构建和后续原始 Git blob 构建）；输入身份见 [依赖第 6.3 节](../dependencies/DEPENDENCIES.md#63-网络探针的固定镜像与构建输入)。测试资源精确清理，容器/网络/卷/唯一镜像数为 `18/5/15/25`，仍有 13 个原有容器运行；镜像比之前多 4 个是本次明确保留的缓存，不是残留 Trial 容器或卷。未删除其他应用资源，未对其他应用做业务验收。
 
 ## 4. 迁移和回退纪律
 
@@ -128,6 +149,7 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 - 固定 Harbor 源码/环境/CLI、候选摘要镜像和 NOP Docker Trial 已核验；固定镜像的无网络探针确认 `/testbed` 位于任务 base commit。仍没有验证容器内 Codex CLI、ChatGPT `auth.json`、Token 刷新或完整闭环。
 - Docker CLI 自动代理不等于 Harbor 动态 Trial 自动代理；实现时必须核对 Harbor `AgentConfig.env` 的实际容器结果。
 - `host.docker.internal:7890` 可达证明环境变量可以被绕过；闭卷赛道不得把当前配置直接当作端点白名单或防绕过措施。
+- Harbor 原生白名单的内核配置前提已通过（第 3.4 节），但代理可联网或禁网判卷通过均不能替代实际白名单/防绕过验收。
 - 当前最先验证的是 M0 本机 Codex 脚本闭环；Web、PostgreSQL、MinIO、登录和所有者审批属于其后的 M1 平台集成，不应阻塞 M0。
 - P2 自研 Agent 只允许 DeepSeek/Kimi，但其真实 Key 不得直接注入被测容器；当前尚未实现或验证受控模型访问路径，不能把一般容器 HTTPS 已通当成该安全要求已满足，也不因此阻塞 Codex MVP。
 

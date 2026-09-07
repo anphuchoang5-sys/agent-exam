@@ -1,7 +1,7 @@
 # AI Coding Agent 评测平台总架构
 
 > 文档状态：总体方案已确认；Harbor 无模型执行、超时清理与固定 Fork 五类真实补丁判卷已验证；真实 Codex→Fork 完整闭环未完成
-> 最后更新：2026-09-06
+> 最后更新：2026-09-07
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
 ## 1. 从哪里开始读
@@ -286,7 +286,7 @@ E:\9.1agent_exam\
 │  │  ├─ swebench-requirements.in / swebench-requirements.txt
 │  │  │  # 固定 Fork 的独立 Linux/Python 3.12 直接依赖与 63 包哈希锁
 │  │  ├─ prototype_codex_harbor_e2e.py
-│  │  │  # M0 ports 编排、原型证据和 --check；当前仅内部测试/NOP，真实 Codex 入口待安全门槛
+│  │  │  # M0 ports 编排、原型证据、--check / --check-network；真实 Codex 入口待安全门槛
 │  │  ├─ src\eval_platform\
 │  │  │  ├─ domain\
 │  │  │  │  # 纯领域规则，不依赖框架/数据库/Docker
@@ -318,6 +318,7 @@ E:\9.1agent_exam\
 │  │  │  │  │  ├─ registry.py # 已登记配置 → Harbor AgentConfig；不接收任意命令
 │  │  │  │  │  └─ manifest.py # P2 延后：静态解析 Python 自研 Agent manifest；审核前不执行代码
 │  │  │  │  ├─ execution\
+│  │  │  │  │  ├─ preflight.py # 已实现：固定任务及禁网内核就绪检查；不等同真实网络验收
 │  │  │  │  │  ├─ harbor\
 │  │  │  │  │  │  # HarborExecutionAdapter 内部实现；外部只见 ExecutionBackend
 │  │  │  │  │  │  ├─ adapter.py       # Job 生命周期与项目结果汇总
@@ -355,6 +356,8 @@ E:\9.1agent_exam\
 │  │     ├─ unit\         # 领域状态和应用分支的快速测试
 │  │     ├─ contract\     # Fake/真实 Adapter 共用的契约测试
 │  │     └─ integration\  # PostgreSQL、MinIO、Docker、Harness 集成测试
+│  │        ├─ test_harbor_network.py # 已实现：显式无凭据网络探针、受控对照与精确清理
+│  │        └─ network_probe.py # 已实现：固定 Harbor 内部网络接口测试驱动，非生产 Adapter
 │  └─ web\
 │     # Next.js 15 + React 19 展示应用
 │     ├─ package.json      # 固定前端依赖与命令
@@ -469,7 +472,7 @@ E:\9.1agent_exam\
 
 本轮需要用户拍板的产品问题已经回答。下面按实施影响排序查技术事实；若验证结果要求改变产品行为，再回到用户确认：
 
-1. 固定 Codex CLI 项目版本、模型 ID 和端点白名单，并实测 Harbor 容器内 ChatGPT 登录 Token 刷新、日志脱敏及成功/失败/超时清理路径。
+1. Harbor 内核前提与一组无凭据 HTTP/IPv4 网络探针已通过；范围及缺口见 [执行接口的网络探针](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。先在现有 Execution Adapter 内接入生产配置并补齐未覆盖的隔离路径，再固定 Codex CLI 项目版本、模型 ID、effort 和端点，验证 Token 刷新、脱敏及清理。WSL 更新已完成，不重复更新；不新增顶层网络业务模块，不把测试专用配置当生产已验收。
 2. 固定单题的数据 revision、split、内容哈希与摘要镜像已完成（见依赖文档）；未经验证不扩展到全题库。
 3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志、宿主进程树终止和外层超时后的精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均通过真实 NOP。固定 Fork 五类补丁判卷已通过，M0 编排已实现并验证长路径报告导入；下一步完成真实 Codex 的配置与资源/网络/凭据路径，实际串联证据以 M0 行动记录为准；通过前不搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。
