@@ -2,7 +2,7 @@
 
 > 更新：2026-09-08；工作区：`E:\9.1agent_exam`。
 >
-> 当前状态：第四场授权真实单题已成功完成：Codex 生成真实补丁，固定 SWE-Bench-Fork 独立判卷 resolved=true，补丁一致性、私有证据和精确清理已核对。M0 真实单题核心闭环已通过；完整安全/生命周期验收仍按专题文档收尾，M1 尚未实现、MVP 未完成。用户已授权将本轮源码、测试和文档提交推送；Git 状态见第 5 节，私有原始证据不上传。
+> 当前状态：第四场授权真实单题已成功完成：Codex 生成真实补丁，固定 SWE-Bench-Fork 独立判卷 resolved=true，补丁一致性、私有证据和精确清理已核对。M0 真实单题核心闭环已通过；完整安全/生命周期验收仍按专题文档收尾，M1 尚未实现、MVP 未完成。成果提交 `729dd88` 已获用户具体授权并成功推送至 `origin/main`，首次发布拦截已解除，见第 5 节。私有原始证据未上传。
 >
 > 本文是当前恢复入口，不替代专题事实源。历史架构讨论、迁移和逐轮探针保留在对应行动记录，不再全文复制到交接中。
 
@@ -91,7 +91,7 @@
 
 ### Git 与必须保留的增量
 
-提交前基线（历史快照）：分支 `main`，HEAD 为 `f4fa625 feat: checkpoint M0 networking and Codex safety groundwork`，相对 `origin/main=42484d8` 为 ahead 11。2026-09-08 用户明确要求提交推送，`git ls-remote --heads origin main` 已确认当时实际远端仍为 `42484d8`。本轮按该授权提交项目增量并普通推送至既有 `origin/main`；最终提交身份及是否同步以现场 `git status --short --branch`、`git log -4 --oneline` 和远端引用为准，不在文档中维护会随提交自身变化的 HEAD。
+提交前基线（历史快照）：分支 `main`，HEAD 为 `f4fa625 feat: checkpoint M0 networking and Codex safety groundwork`，相对 `origin/main=42484d8` 为 ahead 11。2026-09-08 项目增量提交为 `729dd88 feat: complete real Codex M0 single-task evaluation`，首次 push 在进程创建前被平台安全审查拒绝。随后用户明确批准把当前源码、测试、项目文档和此前 11 个本地提交发送到 `https://github.com/anphuchoang5-sys/agent-exam.git` 的 main，同一普通 push 成功，远端从 `42484d8` 快进到 `729dd88`。独立 `git ls-remote` 确認完整哈希与当时本地 HEAD 一致；未强推、未上传私有证据。本交接和行动记录以收尾文档提交保存授权及实际结果；最终状态以现场 `git status --short --branch`、`git log -4 --oneline` 和远端引用为准，不在文档中维护自身提交哈希。
 
 本轮提交范围包括：
 
