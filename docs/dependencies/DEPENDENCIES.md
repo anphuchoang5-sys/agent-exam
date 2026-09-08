@@ -1,6 +1,6 @@
 # 项目依赖唯一事实源
 
-> 文档状态：持续维护；固定 Fork 的 Linux 依赖锁、CLI 和五类真实补丁判卷已验证；真实 Codex 与完整 M0 仍待验证
+> 文档状态：持续维护；固定依赖已支持第四场真实 Codex 单题与独立 Fork 判卷通过；完整 M0 安全/生命周期验收引用执行与认证接口
 >
 > 最后更新：2026-09-07；网络镜像核验：2026-09-07；CLI 最后核验：2026-09-07
 > 权威范围：依赖身份、来源、固定版本、是否进入主仓库、获取/恢复方式和验证状态
@@ -34,7 +34,7 @@
 | Docker Engine / Docker Desktop / Compose | 隔离并运行评测环境 | 项目基线待确认；本机 Desktop `4.38.0.181591`、Engine `27.5.1` | 不适用 | Harbor NOP/超时与固定 Fork 五类真实补丁集成已验证；环境细节见 [`LOCAL_DOCKER_ENVIRONMENT.md`](../operations/LOCAL_DOCKER_ENVIRONMENT.md) |
 | PostgreSQL | 结构化业务数据存储与 MVP 平台 Evaluation Job 队列 | 待确认 | 不适用 | 已确认采用；M0 本机脚本原型不依赖；精确版本未固定 |
 | MinIO | 对象存储，即保存 patch、日志等文件制品 | 待确认 | 不适用 | 已确认采用；精确版本未固定 |
-| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 首轮 `0.153.0`，用户于 2026-09-07 确认 | 否 | 使用 Harbor 内置 Codex Adapter，认证沿用评测机所有者的 ChatGPT Pro（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；固定包校验、禁网容器启动和 Harbor 预装复用已通过，见第 2.1 节；完整 Trial、网络和凭据仍待验收 |
+| Codex CLI | M0 本机真实原型与 M1 平台 MVP Agent | 首轮 `0.153.0`，用户于 2026-09-07 确认 | 否 | 使用 Harbor 内置 Codex Adapter，认证沿用评测机所有者的 ChatGPT Pro（见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)）；固定包校验、禁网容器启动和 Harbor 预装复用已通过，见第 2.1 节；第四场真实单题已通过，剩余网络/凭据生命周期验收引用执行与认证接口 |
 | Aider CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | Claude Code CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | 本地自研 Agent | P2 扩展 Agent | 待实现 | 是，由提交者固定 Git commit 提交，审核后登记 | 只保留扩展接缝；P2 首版只支持 Python 和固定进程 Interface，完整 manifest、Python 版本、依赖锁格式与 Harbor 包装不阻塞 MVP |
@@ -60,9 +60,9 @@ Codex 的版本选择已完成，不再根据宿主升级或 `latest` 自动变�
 | SHA-512 | `b0517e83ba75a3ab1954be8f1ddf494d8acfda3df16a8dd07aee409e072b0f96eb5ab09cfb0f627c124226e45233bdbc59f8235cc2fd3d03dd1cf69949e1c010` |
 | 包布局 | 8 个普通文件；包含 Codex、code-mode host、rg、bwrap、zsh 和平台布局元数据 |
 | 本机证据 | 忽略目录 `runtime/prototype/m0-codex-install-20260907-01/`；归档保留，解包逐文件 SHA-256 写入 `installation-input.json` |
-| 实现 | [`codex_install.py`](../../apps/backend/src/eval_platform/adapters/execution/codex_install.py)；先核验大小/整包 hash/严格成员列表/平台身份，再创建独占解包目录；不执行 npm 脚本或下载最新版 |
+| 实现 | [`codex/install.py`](../../apps/backend/src/eval_platform/adapters/execution/codex/install.py)；先核验大小/整包 hash/严格成员列表/平台身份，再创建独占解包目录；不执行 npm 脚本或下载最新版 |
 
-使用既有固定任务摘要镜像创建临时禁网容器，离线复制已校验工具包；以非 root 用户执行版本/帮助，通过固定 Harbor 真实 `Codex.install()` 的版本检查复用已安装工具。未重建基础镜像、未安装 Node/npm 或升级宿主，未运行认证 setup 或模型。该探针不证明完整 Trial 工具/资源兼容、账号可用性或生产凭据接线；真实入口仍关闭。命令与结果见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
+使用既有固定任务摘要镜像创建临时禁网容器，离线复制已校验工具包；以非 root 用户执行版本/帮助，通过固定 Harbor 真实 `Codex.install()` 的版本检查复用已安装工具。随后正式接线把同一校验加入生产 `GuardedCodex.install()`：每次运行重新验证归档与解包文件，固定 `/opt/agentexam-codex` 和 PATH，版本不符即失败而不进入 curl/npm 在线安装；假认证、`network none` 的 Docker 契约已通过。首次真实 Trial 暴露的版本首行误判已修复，现严格要求最后一条非空行等于 `codex-cli 0.153.0`；第二次启动误传不存在的 Windows `.zip` 后，正确固定 Linux `.tgz` 的大小与 SHA-512 再次复核一致。第三次授权运行共用同一预检/启动构造，已通过生产离线安装、真实认证上传和 UID 65534 的 CLI 会话启动，但因 DNS 转发受阻而超时，无模型回复或有效补丁。未重建基础镜像、安装 Node/npm 或升级宿主；本轮无生产代码变更。上述为第三场历史结果；后续 DNS 修正已获授权并接入，第四场真实模型/工具、补丁和独立判卷已通过，剩余 Token 刷新等验收见[当前执行状态](../interfaces/HARBOR_EXECUTION.md#第四次授权运行真实补丁与独立判卷通过2026-09-08)及[M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)。
 
 ## 3. 第三方框架源码策略
 
@@ -99,7 +99,7 @@ Codex 的版本选择已完成，不再根据宿主升级或 `latest` 自动变�
 - 当前候选镜像固定为 `xingyaoww/sweb.eval.x86_64.python_s_mypy-15413@sha256:f069dfc74592d438ad870bbc6dfb369bff1b125d21237ead49190b414f5f3456`，已拉取并确认 `/testbed` HEAD 为任务 base commit `e7b917ec7532206b996542570f4b68a33c3ff771`。这只证明镜像身份，不证明 Harness 或 Codex Trial 通过。
 - OpenHands 和 MoatlessTools 出现在上游复现实验说明中；它们当前不是 AgentExam 已固定的直接依赖，不能仅凭上游示例自动纳入项目。
 
-当前验证状态：Task Adapter 的公开/隐藏隔离、固定 Parquet、摘要镜像与 Harbor NOP 已核验；同一固定镜像又用于通过的 Fork 五类真实补丁验证。真实 Codex 尚未运行。
+当前验证状态：Task Adapter 的公开/隐藏隔离、固定 Parquet、摘要镜像与 Harbor NOP 已核验；同一固定镜像又用于通过的 Fork 五类真实补丁验证。第四场真实 Codex 与独立 Fork 已通过，具体结果见第 2.1 节执行状态指针。
 
 ## 5. SWE-Bench-Fork
 
@@ -154,7 +154,7 @@ Windows：uv pip install --target framework/swe-bench-fork/.venv/lib/python3.12/
 - 基础 Dockerfile 从 `ubuntu:22.04` 构建并下载 Miniconda 安装器；两者都未按镜像 digest 或文件校验和固定。
 - 对固定提交执行源码搜索，没有发现 `docker pull` 或 Docker SDK `images.pull` 调用。也就是说，SWE-Gym README 提到的 `xingyaoww/...` 预构建镜像不是当前 Harness 自动恢复流程；默认行为是在本机缺少镜像时按源码构建。
 
-当前验证状态：固定 Fork CLI 与五类真实判卷已经通过。原 CLI 的 base/env 预检查与 16 GiB 默认限制由 Evaluator 内部基础设施适配处理，直接使用已固定的实例镜像 digest，不伪造 base/env 标签、不重建上游镜像、不修改上游源码或 grading。原始报告与失败证据见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)；这仍不是 Codex 端到端通过。
+当前验证状态：固定 Fork CLI 与五类真实判卷已经通过。原 CLI 的 base/env 预检查与 16 GiB 默认限制由 Evaluator 内部基础设施适配处理，直接使用已固定的实例镜像 digest，不伪造 base/env 标签、不重建上游镜像、不修改上游源码或 grading。原始报告与失败证据见 [M0 行动记录](../actions/2026-09-05-m0-codex-harbor-implementation.md)；第四场 Codex 端到端已通过，完整验收边界引用执行接口。
 
 ## 6. Harbor
 
@@ -180,7 +180,7 @@ Windows：uv pip install --target framework/swe-bench-fork/.venv/lib/python3.12/
 - 固定 SWE-Bench-Fork 的 `swebench.harness.run_evaluation` 仍是唯一确定性最终判卷入口，Harbor Reward 不能覆盖其结论。
 - Harbor 的精确接口、转换与退出门槛由 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md) 维护；采用决定见 [`ADR-0001`](../adr/0001-use-harbor-as-execution-backend.md)。
 
-当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和正常 Compose 清理均通过；固定摘要、禁网容器又覆盖了修改、新建、删除和 Agent commit 四类非空 patch，并经宿主生产校验器验证。阻塞 collect 探针复现外层强杀残留并验证生产 Adapter 的精确 Compose project 清理和日志有界收束。固定 Fork 已完成第 5 节的五类验证；真实 Codex 与生成阶段网络/凭据仍待验证。
+当前验证状态：固定源码/环境已恢复；配置模型、Job/Trial 展开、结果模型、制品顺序和 Verifier 关闭能力已做源码核验，真实 `JobConfig`/`Task` 契约测试通过。NOP Docker Trial 已实际启动并完成，collect hook 生成的空 `model.patch`/元数据、单目录 artifact、结果映射和正常 Compose 清理均通过；固定摘要、禁网容器又覆盖了修改、新建、删除和 Agent commit 四类非空 patch，并经宿主生产校验器验证。阻塞 collect 探针复现外层强杀残留并验证生产 Adapter 的精确 Compose project 清理和日志有界收束。固定 Fork 已完成第 5 节的五类验证；真实 Codex 最新单题结果及剩余网络/凭据验收引用第 2.1 节执行状态指针。
 
 ### 6.3 网络探针的固定镜像与构建输入
 
@@ -191,7 +191,7 @@ Windows：uv pip install --target framework/swe-bench-fork/.venv/lib/python3.12/
 | Alpine | `alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11` | Harbor 原生内核探针；该镜像没有 httpd applet，不作测试 HTTP 服务 |
 | GOST | `gogost/gost:3.2.7-nightly.20260602@sha256:afc0137758ab4ce399d47a299f9abbacbf522b52a17e59cbb4b4e7a1a66e9196` | 原生透明网络侧车的基础镜像；版本来自固定源码，不是选择 nightly 最新值 |
 
-侧车由固定提交的 `src/harbor/environments/docker/harbor-docker-egress-control-sidecar/` 五个文件构建，复用 Harbor 原生内容哈希命名及构建缓存。Windows 检出中的 CRLF 会使脚本解释器无效；既有 Execution Backend 内部 `network.py` 使用 `git show <固定提交>:<路径>` 导出原始 blob 到独立证据目录，保存固定 revision 和五项 SHA-256，拒绝覆盖或非固定/跟踪文件有修改的上游工作树。生产 `harbor_entry.py` 与网络测试共用该导出，只在各自进程替换构建上下文路径，规则/源码行为不变。没有修改上游工作树或全局 Git 配置；接线后的无模型实测已通过。允许/禁止 HTTP 对照服务复用第 4.2 节任务摘要镜像中的 Python 标准库，无额外 Python 依赖。探针结果和安全范围见 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。
+侧车由固定提交的 `src/harbor/environments/docker/harbor-docker-egress-control-sidecar/` 五个文件构建，复用 Harbor 原生内容哈希命名及构建缓存。Windows 检出中的 CRLF 会使脚本解释器无效；既有 Execution Backend 内部 `network.py` 使用 `git show <固定提交>:<路径>` 获取原始 blob，拒绝覆盖或非固定/跟踪文件有修改的上游工作树。2026-09-08 已授权限定 DNS 修正只作用于导出的 network-policy 运行副本；`network-source.json` 同时保存 revision、五项 `upstream_sha256`、五项生效 `sha256` 和 adaptation 标识。生产 `harbor_entry.py` 与网络测试共用该导出，按生效内容构建；固定上游工作树、其他四个 blob、旧缓存与全局 Git 配置不变。允许/禁止 HTTP 对照服务复用第 4.2 节任务摘要镜像中的 Python 标准库，无额外 Python 依赖。具体适配边界、失败关闭与验证状态唯一维护在 [Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#限定-dns-适配2026-09-08)。
 
 ## 7. 恢复固定源码
 
@@ -245,10 +245,10 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 2. M0 已采用并拉取候选预构建实例镜像；其固定 digest 和 `/testbed` base commit 已核验，Harbor/Codex/Harness 兼容性仍待实测；
 3. Python、FastAPI、Node.js、Next.js 15、React 19、Docker/Compose、PostgreSQL、MinIO 的精确版本和部署形态；
 4. SWE-Bench-Fork 已有 Linux Python 3.12 哈希锁与单题实测；新增题目/升级依赖时重新验证，不默认把当前单题扩展成全题库通过；
-5. Codex 首轮 CLI 版本、模型 ID、推理强度与认证政策已确认；制品身份及无凭据容器安装见第 2.1 节，账号实际可用性、端点、完整 Trial 兼容性和凭据接线仍待核验。Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式仍待确认；
+5. Codex 首轮 CLI 版本、模型 ID、推理强度与认证政策已确认；制品身份及无凭据容器安装见第 2.1 节，第四场账号/模型路径和实际工具执行已通过，完整生命周期与网络边界仍按专题接口收尾。Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式仍待确认；
 6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；
 7. Windows + Docker Desktop、WSL2 或 Linux 中哪一种环境作为官方运行基线；
-8. Harbor Job/Trial 目录、空 patch collect 和结果映射已由 NOP 固定；修改/新建/删除/Agent commit 四类非空 patch 已由固定摘要、禁网容器验证；CLI 进程 Adapter 的正常 NOP、外层超时精确 Compose 清理和日志有界收束均已验证，仍待真实 Codex 与完整原型验收；
+8. Harbor Job/Trial 目录、空 patch collect 和结果映射已由 NOP 固定；修改/新建/删除/Agent commit 四类非空 patch 已由固定摘要、禁网容器验证；CLI 进程 Adapter 的正常 NOP、外层超时精确 Compose 清理和日志有界收束均已验证，第四场真实 Codex 核心闭环已通过，完整原型验收继续按专题接口收尾；
 9. 恢复脚本、依赖缓存和供应链校验流程。
 
 ## 10. 本次核验证据摘要

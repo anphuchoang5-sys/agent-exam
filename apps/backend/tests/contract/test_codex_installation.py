@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from eval_platform.adapters.execution import codex_install as installer
+from eval_platform.adapters.execution.codex import install as installer
 from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
 from eval_platform.adapters.execution.harbor_entry import harbor_environment
 
@@ -81,6 +81,10 @@ def test_bundle_manifest_and_no_overwrite(tmp_path, monkeypatch):
     assert (bundle / "bin/codex").read_bytes() == b"test-only-not-an-executable"
     manifest = json.loads((destination / "installation-input.json").read_text())
     assert not manifest["real_codex_ready"] and len(manifest["files_sha256"]) == 8
+    assert installer.validate_codex_bundle(destination) == bundle.resolve()
+    (bundle / "bin/codex").write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="CODEX_BUNDLE_INVALID"):
+        installer.validate_codex_bundle(destination)
     with pytest.raises(FileExistsError):
         installer.prepare_codex_bundle(archive, destination)
 
@@ -92,14 +96,15 @@ def test_fixed_codex_installs_offline_and_harbor_reuses_it(tmp_path):
     repo = Path(__file__).resolve().parents[4]
     tmp_path.resolve().relative_to(repo / "runtime")
     archive = Path(os.environ["AGENTEXAM_CODEX_ARCHIVE"])
-    bundle = installer.prepare_codex_bundle(archive, tmp_path / "input")
+    bundle_root = tmp_path / "input"
+    installer.prepare_codex_bundle(archive, bundle_root)
     label = uuid.uuid4().hex
     try:
         outcome = run_bounded_process(
             [
                 str(repo / "framework/harbor/.venv/Scripts/python.exe"),
                 str(Path(__file__).with_name("codex_install_probe.py")),
-                str(bundle),
+                str(bundle_root),
                 str(tmp_path),
                 label,
             ],

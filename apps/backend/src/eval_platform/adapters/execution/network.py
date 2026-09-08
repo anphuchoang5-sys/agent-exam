@@ -23,6 +23,17 @@ _SOURCE_FILES = (
     "allowlist.txt",
     "bin/network-policy",
 )
+_DNS_GUARD = b"""\
+  # AgentExam: support only the owner-approved Docker Desktop DNS profile.
+  dns_config="$(awk '
+    /^[[:space:]]*nameserver[[:space:]]/ || /^# ExtServers:/ { print }
+  ' /etc/resolv.conf)"
+  if [ "$dns_config" != 'nameserver 127.0.0.11
+# ExtServers: [192.168.65.7]' ]; then
+    echo HARBOR_DOCKER_DNS_CONFIG_UNSUPPORTED >&2
+    exit 1
+  fi
+"""
 
 
 def validate_hosts(hosts: tuple[str, ...]) -> tuple[str, ...]:
@@ -81,8 +92,23 @@ def compose_profile(limits: RunLimits) -> dict[str, Any]:
     return {"services": {"main": main, SIDECAR: sidecar}}
 
 
+def _adapt_dns_policy(data: bytes) -> bytes:
+    """Patch only fixed anchors; unknown upstream layouts cannot start a trial."""
+    changes = {
+        b"setup_nftables() {\n": _DNS_GUARD,
+        b"$(nft_dns_rules accept)\n": (
+            b"    ip daddr 192.168.65.7 udp dport 53 accept\n"
+        ),
+    }
+    for anchor, addition in changes.items():
+        if data.count(anchor) != 1:
+            raise ValueError("HARBOR_DNS_POLICY_SOURCE_UNSUPPORTED")
+        data = data.replace(anchor, anchor + addition, 1)
+    return data
+
+
 def export_sidecar(harbor_root: Path, destination: Path, revision: str) -> None:
-    """Use immutable upstream bytes, not CRLF-translated checkout contents."""
+    """Export fixed blobs plus the approved DNS adaptation, recording both IDs."""
 
     def git(*args: str) -> bytes:
         return subprocess.run(
@@ -99,10 +125,14 @@ def export_sidecar(harbor_root: Path, destination: Path, revision: str) -> None:
         raise ValueError("HARBOR_SOURCE_NOT_FIXED")
     destination.mkdir(parents=True, exist_ok=False)
     hashes = {}
+    upstream_hashes = {}
     for name in _SOURCE_FILES:
         data = git(
             "show", f"{revision}:src/harbor/environments/docker/{SIDECAR}/{name}"
         )
+        upstream_hashes[name] = hashlib.sha256(data).hexdigest()
+        if name == "bin/network-policy":
+            data = _adapt_dns_policy(data)
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("xb") as stream:
@@ -111,4 +141,13 @@ def export_sidecar(harbor_root: Path, destination: Path, revision: str) -> None:
     with (destination.parent / "network-source.json").open(
         "x", encoding="utf-8"
     ) as manifest_stream:
-        json.dump({"revision": revision, "sha256": hashes}, manifest_stream, indent=2)
+        json.dump(
+            {
+                "revision": revision,
+                "upstream_sha256": upstream_hashes,
+                "sha256": hashes,
+                "adaptation": "docker-desktop-dns-192.168.65.7-udp53-v1",
+            },
+            manifest_stream,
+            indent=2,
+        )

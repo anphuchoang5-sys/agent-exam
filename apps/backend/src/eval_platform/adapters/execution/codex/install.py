@@ -1,9 +1,10 @@
-"""Pinned offline Codex installation inputs; never loads credentials or runs agents."""
+"""Pinned offline Codex installation inputs; never reads authentication files."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import tarfile
 from pathlib import Path
@@ -31,10 +32,24 @@ _FILES = {
     _PREFIX + "codex-package.json",
     *(_PREFIX + name for name in _EXECUTABLES),
 }
+INSTALL_ROOT = "/opt/agentexam-codex"
+INSTALL_PATH = (
+    f"{INSTALL_ROOT}/bin:{INSTALL_ROOT}/codex-path:"
+    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+)
+PREPARE_INSTALL_COMMAND = f"test ! -e {INSTALL_ROOT} && mkdir -p {INSTALL_ROOT}"
+INSTALL_COMMAND = (
+    f"chmod -R a+rX {INSTALL_ROOT} && chmod 0555 "
+    f"{INSTALL_ROOT}/bin/codex {INSTALL_ROOT}/bin/codex-code-mode-host "
+    f"{INSTALL_ROOT}/codex-path/rg {INSTALL_ROOT}/codex-resources/bwrap "
+    f"{INSTALL_ROOT}/codex-resources/zsh/bin/zsh"
+)
 
 
 def prepare_codex_bundle(archive: Path, destination: Path) -> Path:
     """Validate the entire pinned archive before creating an exclusive destination."""
+    if archive.is_symlink() or not archive.is_file():
+        raise ValueError("CODEX_PACKAGE_INVALID")
     if archive.stat().st_size != ARCHIVE_BYTES:
         raise ValueError("CODEX_PACKAGE_SIZE_MISMATCH")
     with archive.open("rb") as source:
@@ -77,6 +92,55 @@ def prepare_codex_bundle(archive: Path, destination: Path) -> Path:
             with (destination / "installation-input.json").open("x") as output:
                 json.dump(manifest, output, indent=2)
     return destination / "package/vendor" / TARGET
+
+
+def validate_codex_bundle(root: Path) -> Path:
+    """Recheck a prepared bundle immediately before it reaches Harbor."""
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("CODEX_BUNDLE_INVALID")
+    resolved = root.resolve()
+    manifest_path = resolved / "installation-input.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValueError("CODEX_BUNDLE_INVALID")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        hashes = manifest["files_sha256"]
+    except (OSError, json.JSONDecodeError, KeyError, TypeError):
+        raise ValueError("CODEX_BUNDLE_INVALID") from None
+    identity = {
+        "version": VERSION,
+        "target": TARGET,
+        "archive_url": ARCHIVE_URL,
+        "archive_sha512": ARCHIVE_SHA512,
+        "archive_bytes": ARCHIVE_BYTES,
+        "real_codex_ready": False,
+    }
+    if (
+        not isinstance(manifest, dict)
+        or any(manifest.get(key) != value for key, value in identity.items())
+        or set(manifest) != {*identity, "files_sha256"}
+        or not isinstance(hashes, dict)
+        or set(hashes) != _FILES
+    ):
+        raise ValueError("CODEX_BUNDLE_INVALID")
+    for name, expected in hashes.items():
+        target = resolved / name
+        try:
+            target.resolve().relative_to(resolved)
+            if (
+                not isinstance(expected, str)
+                or not re.fullmatch(r"[a-f0-9]{64}", expected)
+                or target.is_symlink()
+                or not target.is_file()
+            ):
+                raise ValueError
+            with target.open("rb") as source:
+                actual = hashlib.file_digest(source, "sha256").hexdigest()
+        except (OSError, ValueError):
+            raise ValueError("CODEX_BUNDLE_INVALID") from None
+        if actual != expected:
+            raise ValueError("CODEX_BUNDLE_INVALID")
+    return resolved / "package/vendor" / TARGET
 
 
 def _validate_identity(package: tarfile.TarFile) -> None:

@@ -4,7 +4,7 @@ import shlex
 
 import pytest
 
-from eval_platform.adapters.execution.codex_policy import (
+from eval_platform.adapters.execution.codex.policy import (
     DENIED_PATHS,
     PROFILE,
     guarded_command,

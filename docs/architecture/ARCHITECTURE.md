@@ -1,7 +1,7 @@
 # AI Coding Agent 评测平台总架构
 
-> 文档状态：总体方案已确认；Harbor 无模型执行、超时清理与固定 Fork 五类真实补丁判卷已验证；真实 Codex→Fork 完整闭环未完成
-> 最后更新：2026-09-07
+> 文档状态：总体方案已确认；第四场真实 Codex→补丁→固定 Fork 独立判卷通过，M0 核心闭环完成；剩余验收引用专题接口，M1/MVP 未完成
+> 最后更新：2026-09-08
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
 ## 1. 从哪里开始读
@@ -286,7 +286,7 @@ E:\9.1agent_exam\
 │  │  ├─ swebench-requirements.in / swebench-requirements.txt
 │  │  │  # 固定 Fork 的独立 Linux/Python 3.12 直接依赖与 63 包哈希锁
 │  │  ├─ prototype_codex_harbor_e2e.py
-│  │  │  # M0 ports 编排、原型证据、--check / --check-network；真实 Codex 入口待安全门槛
+│  │  │  # M0 ports 编排、原型证据、--check / --check-network；codex 类型仍需调用方显式私有绑定
 │  │  ├─ src\eval_platform\
 │  │  │  ├─ domain\
 │  │  │  │  # 纯领域规则，不依赖框架/数据库/Docker
@@ -318,13 +318,16 @@ E:\9.1agent_exam\
 │  │  │  │  │  ├─ registry.py # 已登记配置 → Harbor AgentConfig；不接收任意命令
 │  │  │  │  │  └─ manifest.py # P2 延后：静态解析 Python 自研 Agent manifest；审核前不执行代码
 │  │  │  │  ├─ execution\
-│  │  │  │  │  ├─ codex_install.py # 已实现：固定 Codex 平台包校验和离线安装输入；不读取凭据，不开放真实运行
+│  │  │  │  │  ├─ codex\ # 已批准并完成内部归拢；仍属于 Execution Adapter，不是新业务模块
+│  │  │  │  │  │  ├─ __init__.py # 内部包边界，无公共业务导出
+│  │  │  │  │  │  ├─ install.py # 固定离线包校验/准备；不读取认证文件
+│  │  │  │  │  │  ├─ policy.py # 纯权限、目录准备与受控启动命令
+│  │  │  │  │  │  ├─ uploads.py # 内部代理：非 root 私有输入流，其他操作委托原 Harbor Environment
+│  │  │  │  │  │  └─ agent.py # 窄继承上游 Codex，绑定离线安装/认证并固定 PATH；原生输出保护未完成
 │  │  │  │  │  ├─ redaction.py # 已实现：仅驻内存的已知值流式脱敏，供内部日志落盘调用；不是通用秘密检测器
-│  │  │  │  │  ├─ codex_policy.py # 已实现待集成：固定 CLI 权限、目录准备与启动命令校验；不承载凭据
-│  │  │  │  │  ├─ codex_agent.py # 已实现待集成：Adapter 内窄继承上游 Codex，复用 run、覆盖配置/命令/清理；真实凭据绑定关闭
 │  │  │  │  │  ├─ preflight.py # 已实现：固定任务及禁网内核就绪检查；不等同真实网络验收
-│  │  │  │  │  ├─ network.py # 已实现：Execution Backend 内部的精确主机名校验、Compose 模板与固定 blob 导出
-│  │  │  │  │  ├─ harbor_entry.py # 已实现：固定 Python/源码引导原 Harbor CLI、配置防覆盖与真实 Agent 门禁
+│  │  │  │  │  ├─ network.py # 已实现：精确主机名/Compose、固定副本导出及已授权的限定 DNS 守卫和双哈希
+│  │  │  │  │  ├─ harbor_entry.py # 已实现：固定 Python/源码、配置防覆盖；仅固定 Codex 私有绑定可注册
 │  │  │  │  │  ├─ harbor\
 │  │  │  │  │  │  # HarborExecutionAdapter 内部实现；外部只见 ExecutionBackend
 │  │  │  │  │  │  ├─ adapter.py       # Job 生命周期与项目结果汇总
@@ -363,6 +366,10 @@ E:\9.1agent_exam\
 │  │     ├─ test_codex_policy.py # 已实现：权限配置、冻结命令、指令保真与拒绝篡改契约
 │  │     ├─ test_codex_guard.py # 已实现：启动固定 Harbor Python 跑方法契约，不执行模型命令
 │  │     ├─ codex_guard_probe.py # 已实现：假 Environment 驱动真实上游 run，区分清理尝试与容器实测
+│  │     ├─ test_codex_uploads.py # 已实现：私有输入流、限长、用户/目标拒绝和通用错误契约
+│  │     ├─ test_codex_trial.py # 已实现：显式假值完整 Job、生产配置/结果映射、自然清理和泄漏正对照；不是安全通过
+│  │     ├─ codex_trial_probe.py # 已实现：固定 Harbor 内部测试驱动，测试专属 Factory 绑定、离线安装和容器限制检查
+│  │     ├─ codex_trial_fixture.py # 已实现：无模型 exec 替身，调用真实 sandbox 并模拟刷新/日志/session/patch
 │  │     ├─ unit\         # 领域状态和应用分支的快速测试
 │  │     ├─ contract\     # Fake/真实 Adapter 共用的契约测试
 │  │     └─ integration\  # PostgreSQL、MinIO、Docker、Harness 集成测试
@@ -482,9 +489,9 @@ E:\9.1agent_exam\
 
 本轮需要用户拍板的产品问题已经回答。下面按实施影响排序查技术事实；若验证结果要求改变产品行为，再回到用户确认：
 
-1. Harbor 内核前提、受控网络探针及生产配置接线的无模型回归已通过；范围及缺口见 [执行接口的网络探针](../interfaces/HARBOR_EXECUTION.md#无凭据网络探针2026-09-07)。Codex 首轮三项配置已确认，固定制品校验、禁网容器版本/帮助与 Harbor 预装复用已通过（[依赖总表](../dependencies/DEPENDENCIES.md#21-codex-无凭据安装制品)）；接下来在现有 Execution Adapter 内补齐完整隔离/真实出站路径、端点、完整 Trial 工具/资源兼容、Token 刷新、脱敏及清理。WSL 更新已完成，不重复更新；不新增顶层网络业务模块，不把安装或配置接线通过当完整闭卷或真实 Codex 已验收。
+1. 第四次授权单题已完成真实 Codex → 补丁 → 固定 Fork 独立判卷，resolved=true；M0 核心闭环已通过，不再重做固定安装/DNS 接线或索取已使用的第四场授权。当前具体成果及剩余安全/生命周期验收见[执行接口](../interfaces/HARBOR_EXECUTION.md#第四次授权运行真实补丁与独立判卷通过2026-09-08)。按该清单完成 M0 验收收尾后再进入 M1；不自动新增模型尝试、顶层模块或更改机器设置。
 2. 固定单题的数据 revision、split、内容哈希与摘要镜像已完成（见依赖文档）；未经验证不扩展到全题库。
-3. NOP 已裁决 Harbor 使用宿主进程驱动 Docker Trial，并验证空 patch/结果映射/正常清理；固定摘要、禁网容器已验证修改/新建/删除/Agent commit 四类非空 patch；薄进程 Adapter 已落实有界日志、宿主进程树终止和外层超时后的精确 Compose 清理，生产执行器的正常与阻塞 collect 超时路径均通过真实 NOP。固定 Fork 五类补丁判卷已通过，M0 编排已实现并验证长路径报告导入；下一步完成真实 Codex 的配置与资源/网络/凭据路径，实际串联证据以 M0 行动记录为准；通过前不搭 Web/数据库流程。
+3. NOP、四类补丁收集、五类固定 Fork 判卷以及第四场真实单题均已有证据；M0 编排与长路径报告导入可用。保留有界日志和精确清理，不把单场通过等同于所有故障路径通过；实际串联证据与剩余验收以 M0 行动记录及专题接口为准，未完成阶段验收前不提前搭 Web/数据库流程。
 4. 在不增加公共注册和额外角色的前提下，核验密码哈希、会话、邀请与本机恢复的最小技术实现；若必须新增顶层 Module 或数据库表，先说明现有边界为何不足并取得确认。
 5. 在真实 Trial 中测量 patch、日志和原始制品规模；默认阈值先按 C-37/C-38，实现证据表明需要调整时再请求确认。
 6. 完成校园网 + FlClash 开启/关闭下的 Tailscale 双机共存测试，失败时才评估 Cloudflare Tunnel + Access。
@@ -509,3 +516,9 @@ E:\9.1agent_exam\
 - 2026-09-06：M0 真实 Harbor NOP Docker Trial、结果映射和生产有界执行器通过，薄进程 Adapter 完成双流截断与宿主父子进程清理验证；记录宿主进程驱动、任务 collect hook、空 patch、UTF-8 CLI 和正常清理证据，真实 Codex、Harbor 超时后的 Compose 清理和固定 Fork 仍未通过。
 - 2026-09-06：真实阻塞 collect 探针证明外层强杀会留下 Compose 容器、网络和本地镜像；现已用本 Job Trial 身份的精确 project label 清理并复核，日志线程也改为有界收束。真实 Codex 与固定 Fork 仍未通过。
 - 2026-09-06：固定 Fork 的隔离 Linux 环境与五类真实补丁判卷通过；既有 Evaluator Adapter 内只适配固定镜像和受限容器创建，保留原 CLI、测试与 grading。更新实际内部文件树；Codex 真实执行和 M0 总装尚未完成。
+- 2026-09-07：在既有 Execution Adapter 内接入固定 Codex 离线安装、生产 UID/PATH、显式私有凭据引用和受控 Factory 注册；原型编排允许显式 `codex`，但真实账号/模型单题仍待所有者授权与实际证据，M0 未完成。
+- 2026-09-07：用户完成项目私有 ChatGPT 登录并授权首次真实 Trial；该场在模型前因 Harbor 版本输出首行误判失败，无补丁/用量/判卷且资源清理为空。现已改为严格校验最后一条非空版本行并通过无模型真实 Harbor 回归；第二场不得自动重试，M0 仍未完成。
+- 2026-09-07：用户授权第二场真实 Trial；调用层误把固定归档指向不存在的 Windows `.zip`，生产校验在 Harbor、凭据和模型前失败。正确 Linux `.tgz` 的大小与 SHA-512 已复核，未修改校验；不自动重试，M0 仍未完成。
+- 2026-09-07：第三次授权运行已使用真实私有认证并启动 Codex，但因侧车阻断 Docker 外部 DNS 转发而触发 AgentTimeoutError；无模型回复/有效补丁/判卷，专属资源清理为空。独立无凭据单变量对照证明特定 DNS 例外可恢复解析；生产调整待确认，M0 仍未完成。
+- 2026-09-08：用户另行授权的限定 DNS 修正已在现有网络 Adapter 内接线；无凭据解析、官方主机根路径 TLS、受控拒绝和清理检查完成。具体边界见执行接口，未进行新的模型运行，M0 仍未完成。
+- 2026-09-08：随后授权的第四场真实单题完成补丁与固定 Fork 独立判卷，resolved=true；M0 核心闭环首次通过，完整安全/生命周期验收继续按接口收尾，M1 未实现、MVP 未完成。

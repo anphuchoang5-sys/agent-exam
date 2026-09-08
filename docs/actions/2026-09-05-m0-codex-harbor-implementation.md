@@ -2,9 +2,9 @@
 
 ## 状态与情况说明
 
-- 本轮本地检查点：本记录随 `feat: checkpoint M0 networking and Codex safety groundwork` 保存，包含自 `6e66125` 以来的网络接线、固定安装输入、安全兼容代码/测试及同步文档；具体提交哈希用 Git 日志核对，不在提交自身写入循环引用。已知远端仍为 `42484d8`，本轮不 fetch、不 push；首轮配置和无凭据安装已通过，真实运行仍待验收。
+- 历史本地检查点：本记录曾随 `feat: checkpoint M0 networking and Codex safety groundwork` 保存，包含自 `6e66125` 以来的网络接线、固定安装输入、安全兼容代码/测试及同步文档；当时后续增量未提交且不 fetch/push。真实运行最新结果见第四场记录，用户后续提交推送授权见末节。
 
-- 状态：进行中；M0 未完成。最新完成固定 Harbor 启动兼容实现的方法契约与生成权限的独立容器验证；凭据解析刻意关闭，兼容类尚未注册到生产 Job。此前已知值日志小修保留；完整 Trial、原生输出/刷新值、网络与真实账号验收仍未通过，入口保持关闭，不自行 push。
+- 当前状态：第四场授权真实单题已完成 Codex → 补丁 → 固定 Fork 判卷，M0 核心闭环通过；完整安全/生命周期验收继续按执行与认证接口收尾，M1 未实现、MVP 未完成。已确认的本机私有输出例外以认证接口第 6.2 节为准。下方历次“未调用/入口关闭/未提交”是当时快照，不覆盖第四场结果和末节发布授权。
 - 来源请求：用户要求先核对 Git 为最新状态，再以长期目标开始实现 MVP，并严格遵守架构、模块契约和接口等权威文档。
 - 当前范围：只实施 M0 本机技术原型。使用固定 SWE-Gym-Lite 单题、固定 Harbor、真实 Codex 和固定 SWE-Bench-Fork，形成可检查的 patch 与判卷证据；M0 通过后另建 M1 行动记录。
 - Git 基线：2026-09-05 已执行 `git fetch origin --prune`；本地 `main` 与 `origin/main` 均为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`，领先/落后为 `0/0`，开始时工作区干净。
@@ -24,11 +24,141 @@
 - 复用边界：内置 SWE-Gym Adapter 会用未指定 `revision` 的 `load_dataset()` 读取远端最新数据，并把含 `gold_patch`、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS` 的原始 datum 写入任务 `tests/config.json`。M0 将复用其镜像命名和 Harbor 任务约定，但保留项目既有规划中的薄 `adapters/tasks/swe_gym.py`，直接读取已校验的固定 Parquet，只生成 Agent 必需的公开任务文件；隐藏字段只交给独立 Evaluator。
 - OpenAI 官方事实复核：Codex 当前仍支持 ChatGPT 登录和 API Key 登录；`codex exec` 是非交互入口，支持 `--ephemeral`、`--json` 和显式 sandbox；文件型缓存含访问令牌，必须按密码处理。项目仍采用已经确认的评测机所有者 ChatGPT 登录政策，不改为 API Key。
 - 已确认的超时事实：真实 Harbor 外层超时会绕过上游正常清理；修复前探针留下 1 个 Compose 容器、1 个网络和 1 个本地镜像。生产 Adapter 现按本 Job 落盘 Trial 身份推导精确 project label，清理并复核容器、网络、卷和本地镜像；日志采集使用总期限，Windows 对仍阻塞的同步读执行定向取消，无法完整收束时返回 `HARBOR_LOG_CAPTURE_INCOMPLETE`，不再无限等待。
-- 已知未知：账号对已选模型/推理强度的实际可用性、所需端点、Token 刷新、日志脱敏和异常路径清理；固定 Fork 已通过的单题以外的适配范围；真实单题的资源峰值与清理结果。首轮 CLI/模型/推理强度选择已确认，见依赖总表。
-- 安全红线：不读取、显示、复制或提交 `auth.json` 内容、Token、Cookie 或 API Key；不把秘密路径写入业务输入或证据；不把 Agent 可见输入与 gold patch、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS` 混合；不把 Mock、Harbor reward 或 Agent 自述写成真实判卷结果。
+- 已知未知：第四场已证明当前账号/模型可用和本场正常清理；剩余端点/长连接/故障、真实 Token 刷新、全面脱敏、其他异常路径、单题以外适配与资源峰值仍未完整验收。首轮配置不变，见依赖总表。
+- 安全红线：不直接查看、显示或提交 `auth.json` 内容、Token、Cookie 或 API Key；只允许获授权的既有私有上传层读取/传输登录文件，不把秘密路径写入业务输入或公开证据；Agent 可见输入不混入 gold patch、`test_patch`、`FAIL_TO_PASS`、`PASS_TO_PASS`；不把 Mock、Harbor reward 或 Agent 自述写成独立判卷。
 - 明确排除：本行动不实现 Next.js、FastAPI HTTP、PostgreSQL、MinIO、应用登录、Owner Approval、Judge、排行榜、Tailscale 或 P2 自研 Agent；不提前创建 M1 空壳。
 
 ## 实施措施
+
+### 2026-09-07 下一窗口交接整理
+
+情况与范围：用户因当前窗口过长要求更新 Handoff，并提供包含目标、现状、阻塞、权威文档和核心代码必读清单的提示词。仅整理恢复资料，保留现有代码、测试、未提交增量和忽略的缓存/证据；不新建任务、不继续实现、不运行模型、不操作运行环境、不提交或 push。
+
+措施：先核对 Git、正式入口的拒绝条件、假值测试断言及权威接口；将 Handoff 中重复的架构规则和历史对账摘要改为专题指针，把当前状态、技术阻塞与授权缺口前置。分层列出修改前必读文档、核心代码与测试、按工作分支必读资料；给出下一步可见里程碑及验收条件，不要求重新批准已确认决定。
+
+受影响文件树（本轮不改变设计模式、模块边界或代码文件树）：
+
+```text
+HANDOFF.md # 更新：下一窗口恢复入口、必读清单、阻塞与提示词
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 更新：本轮范围、实际措施和验证证据
+```
+
+自验证方式与成功标准：`git diff --check`；逐一校验 Handoff 的本地 Markdown 链接与必读源码/测试路径，核对代码围栏、标题和过期状态；以实际源码确认真实入口仍关闭，以前轮记录标注测试时间和跳过项。回读成文提示词，确保可独立恢复而无需读取旧聊天；只修改上述文档，不重跑代码/Docker 测试。
+
+自验证情况：已完成本次交接整理，M0 仍进行中。`git diff --check` 通过（仅既有 LF/CRLF 提示）；PowerShell 校验 Handoff 的 59 个不同本地链接目标全部存在、4 个代码围栏标记成对且无重复标题。全文回读与拟写内容一致，提示词已包含在 Handoff 第 7 节；源码仍有 `REAL_CODEX_NOT_READY` 和 `CODEX_CREDENTIAL_BINDING_NOT_READY` 拒绝条件，测试数字与本记录原有实际结果吻合。Handoff 从约 2.27 万字符收敛至约 1.17 万字符，历史细节改为专题指针而非改写证据。搜索时发现不存在的 `docs/decisions`、`README.md`，随后以实际 `docs/adr` 和文件列表为准，最终清单无缺失路径。本轮只修改本节文件树中的两份文档，未重跑代码/Docker 测试、未使用真实凭据或模型、未提交或 push。
+
+### 2026-09-07 进度说明与已确认输出边界同步
+
+情况：用户确认上一轮提出的受限输出政策，同时表示不清楚 MVP 进度、每次批准的内容以及安全工作的影响。本轮暂停实现，核对现有源码、Git 和已记录测试，向用户区分技术原型、可用产品和安全验收，不以测试数量代替产品完成度。
+
+措施：把最新授权更新到认证唯一事实源，修正 Handoff 的待确认指令及过时检查点描述；保留前轮未提交代码和证据。本轮不修改运行代码，不读真实认证文件、不调用模型、不操作 Docker/WSL/代理、不提交或 push。真实 Codex 单题闭环尚未完成；Web、登录、审批、队列及项目数据库/MinIO 接入尚未实现。
+
+本轮文件树（没有新增目录、接口或设计模式）：
+
+```text
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 本轮范围、措施与实际验证
+docs/interfaces/CODEX_AUTHENTICATION.md # 已确认的受限输出政策唯一事实源
+HANDOFF.md # 当前阶段、恢复指针；不再重复请求已获批准的边界
+```
+
+验证方式与成功标准：执行 `git diff --check`，复核三份文档中当前状态不再把该边界写成待确认，且保留“未授权真实凭据/模型调用”和“未完成 M0”的限制。仅文档修改，不重复运行代码测试；最近代码回归沿用下节的实际结果，不能记成本轮重测。
+
+自验证情况：`git diff --check` 通过（仅既有 LF/CRLF 提示）；定向搜索和回读确认认证接口与 Handoff 的活动说明均已标明边界获批，未留下重复确认指令。历史目录整理段保留当时状态并增加后续指针；P2 提供方秘密配置机制的待确认项不在本轮范围。核对 `git log -1` 为 `f4fa625`，原型入口仍只接受 `internal_test`/`harbor_nop` 并明确拒绝真实 Codex。未运行代码测试、未修改运行代码或环境，未提交、未 push。
+
+### 2026-09-07 已批准的 Codex 内部目录整理
+
+当轮状态：目录整理已完成；当时输出保护的本机阶段例外仍待确认。用户后续确认及本轮范围见上节；政策确认不等于已实现新的访问限制或输出保护。
+
+来源：用户同意上一轮提出的内部 `codex/` 目录，并指出评测数据存储在自己机器，可考虑暂缓输出保护。授权分开处理：立即实施已确认的文件归拢；不把“存储在本机”自动解释为协作者可访问含凭据输出、不自行开放真实账号/模型调用。
+
+措施：
+
+1. 保留全部上一轮未提交改动，将三个 Codex 内部实现归拢到 `execution/codex/`；从安装代码中等价分离已有私有上传代理，消除安装校验和运行时传递的职责混杂。
+2. 更新项目源码/测试及活动文档引用，不保留无消费者的旧路径转发文件；历史行动记录和忽略的 runtime 证据保留原路径，恢复以新的跟踪测试入口为准。
+3. 不修改命令、权限、版本、输出准入或生产门禁行为；不新增公共 port、业务模块、数据库表、服务或输出保护实现。
+4. 运行全部轻量回归、固定 Harbor 方法契约、Ruff/mypy、旧导入搜索、行数/目录限制检查；这次只变文件布局，不重跑 Docker/模型/网络探针，不重建缓存。
+
+实际文件树（旧路径移除是移动后的结果，已有实现保留）：
+
+```text
+apps/backend/src/eval_platform/adapters/execution/codex/ # 用户已批准：现有 Execution Adapter 内部组织
+  __init__.py # 包边界；无额外公共导出
+  agent.py # 从 codex_agent.py 移入：窄继承固定上游 Adapter，依赖 policy/install/uploads
+  policy.py # 从 codex_policy.py 移入：纯权限与受控启动命令
+  install.py # 从 codex_install.py 移入：固定离线包校验和准备
+  uploads.py # 等价移出既有 CodexUploads：代理环境上传；不增加凭据解析器
+apps/backend/tests/{codex_guard_probe.py,codex_trial_probe.py,test_codex_guard.py,test_codex_policy.py,test_codex_uploads.py} # 更新运行导入及嵌入脚本导入
+apps/backend/tests/contract/{codex_install_probe.py,test_codex_installation.py} # 更新离线安装契约导入
+docs/architecture/ARCHITECTURE.md # 同步实际文件树、职责与依赖
+docs/dependencies/DEPENDENCIES.md # 修复固定安装实现的活动链接
+docs/interfaces/CODEX_AUTHENTICATION.md # 更新实现位置；区分本机保存与对外访问，暂缓边界待确认
+HANDOFF.md # 清除“目录尚待批准”的恢复指令，保留真实门禁和输出边界问题
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 本轮授权、实际路径、验证及限制
+```
+
+模式关系仍为 Execution Adapter 内部窄适配；`uploads.py` 的代理只接管两个私有文件目标，其余调用委托原 Harbor Environment。目录整理不等于架构增加了一个业务模块。成功标准：行为测试不变且通过、无旧可执行导入、每文件 ≤200 行/每层 ≤8 文件、活动安装链接可达。
+
+自验证实际结果：在 `apps/backend` 使用 `.venv/Scripts/` 工具执行 `ruff format src tests prototype_codex_harbor_e2e.py`（仅移入安装文件收束尾部空行）后，`ruff check` 通过；`ruff format --check` 为 **68 files already formatted**；`mypy src prototype_codex_harbor_e2e.py` 为 **36 source files** 无错误。`python -m pytest -q -p no:cacheprovider --tb=short` 为 **186 passed, 19 skipped in 10.16s**，含固定 Harbor 解释器中的真实 Factory/方法契约。19 项为显式重型门槛，未在此轮执行；上一轮四场 Docker 证据不改写为本轮重测。
+
+静态复核：apps 中旧可执行导入搜索无匹配；当前 `codex/` 为 5 文件（1/132/112/99/54 行），执行父层为 5 文件，源码和测试各层均未超过文件/行数限制；依赖文档的新安装实现路径存在，`git diff --check` 通过。新旧路径通过移动/等价拆分承接上一轮实现，未清理 runtime 或旧证据、未更改业务端口及 Docker/网络/真实门禁。全部当前改动继续保持未提交、未 push。
+
+### 2026-09-07 完整假凭据 Trial 接线（取证及小修已完成，输出保护待续）
+
+用户确认“好，现在开始吧”。本轮从干净的 `f4fa625` 开始，不提交、不 push。先把固定 Harbor 的实际 Job/Trial、非 root 用户和离线固定 CLI 组成可复现的假凭据测试，再检查原生日志、session、trajectory、结果与 patch，以及正常/报错/超时清理。只有测试替身读取自行生成的假认证文件；它用真实 CLI 执行无模型 sandbox 命令，绝不执行真实 `codex exec` 或认证请求。生产非 NOP 入口和真实凭据解析继续拒绝。
+
+实施顺序及成功标准：
+
+1. 固定上游 Job 通过原 AgentFactory 创建兼容类；仅测试进程替换类映射，不改上游、不开放自定义 Agent 入口。明确记录实际用户、安装摘要、启动次数和挂载。
+2. 深化已有 Codex 兼容实现，处理固定上游额外空配置及非 root 上传兼容；不增加容器 capability，不放宽沙箱目录限制。若发现尚未能安全解决的输出通路，先保留失败证据，不把假值泄露检测通过描述为保护通过。
+3. 覆盖成功、Agent 报错和实际墙钟超时；逐一复核本 Trial 的 Compose 资源，测试兜底清理与上游自然清理分开记。对原值和模拟刷新值逐文件检查，不悄悄改写待判卷 patch。
+4. 同步认证事实源、架构文件树与 Handoff，运行全套轻量测试、Ruff、mypy 和显式启用的 Docker 探针。M0、真实账号和网络门槛仍分别判断。
+
+实际文件树（均复用现有目录，不增加业务模块或公共 port；Adapter 为模式角色，`CodexUploads` 为只覆盖上传的内部代理，测试 Factory 绑定仅用于独立测试进程）：
+
+```text
+apps/backend/src/eval_platform/adapters/execution/codex_agent.py # 固定 Harbor Adapter 兼容与非 root 运行接线
+apps/backend/src/eval_platform/adapters/execution/codex_install.py # 现有离线运行输入及受控容器文件传递实现
+apps/backend/tests/test_codex_guard.py # 默认关闭门槛与配置契约
+apps/backend/tests/codex_guard_probe.py # 已有方法级替身契约适配
+apps/backend/tests/test_codex_uploads.py # 新增：私有输入流、限长、目标/用户拒绝和错误信息契约
+apps/backend/tests/test_codex_trial.py # 新增：显式开关的完整假值 Docker Job 验收
+apps/backend/tests/codex_trial_probe.py # 新增：固定 Harbor 解释器下的内部 Job 驱动
+apps/backend/tests/codex_trial_fixture.py # 新增：无模型 CLI 替身及合成刷新/输出/沙箱对照
+docs/interfaces/CODEX_AUTHENTICATION.md # 凭据检查事实、失败及剩余项唯一来源
+docs/interfaces/HARBOR_EXECUTION.md # 更新完整假值检查状态指针，不重复维护安全事实
+docs/architecture/ARCHITECTURE.md # 同步实际文件树及适配参与者
+HANDOFF.md # 当前恢复入口和未通过门槛指针
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 本轮实际措施、偏差与验证证据
+```
+
+自验证：`ruff check/format --check src tests prototype_codex_harbor_e2e.py`；`mypy src prototype_codex_harbor_e2e.py`；`python -m pytest -q -p no:cacheprovider`；显式启用 `AGENTEXAM_RUN_CODEX_TRIAL_PROBE=1` 的新测试，证据使用全新 runtime 子目录。每个 Python 文件不超过 200 行，tests 根层现在为 8 文件，execution 仍 8 文件。当前结果见本轮收尾记录。
+
+### 2026-09-07 完整假凭据 Trial 结果与暂停点
+
+实施结果和偏差：本轮先建立完整取证回路，再修复实际暴露的创建/上传问题；没有把私有输出过滤实现到生产入口，也没有把泄漏正对照通过记为安全通过。凭据/挂载/输出的实际事实见 [认证接口第 6.2 节](../interfaces/CODEX_AUTHENTICATION.md#62-2026-09-07-假凭据安全收尾)。上游源码、业务 port、数据表、代理、Docker/WSL 设置均未修改。
+
+逐轮验证（目录均位于忽略的 `runtime/prototype/`，旧证据保留）：
+
+| 证据目录 / 回路 | 实际结果 | 定位及处理 |
+|---|---|---|
+| `codex-full-trial-20260907-01` | success 探针失败，尚未创建 Trial 容器 | 固定 Factory 的空 `extra_env` 被拒绝；最小 Factory 契约复现失败后修复，只接受空映射。启动前失败时清理无 Trial 身份，测试不再用“未验证清理”覆盖原始异常 |
+| `...-02` | success 探针失败 | CLI 返回 0，但 stdout 合并了 PATH aliases 警告；同轮恢复收集发现 root 与工作区所有者不同，Git 拒绝收集 |
+| `...-03` | success 探针再次失败 | 定向 `version-check.json` 证明版本行正确；保留警告，改为核验退出码及版本行。测试 collect 用户改为与 Agent 一致，不配置全局 Git 信任 |
+| `...-04` | success 探针失败 | `chown 65534:65534 .../auth.json` 实际报 Operation not permitted；复用 Compose stdin 以非 root 独占创建私有文件，后续断言所有权/0600，不增加 capability |
+| `...-05` | `4 passed in 152.79s` | 正常、报错、墙钟超时、假值 patch 的生命周期与泄漏对照通过；初版 session 夹具没有日期子目录，尚未触发标准 ATIF 转换，不能代表轨迹覆盖 |
+| `...-06` | `4 passed in 156.44s` | 夹具按固定源码要求补日期路径；复用生产 `build_job_plan()` / mapper，核对真实容器限制/挂载，覆盖标准轨迹、原始结果、异常和两份 patch 副本；四场审计均明确 `full_output_protection_passed=false` |
+| `tests/test_codex_guard.py` | 最小 Factory 回路先 `1 failed`，修复后 `2 passed` | 五种方法路径仍覆盖；只接受空环境及关闭 Web，真实绑定、非空覆盖和未知命令仍拒绝 |
+| 默认全套轻量检查 | `186 passed, 19 skipped in 10.53s` | 新增 12 个私有上传契约通过；19 skipped 是 15 个既有显式重型探针加 4 个本轮 Docker 探针，后者在上行显式开关下另跑通过 |
+
+实际命令（在 `apps/backend`，工具均使用 `.venv/Scripts/`）：`ruff format src tests prototype_codex_harbor_e2e.py` 后 `ruff check ...` 通过；`mypy src prototype_codex_harbor_e2e.py` 为 34 source files 无错误；`python -m pytest -q -p no:cacheprovider --tb=short` 结果见表。四场 Docker 回路为设置 `AGENTEXAM_RUN_CODEX_TRIAL_PROBE=1` 后执行 `python -m pytest -q -p no:cacheprovider tests/test_codex_trial.py --tb=short --basetemp <全新证据目录>`。首次 Ruff 报长行，格式化后复核通过；不把首次失败算通过。
+
+当时提出的目录整理：该轮结束时 `execution/` 与 `execution/harbor/` 各满 8 文件，tests 根层也达到 8 文件；安装校验和私有传递同放 `codex_install.py`，继续添加输出职责会加重混杂。因此提出仅在 Execution Adapter 下新增 `codex/`，归拢现有实现，不改变业务模块、公共 port、数据库和 MVP 范围。**用户后续已经同意并完成整理**，当前结果以上方“已批准的 Codex 内部目录整理”为准；不要重复请求此批准。用户同时提出输出保护可在仅本机条件下暂缓，其具体边界见认证事实源，未实现新的例外或过滤行为。
+
+剩余验收：完整输出保护、上传期间中断、外层强杀/崩溃、真实 CLI/PATH 与认证刷新、网络残余范围及真实单题→Fork；本轮均没有宣称通过。
+
+最终复核：轻量全套再次为 `186 passed, 19 skipped in 10.27s`；Ruff check 通过，format --check 为 66 文件已格式化，mypy 为 34 source files 无错误。`git diff --check` 通过；全部项目 Python 源码/测试均不超过 200 行，涉及层级均不超过 8 文件。只读遍历本轮已有身份的 11 个 Trial project，容器/网络/卷/镜像均无残留；Docker 最后为 18 容器、0 运行、25 镜像，既有缓存和其他容器保留。Harbor HEAD 仍为固定 `6af8d6e31eced13b93849cdf80feeadf24603d15`，跟踪源码无改动。当前 13 个项目变更（9 修改、4 新测试文件）均未提交；没有 push/fetch。LF/CRLF 与用户全局 Git ignore 的权限警告保留，不修改全局配置。
+
+### 上一轮：本地检查点（历史）
 
 2026-09-07 用户要求“本地提交之后解释下一阶段和距离 MVP 的差距”：本轮仅建立本地检查点并汇报，不继续实现、不 push、不 fetch、不使用真实凭据或模型。先复核当前 35 个项目变更（前述各轮代码/测试/权威文档），只暂存该精确清单；runtime 证据、安装缓存和 framework 保持忽略。
 
@@ -771,4 +901,323 @@ E:\9.1agent_exam\
 
 提交范围复核为 35 个项目文件，路径仅限已检查的 Python/Markdown；常见 Key/Bearer/JWT/私钥头形态扫描无命中，只证明该形态检查，不声称全面秘密审计。10 份变更 Markdown 的围栏/相对文件链接、git diff --check 通过。`action-document` 维护可追溯范围；`writing-for-agents` 将检查点后的恢复入口改为实时 Git 核验，保留技术验收未完成的边界。既有 ignore 权限与 LF/CRLF 提示不修改全局配置。
 
-进度判断依据实际 apps 文件树和执行接口第 13 节：Task/Harbor/patch/Fork 底层和无模型验证已有实现，真实 Codex 单题闭环仍未验收；M1 的 Web、HTTP、持久化、账号/批准/队列/Worker、报告与协作部署尚未实现。下一阶段范围继续引用认证接口第 6.2 节，不把本地提交当成 M0 完成，也不把测试数量换算成 MVP 完成百分比。未 fetch、未 push、未访问真实凭据。
+进度判断依据实际 apps 文件树和执行接口第 13 节：Task/Harbor/patch/Fork 底层和无模型验证已有实现，真实 Codex 单题闭环仍未验收；M1 的 Web、HTTP、持久化、账号/批准、队列/Worker、报告与协作部署尚未实现。下一阶段范围继续引用认证接口第 6.2 节，不把本地提交当成 M0 完成，也不把测试数量换算成 MVP 完成百分比。未 fetch、未 push、未访问真实凭据。
+
+## 2026-09-07 正式 Codex 入口接线（进行中）
+
+### 状态与情况说明
+
+本轮接续既有 M0，目标不是新增更多替身能力，而是把已经在固定源码及假凭据 Trial 中验证过的离线 CLI、非 root、PATH、私有上传与 Guarded Codex 注册接入现有 `ExecutionBackend` Adapter，随后才申请一次真实单题授权。开始时真实入口仍在两处失败关闭：原型编排不接受 `codex`，Harbor 引导只接受 NOP；兼容类的默认凭据解析仍返回 `CODEX_CREDENTIAL_BINDING_NOT_READY`。固定离线安装输入仅保留在忽略证据目录，当前普通进程读取其中测试临时目录被操作系统权限拒绝；在完成稳定输入定位与完整性复核前不放开入口。
+
+本轮不读取真实 `auth.json`、不调用模型、不改变代理、Docker/WSL、系统 ACL 或其他机器设置。代码与轻量检查完成后，经工具权限确认运行了固定禁网、假认证的安装/Trial 验证；没有重启 Docker。真实运行将消耗所有者的 ChatGPT/Codex 使用额度并产生仅所有者本机私有原始证据；只有在明确列出凭据引用方式、固定配置、出站边界和清理证据后，才单独向用户申请一次运行授权。现有未提交改动、`framework/` 与 `runtime/` 缓存全部保留。
+
+### 实施措施与受影响文件树
+
+沿用现有 Adapter、Factory 与原型编排，不新增顶层 Module、port、数据库表或目录。候选实施树如下；只有实际需要的文件才修改，偏差与最终结果在本节持续回填：
+
+```text
+apps/backend/src/eval_platform/adapters/execution/
+  harbor/adapter.py # Adapter 内部绑定本机离线包与凭据引用；秘密路径不进入 Job 配置或业务证据
+  harbor_entry.py # 严格校验固定真实配置后注册 Guarded Codex；NOP 继续独立工作
+  codex/
+    agent.py # 由闭包绑定已校验输入，离线安装固定 CLI，并保持非 root/权限/清理约束
+    install.py # 校验已解包的固定制品 manifest 与逐文件 hash，不联网安装
+apps/backend/src/eval_platform/adapters/tasks/swe_gym.py # 生产任务与 collect 固定 UID:GID，镜像构建时赋予 /testbed 所有权
+apps/backend/prototype_codex_harbor_e2e.py # 在显式真实运行模式下复用既有 ExecutionBackend → patch → PatchEvaluator 编排
+apps/backend/tests/ # 在既有测试文件中覆盖失败关闭、固定配置、非 root、离线安装绑定与秘密不入配置
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 本轮计划、偏差与实际验证
+docs/{architecture,interfaces,dependencies}/ 与 HANDOFF.md # 仅在实现事实改变后同步各自唯一事实源
+```
+
+设计关系不变：`HarborExecutionAdapter` 是 Execution port 的 Adapter；`harbor_entry.py` 是固定 Harbor 子进程 Composition Root；`GuardedCodex` 是对固定上游 Codex 的窄适配器；`SWEGymTaskSource`/渲染器保持 Agent 公开视图与判卷隐藏视图分离；独立 `PatchEvaluator` 不接收凭据、轨迹或 Agent 原始输出。离线包与本机登录引用属于执行节点私有运行输入，不扩展公开 `ExecutionJobRequest`。
+
+### 修改前定义的自验证方式
+
+- 单元/契约红绿验证：真实配置只在固定 Agent/版本/模型/推理强度、显式本机绑定均成立时通过；任意缺失、符号链接、错误 hash、root 用户、环境偷带凭据或配置篡改均在 Harbor/模型前失败。
+- 任务渲染验证：`agent.user` 与 `verifier.collect.user` 都是 `65534:65534`，Dockerfile 在构建时只把 `/testbed` 交给该 UID:GID；任务正文仍不含 gold、测试补丁或测试标识。
+- 安装验证：生产 `GuardedCodex.setup/install` 仅上传逐文件 hash 已核验的固定 bundle，设置确定性 PATH/可执行权限，固定上游版本检查不得走网络安装分支。
+- 编排验证：新增 `codex` 模式仍使用既有单题、一次执行、补丁强校验和独立 Fork 判卷；基础设施失败与题目未修好分别落盘，不自动重试。
+- 运行与静态验证：先跑定向 pytest，再跑默认轻量 pytest、Ruff format/check、strict mypy、`git diff --check` 及文件/目录指标；真实 Docker/模型、凭据、出站与清理验证另列并等待用户授权。
+
+### 自验证情况
+
+实现与无模型验证已完成，真实单题仍待授权，故 M0 保持进行中。
+
+- `HarborExecutionAdapter` 新增不显示在 `repr` 的本机归档/认证引用；两者必须同时存在。每次执行先以 0700 创建该次目录，在其中从固定归档重新校验并解包；只把两个路径加入受控 Harbor 子进程的专用环境变量，不写入请求、Job JSON 或 Agent kwargs。`harbor_entry.py` 立即弹出该环境值，重新校验 auth 普通文件、大小和 bundle manifest/8 个逐文件 SHA-256，只接受固定 Codex 配置后以闭包注册 Guarded 类；NOP 不接收绑定。未绑定类仍报原 `CODEX_CREDENTIAL_BINDING_NOT_READY`。
+- 生产 `GuardedCodex.install()` 只上传固定 bundle 到 `/opt/agentexam-codex`，固定 CLI/PATH 和五个可执行文件权限，并自行核验版本；不再调用可能落入 curl/npm 的上游在线安装分支。运行期间只在上游唯一的 `CODEX_HOME` 环境上增加固定 PATH；任意其他环境键、命令或 root Agent 继续拒绝。
+- 正式 SWE-Gym 渲染现在在镜像构建时把 `/testbed` 交给 UID:GID `65534:65534`，Agent 与 collect 显式使用同一用户；假 Trial 不再二次改写这些字段。`run_prototype()` 允许显式 `codex` 类型，仍走原 Execution port、patch 强校验和独立 Evaluator，不新增公共接口、模块、目录、表、自动重试或 M1 空壳。
+- 新增/调整测试仍放在既有目录和文件：固定 bundle 二次校验/篡改拒绝、显式绑定不进 Job、Factory 仅对 Codex 选 Guard、生产离线安装、任务 UID、原型 `codex` 分支，以及合成 Trial 对新 PATH 的真实 CLI/替身分流。第一次行动文档补丁因末行上下文少一个空格而未应用，回读后用精确上下文成功；没有覆盖原记录。
+- 固定 CLI 二进制的只读字符串显示 ChatGPT 后端 `chatgpt.com/backend-api/codex`、刷新相关 `auth.openai.com` 等候选；OpenAI 官方认证/安全文档没有给出可直接视为完整的 ChatGPT Codex 防火墙域名清单。该观察只用于披露真实首跑的不确定性，不擅自写成权威 allowlist 或风险已接受。
+
+实际验证：
+
+| 检查 | 本轮结果与边界 |
+|---|---|
+| 定向 pytest | 最终 **75 passed / 1 skipped**；跳过的是需显式 Docker 开关的安装项，随后单独执行 |
+| 默认 pytest | **190 passed / 19 skipped in 10.70s**；19 项重型检查未启用，不算本轮通过 |
+| Ruff / mypy | `ruff check` 通过；`ruff format --check` 为 68 files already formatted；`mypy src prototype_codex_harbor_e2e.py` 为 36 source files 通过 |
+| 生产离线安装 | `m0-codex-production-install-20260907-02`：**7 passed in 12.94s**；固定摘要、`network none`、假认证，真实 `GuardedCodex.install()` 验证 CLI 0.153.0/帮助，无 curl/npm 回退，专属容器清理 `verified=true`。`...-01` 是测试升级前的旧上游安装复核，不能替代本项 |
+| 完整假认证 success Trial | `m0-codex-production-wiring-synthetic-20260907-01` 先失败：替身覆盖真实 CLI 后才做版本检查，Agent/模型尚未运行；修正为覆盖前检查。`...-02` 为 **1 passed / 3 deselected in 38.09s**，新生产 UID/PATH、合成 patch、自然/兜底清理通过；仍不是输出保护或模型证明 |
+| 文件/目录指标 | Ruff 格式后全部项目 Python 文件不超过 200 行；未新增目录或顶层模块，现有 per-folder 上限未扩大 |
+
+Docker named pipe 在普通沙箱内返回 Access denied，按权限流程只为上述两个定向测试和只读证据核对提升；没有把权限错误误报成引擎停止。`...-02` 安装证据显示主容器 `network=none`、无挂载、CapDrop=ALL、禁止提权、PID=64、1 CPU/1 GiB，清理记录 remaining 为空；0700 证据目录随后由普通沙箱读取时被操作系统拒绝，说明该次测试目录未沿用宽松父目录 ACL。真实原型目录仍须在实际运行前后单独核对，不能用本次 pytest 目录代替。
+
+未使用真实登录文件、未发模型请求、未运行固定 Fork 新判卷；没有提交、push、fetch、重启、代理/防火墙/WSL/Docker 设置修改，也没有删除 framework/runtime 缓存。真实运行授权和结果将继续追加在本节之后；题目是否修好与基础设施错误必须分开记录且不自动重试。
+
+### 首次真实运行授权后的认证前置检查
+
+用户已授权按上节固定范围执行唯一一次真实单题闭环。启动 Harbor 前仅检查本机默认 Codex 认证位置的文件元数据，并调用宿主 Codex CLI 的只读 `login status`；没有读取或输出认证内容。结果为默认 `auth.json` 不存在、默认 `config.toml` 不存在且 CLI 返回 `Not logged in`。因此本次真实 Trial **尚未创建或启动**，没有模型请求、额度消耗、Docker 资源或新 Fork 判卷证据，也没有发生可计为自动重试的运行。
+
+该失败属于运行前认证基础设施缺失，不是题目未修好。现有正式入口只接受可核验的普通认证文件，不从桌面应用内部或系统凭据库导出秘密，也不因缺失而改用 API Key。下一步需要用户另行确认一次人工 `codex login`：建议使用本次 M0 专属、所有者私有的 `CODEX_HOME`，由人类在浏览器完成 ChatGPT 登录，随后再由入口只引用生成的 `auth.json`；不修改全局 Codex 配置，不把凭据写入 Git 或显示给助手。登录完成后仍只执行原授权的一次固定 Trial，失败不自动重试。
+
+### 首次真实 Trial 与安装失败诊断
+
+用户另行授权创建项目私有登录目录并启动人工登录。第一次创建目录的 PowerShell 命令误用了 `New-Item -LiteralPath`，因此目录和 ACL 均未创建；该命令没有逐步停止，末尾生成的 `Created=true` 汇总是错误观测，已立即依据实际路径不存在予以否定。随后改用固定绝对路径、逐命令 `-ErrorAction Stop` 创建目录并关闭继承，只授予沙箱 SID；浏览器登录进程使用不同的本机所有者 SID，首次配置加载在认证前因 Access denied 退出。只读比对 SID 后，仅给该精确目录增加本机所有者完全控制，保留沙箱访问，不放宽父目录。固定宿主 CLI `0.153.0` 随后成功完成 ChatGPT 浏览器登录，生成普通非符号链接、大小 3,974 bytes 的 `auth.json`；令牌内容未读取或输出，CLI 只读状态为 `Logged in using ChatGPT`。
+
+经原授权启动了唯一一次 `m0-real-codex-20260907-01`。结果在 Agent setup 的离线安装版本核验阶段终止：外层 `result.json` 为 `stage=execution`，映射终止原因为 `agent_failed`，私有异常分类命中 `CODEX_OFFLINE_INSTALL_FAILED`；Harbor 主进程退出码 0、未超时，stderr 为空，未产生 trajectory、usage 或可接纳 patch，0-byte collect 产物没有进入判卷。因此没有模型请求或可计用量，也没有新的 Fork 判卷。异常和 Trial log 的 SHA-256 分别为 `6210cd0ac44fe31af1bd255b8d5d66b9ae836a17a418d5acf5c4bd6e1e3acf8f`、`38663df332eea79f76fd7b2d6deaddc368d80a3a973054717d161ffae9c1ae1e`；未在聊天中回显原始文件。本场 Compose 精确标签下容器、网络、卷和镜像残留计数均为 0。
+
+该结果属于基础设施失败，不是题目未修好，且不自动发起第二场。只读检查固定任务镜像确认 UID:GID `65534:65534` 的默认 `HOME=/nonexistent` 且不可写；生产 `GuardedCodex.install()` 的版本命令只传固定 PATH，而现有 Docker 安装探针人为注入了可写 HOME，完整假 Trial 又覆盖了生产 `setup()`，因此两者没有覆盖本次真实失败路径。下一步只在既有 `codex/agent.py` 与安装契约测试内修正/复现非 root HOME 语义，运行禁网、假认证、无模型验证；不新增接口、顶层模块、目录或真实 Trial。成功标准是实际 Harbor Docker 执行语义下固定 CLI 版本核验通过、无在线安装、无凭据/模型调用并完成精确清理。修复验证完成后，若要再次执行真实 Trial，必须重新取得用户授权。
+
+实际红绿诊断推翻了“仅由不可写 HOME 导致”的初始假设：把已有 Docker 安装探针改为真实 `HOME=/nonexistent` 后，禁网探针仍为 `1 passed in 12.79s`。正确差异在该探针绕过了 Harbor Docker Environment；完整假 Trial 也自定义覆盖了生产 `setup()`。因此在明确标记的忽略目录建立了无模型复现回路：复用首次 Trial 的固定公开任务配置、重新从固定归档准备 bundle、使用合成空认证，并让真实 Harbor/生产 `GuardedCodex.install()` 执行后覆盖 `run()` 为空操作。红灯结果稳定为两条非空版本输出，第二条包含精确 `codex-cli 0.153.0`、第一条不是版本；旧解析器取第一条，得到同一 `CODEX_OFFLINE_INSTALL_FAILED`，`model_called=false`、`run_reached=false`。
+
+最小代码修复仅修改 `execution/codex/agent.py`：在固定归档和逐文件 hash、确定性 PATH、成功命令都已成立的前提下，要求最后一条非空输出严格等于 `codex-cli 0.153.0`；没有放宽为包含任意版本子串，也没有启用在线安装。`codex_guard_probe.py` 先加入“前导行 + 精确末行”的最小回归，修改前定向测试以 `CODEX_OFFLINE_INSTALL_FAILED` 失败，修改后为 `1 passed in 0.49s`。第一次修复后原回路的生产 Job 已成功，但探针因生产不再调用上游 `parse_version()` 而缺少诊断文件、自身汇总退出 1；修正探针的可选诊断后，在新目录重跑为 `exception_type=null`、`run_reached=true`、`model_called=false`，退出 0。两次修复后诊断 Job 的容器、网络、卷、镜像残留均为 0；红灯、探针偏差和最终绿灯目录均保留，未覆盖历史证据。
+
+最终验证：相关轻量测试为 **10 passed / 1 skipped in 1.72s**；默认轻量全套为 **190 passed / 19 skipped in 10.55s**；Ruff check 通过、format check 为 **68 files already formatted**，mypy 为 **36 source files** 通过。最终生产离线安装 Docker 契约在 `m0-codex-install-home-green-20260907-02` 为 **1 passed in 12.15s**，仍是禁网、假认证、无模型并由测试精确清理。没有再次读取真实令牌内容、调用模型、生成真实 patch 或运行 Fork；第二场真实 Trial 尚未授权，M0 继续进行中。
+
+隐私与一致性收尾：首次真实运行目录的所有者是当前本机用户、ACL 继承已关闭，普通离线沙箱读取 `result.json` 得到 `UnauthorizedAccessException`；项目私有登录目录同样关闭继承，认证文件由当前本机用户持有。首次运行的 `request.json` 和 `harbor-config.json` 都不含认证目录路径，运行目录内没有 `auth.json` 副本。变更文档的本地链接目标、`git diff --check`、Ruff format/check 及全部 Python 文件不超过 200 行的检查通过；仅保留既有 LF/CRLF 提示。没有改变全局登录配置、代理、Docker/WSL 设置，没有提交或 push。
+
+### 第二场真实运行授权与启动输入错误
+
+用户在阅读首次真实 Trial 的失败、修复及无模型回归后，明确授权第二场固定真实单题。运行前只读预检确认项目私有 ChatGPT 登录状态、认证文件类型/大小、固定 Harbor 可执行文件、Docker 引擎和一个固定归档的大小均就绪；没有读取或输出认证内容。前两条启动命令分别因误写判卷器和任务源的 Python 模块名，在 import 阶段立即退出，没有创建原型证据目录、Harbor Job、容器或模型请求；随后直接读取现有集成测试和接口源码，纠正构造方式。
+
+第三条启动命令创建了 `m0-real-codex-20260907-02`，但调用层错误地把 `codex_archive` 指向不存在的 `framework/runtime/codex/codex-x86_64-pc-windows-msvc.zip`。生产 `prepare_codex_bundle()` 在 Harbor 配置、Job 和容器建立前按设计以 `CODEX_PACKAGE_INVALID` 拒绝；外层限定字段为 `status=failed`、`stage=execution`、`resolved=null`、`error_type=ValueError`，没有 `execution.json`、`evaluation.json`、Harbor 配置或 jobs 目录。因此该场没有上传凭据、调用模型、产生用量、补丁或 Fork 判卷，也不是题目未修好。
+
+只读诊断确认正确固定输入仍是 `runtime/prototype/m0-codex-install-20260907-01/codex-0.153.0-linux-x64.tgz`：普通非符号链接文件，129,210,185 bytes，SHA-512 与 `install.py` 固定值一致。故这次失败不是归档缓存损坏或生产校验缺陷，而是一次原型启动编排输入错误；不修改或放宽 `install.py`。第二场证据根继续关闭 ACL 继承，没有 Harbor 配置、Job 或 Docker 调用可清理。按“不自动重试”，本轮不以新目录再次运行；若继续真实模型闭环，必须由所有者再次明确授权。项目私有登录文件仍保留，未改变全局账号、代理、Docker/WSL 设置，也未提交或 push。
+
+本次只改状态文档，没有代码变化，因此未把历史轻量测试冒充本轮重跑。收尾检查覆盖 6 份变更 Markdown：相对链接缺失 0，代码围栏均成对；`git diff --check` 退出 0，仅保留既有 LF/CRLF 提示。三套 framework HEAD 仍分别为 SWE-Gym `b681068ca20628c6987b7416cc4cf03f06b77ba5`、SWE-Bench-Fork `242429c188fcfd06aad13fce9a54d450470bf0ac`、Harbor `6af8d6e31eced13b93849cdf80feeadf24603d15`，且各自工作区干净；主仓 27 个既有/本轮未提交路径全部保留。
+
+## 2026-09-07 第三次授权的固定真实单题
+
+### 状态与情况说明
+
+用户在获知第二次启动的模块名和归档路径错误后，明确说“现在我授权你第三次”。本轮执行 `m0-real-codex-20260907-03`，Run 为 `m0-real-codex-run-03`；仍使用原固定任务、CLI、模型、推理强度、限制、私有登录和两个候选出站主机。此次只授权这一场实际执行和本机独立判卷，失败不自动新建下一场。第二次曾创建原型失败记录，但并未创建 Harbor Trial，后续记录应准确区分这两个阶段。
+
+### 实施措施与受影响文件树
+
+先读回现有集成测试、领域对象和正式入口；在同一份启动构造中校验实际绑定到 `HarborExecutionAdapter.codex_archive` 的普通文件、大小与 SHA-512，再复用同一对象执行，预检模式只跳过最终 `run_prototype()` 调用。执行模式在启动前重复同一预检。结果仅输出限定状态字段，原始证据本机私有。沿用现有 Adapter、Composition Root、Execution/PatchEvaluator 接口，不新增业务代码或公开接口。
+
+```text
+runtime/prototype/m0-real-codex-20260907-03/ # 本次独占私有证据；由现有原型和两个 Adapter 创建
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 授权、运行偏差、结果和验证
+docs/interfaces/CODEX_AUTHENTICATION.md # 本次真实凭据生命周期及剩余限制
+docs/interfaces/HARBOR_EXECUTION.md # 真实执行与独立判卷验收状态，引用详细行动证据
+docs/dependencies/DEPENDENCIES.md # 固定安装/运行验证状态指针
+docs/architecture/ARCHITECTURE.md # 阶段和后续工作队列指针
+docs/research/2026-09-07-dns-icmp-risk-assessment.md # 历史报告指向当前认证与执行事实源
+HANDOFF.md # 下一恢复入口与可粘贴提示的当前状态
+```
+
+### 自验证方法
+
+先用同一启动代码的 check 模式验证全部导入、构造签名、固定任务、精确 Agent 配置、实际归档的 SHA-512、认证文件元数据、框架固定 HEAD/干净状态和 Docker 可用；不创建原型目录或模型请求。check 通过后执行同一代码的 run 模式，只调用一次现有原型编排。运行后核对模型/工具执行与 usage 是否有真实证据、patch 的字节数/哈希和独立 Fork 的 patch_applied/resolved；基础设施失败保持 resolved=null。只按本次 Trial 身份查询并清理残留资源，检查真实证据 ACL、认证副本和出站/清理证据。文档回填后运行链接/围栏和 git diff --check；没有代码变更时不重复历史测试。
+
+### 自验证情况
+
+本场运行与诊断已结束，M0 未完成：同一构造的 check/run 预检均通过，真实 Codex 会话已启动，但 DNS 错误导致未见模型回复，最终按 900 秒 Agent 限额超时。主容器与侧车均通过 Docker 127.0.0.11 得到 SERVFAIL，而 Windows 宿主能解析批准的两个官方主机。`diagnosing-bugs` 的最小无凭据反馈回路在主容器 `socket.getaddrinfo` 重现 errno=-3，并用下文两个独立容器对照完成定位。没有修改本场网络规则或发起下一场模型运行。
+
+#### 本场实时取证与 DNS 因果对照
+
+实际 Harbor Trial 身份为 `python--mypy-15413__ECQo82F`，专属 Compose project 为 `python--mypy-15413__ecqo82f__env`。运行中独立 inspect 确认：主容器 `CapDrop=ALL`、`Privileged=false`、`no-new-privileges:true`、PID=64、1 CPU/4 GiB，网络命名空间共享侧车，挂载目标仅三个 Harbor 日志/制品目录；侧车 0.5 CPU/128 MiB/PID=64，额外 NET_ADMIN/NET_RAW 与上游一致。镜像默认 Config.User 为空不能当作 Agent UID；初次 `docker top -eo uid,comm` 因缺少 PID 列失败，补上 PID 列后实际 Codex 进程 UID=65534。证据根 ACL 继承已关闭、所有者为当前本机用户。
+
+只读日志抽取不输出正文，观察到 thread.started/turn.started，以及域名解析和流中断错误；未见工具执行、模型回复或 turn.completed 用量。两个批准域名在真实主容器的 Python `socket.getaddrinfo` 均为 `resolved=false, errno=-3`；主容器和侧车使用 `127.0.0.11`，`nslookup chatgpt.com 127.0.0.11` 明确为 SERVFAIL，而侧车内部服务别名解析成功。侧车实际白名单严格等于两个批准主机。真实 network 非 internal、IPv6 关闭；只读 nft 规则中已有 127.0.0.11 的 UDP53 放行和本地地址放行，但其他非 TCP 出站会 reject。侧车的 Docker resolv.conf 元数据给出的外部 DNS 转发地址为 `192.168.65.7`。
+
+无凭据对照均复用缓存镜像（pull=never），不挂载宿主，不含认证或 Codex 调用：
+
+1. 同一 Trial bridge、同一已构建任务镜像、独立网络命名空间、非 root、只读、去能力、0.5 CPU/128 MiB/PID=32 的 DNS 对照：两个主机均 `resolved=true`，查询命令退出 0；该专属 `agentexam.dns.reference=m0-real-codex-20260907-03` 容器已删除，复核残留 0。
+2. 同一 Trial bridge 上的独立原生侧车镜像，保留侧车需要的 NET_ADMIN/NET_RAW，仅使用两个限额 tmpfs；运行原 `network-policy allow` 后官方域名解析失败。唯一改动是在该诊断容器自己的 nft egress 表加入 `ip daddr 192.168.65.7 udp dport 53 accept`，随后两个批准域名均解析成功。命令返回 `original_policy_resolves=false, upstream_dns_rule_chatgpt=true, upstream_dns_rule_auth=true`，退出 0；`agentexam.dns.causal=m0-real-codex-20260907-03` 残留复核为 0。
+
+该单变量红→绿对照确认当前 Docker 外部 DNS 转发被侧车非 TCP 规则阻断。它只证明一个具体 DNS 修正的效果，未验证真实 TLS、HTTP/WebSocket、模型访问、动态 DNS/IPv6或其安全边界；不得把诊断规则直接写成已经批准的生产策略。真实 Trial 的规则全程未改，两个诊断容器的变更随其可写层/tmpfs 一起删除，既有 framework/runtime 缓存保留。下一实现候选是在现有网络 Adapter 内明确支持 Docker 实际转发 resolver 的 DNS 例外，记录原始/生效策略身份并做无凭据连通性与拒绝对照；须先明确这项生产网络边界调整的授权，再应用于新 Trial。
+
+#### 第三次运行的最终结果与清理
+
+原型 `result.json` 为 `status=failed, stage=execution, resolved=null, error_type=ValueError`；`execution.json` 为 `termination_reason=timed_out`，原生异常类型 `AgentTimeoutError`，只有 `TRAJECTORY_UNAVAILABLE` 告警。Harbor 主进程退出 0、无外层进程超时、无进程告警；Agent 的 900 秒超时由 Harbor 正常处理，完整 Trial 墙钟为 929.036897 秒。不能把原型启动外壳返回的失败与 Harbor 主进程退出 0 混为同一层级。
+
+日志有 1 个 thread.started、1 个 turn.started、16 个 error；固定 DNS 错误短语命中 11 次。没有已完成的模型 turn、工具执行或模型回复，全部用量字段为 null，不能把 null 填成 0 或声称已核实账单无扣减。CLI 内部出现重连记录，但 Harbor 的 n_attempts=1 / max_retries=0，本助手未发起第二条本场 Trial 或后续真实运行。已实际使用私有上传层把授权登录文件传入容器；聊天和 Git 未输出认证内容，日志全面清洗仍按用户批准的本机私有例外暂缓。
+
+collect 生成了 0-byte 文件，Execution Adapter 不提供可接纳 patch 引用，也没有 trajectory 引用；原型正确在 execution 阶段失败，没有 `evaluation.json` 或新 Fork 判卷。该结果为网络基础设施失败，不能标注成题目未修好、空补丁判卷失败或 M0 完成。
+
+最终独立复核：本次精确 Compose project 的容器、网络、卷、镜像残留均为 0；两个 DNS 诊断标签的容器残留也都为 0。真实原型根由本机所有者持有、ACL 继承关闭；其中 `auth.json` 副本数量为 0，请求和 Harbor Job 配置不含认证源目录标记。私有登录源仍保留，供所有者后续管理，没有删除登录或更改全局配置。对 Trial 下 10 个 JSON/JSONL/log/txt/patch 输出执行常见 Key/Bearer/JWT/私钥头形态检查，匹配数为 0；该限定形态检查不证明全面防泄漏，且本场没有模型工具实际读取边界或真实 Token 刷新证据。
+
+关键证据 SHA-256（路径均相对本次私有原型根；原始文件没有发送外部 Judge）：
+
+| 文件 | SHA-256 |
+|---|---|
+| `request.json` | `0379580497f45a4a4952a1c604bea0487cec6f618d79bf18ef12e9cd4146088f` |
+| `result.json` | `83c9368444ad081d1940c098e69bb17dd363f2409c5f4333e778d3f6a87dad2f` |
+| `execution.json` | `da9f84919c1ebfbcb11b78abc266b800ac85e359c4d8a6a0c57aa5c087064388` |
+| 本场 Trial 的 `agent/codex.txt` | `546c052edc43ffd3f37e9cedd064706bb84ea9876c1581f7db21cd58d076c565` |
+| 本场 Trial 的 `exception.txt` | `fe4a0e18f7dbc11b4925300fbe1b7176196b7668f873d7b1705dc3babc6cea01` |
+| 本场 Trial 的 `result.json` | `438c90622a384cf4f663383e945e5d843f9de91abc604c83592092bdcc43ca77` |
+
+本轮没有生产代码变更，所以不重复历史轻量回归。下一步需要确认的具体措施是：只在现有 `network.py` 导出的侧车运行副本中，给从受信 Docker 配置核实的上游 resolver 增加 DNS 转发例外；当前已通过因果对照的最小规则仅为 `192.168.65.7/UDP 53`。不把未知 resolver、任意公网 DNS 或全部 UDP 加入许可，继续保留模型主机白名单和其他 TCP 拒绝对照；固定上游仓库不改，原始/生效策略哈希均须记录，未知配置失败关闭。该候选尚未接入生产，授权后先做无凭据 DNS/TLS 和安全负例验证，再考虑新的单题运行授权；不要求用户此时盲目批准第四场模型调用。
+
+最终一致性检查：实际只修改上述 7 份状态/证据文档；158 个相对文件链接、9 个本轮新章节锚点和全部代码围栏检查通过，`git diff --check` 通过。三套 framework 仍是前述固定 HEAD 且各自干净，主仓保留全部 27 个未提交路径；未提交、push、重启或更改全局设置。普通沙箱读取第三次私有证据目录被系统拒绝，和提升权限核验的所有者/关闭 ACL 继承结果一致。DNS 因果对照和本场失败/清理均已完成取证；生产 DNS 调整待具体确认，M0 继续未完成。
+
+## 2026-09-08：已授权的限定 DNS 适配
+
+### 状态与情况说明
+
+Completed（仅本次限定 DNS 修改与无凭据验证，M0 未完成）。用户明确允许“把这项限定 DNS 修正接入现有网络适配层”。沿用上节已查证的原因，只支持当前 Docker 配置：内部解析器 `127.0.0.11`、Docker 标记的外部转发器 `192.168.65.7`。本轮权限限于现有适配实现与无凭据验证，不包含第四场模型运行、读取登录内容、修改宿主/WSL/Docker DNS 或代理设置。既有 27 个未提交路径及全部 framework/runtime 缓存保留。当前仍是 M0 技术原型，修 DNS 不等于拿到真实补丁或完成 MVP。
+
+### 实施措施
+
+1. 先在已有固定 Harbor 网络集成探针加入两个批准主机的外部 DNS 检查，观察原策略失败并核对清理。
+2. 仅修改现有 `network.py` 导出的 `bin/network-policy` 运行副本：启动时核对受支持的 resolv.conf 配置；匹配时只增加 `192.168.65.7/UDP 53`。未知/多解析器配置或固定源码定位不匹配时失败关闭；不增加任意 DNS、其他 UDP 或主机白名单项。
+3. 保留固定上游原始字节和生效副本的两组 SHA-256 身份；不修改 framework 仓库，不新增公开接口、顶层模块或目录。
+4. 用无凭据检查验证真实 DNS、限定 TLS 连通性、未知配置拒绝，以及现有目标拒绝/代理绕过/去能力/侧车停止/资源清理。连通性失败与安全失败分别记录，不调用模型、不自动重试真实任务。
+5. 同步权威接口、依赖、架构及交接状态；历史运行记录保留，当前状态引用新结论。
+
+### 受影响文件树
+
+```text
+apps/backend/src/eval_platform/adapters/execution/network.py # 现有 Harbor Adapter 内部实现：固定副本适配、配置守卫、双哈希
+apps/backend/tests/contract/test_execution_network.py # 原始/生效副本及不可覆盖契约
+apps/backend/tests/contract/test_network_preflight.py # 固定源码定位失败关闭回归
+apps/backend/tests/integration/network_probe.py # 固定 Harbor 的无凭据 DNS 回归与既有网络拒绝检查
+runtime/prototype/m0-dns-*-20260908-*/ # 本轮独占的红/绿与限定诊断证据；忽略于 Git、不覆盖旧证据
+runtime/prototype/m0-dns-boundary-20260908-*/probe.py # 一次性无凭据守卫/受控 UDP/官方 HTTPS 检查，各轮独占保留
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 本行动及实际检查结果
+docs/interfaces/HARBOR_EXECUTION.md # 网络适配与 M0 验收权威状态
+docs/interfaces/CODEX_AUTHENTICATION.md # 本轮无认证/无模型运行的边界指针
+docs/dependencies/DEPENDENCIES.md # 固定上游与运行副本双身份
+docs/architecture/ARCHITECTURE.md # 现有 network.py 职责和当前队列指针
+docs/research/2026-09-07-dns-icmp-risk-assessment.md # 历史分析的当前事实源指针
+docs/operations/LOCAL_DOCKER_ENVIRONMENT.md # 纠正历史“尚未执行”文字，引用最新执行状态；不改机器配置
+HANDOFF.md # 下一恢复入口，避免重复询问已给出的限定 DNS 授权
+```
+
+保持现有 Adapter 模式：执行适配器调用内部网络实现导出侧车，固定 Harbor 使用该运行副本；应用层接口和判卷器不变。既有文件容量可承载本轮修改，不新增源码文件或目录；仍检查 200 行/每目录 8 文件限制。
+
+### 自验证方法
+
+- backend venv 的 pytest：先运行新增的固定 Harbor DNS 回归，原始导出应失败于外部 DNS；补丁后同一测试应通过。所有 Docker 测试显式开启 opt-in，证据使用新的 `runtime/prototype` 子路径，超时/清理沿用既有测试。
+- 契约：固定 revision 与上游五文件原始哈希可复算；只有 network-policy 生效哈希变化；源码定位不匹配拒绝；既有目标不覆盖。未知 resolver 配置用无凭据 Linux shell 实际验证拒绝发生在 nft 修改前。
+- 限定无认证连通性：批准的两个主机 DNS/TLS，以及未批准目标、非 DNS UDP 等负例；不发送 Cookie/Authorization、不运行 Codex。
+- 执行轻量回归、ruff check/format check、mypy、行数/目录数、文档链接/围栏、git diff --check；按本轮精确标签独立查询容器/网络/卷/镜像残留，检查 framework HEAD 与干净状态。
+
+### 自验证情况
+
+已完成生产副本适配、红绿回归、补充边界检查及文档同步；第三次模型运行的失败证据不改写为新运行结果。上列文件树为本轮实际范围：4 个既有源码/测试文件、8 份文档，以及忽略的诊断/证据文件；应用层 port、业务流程和固定 framework 均未改。
+
+- 原始策略红测：`AGENTEXAM_RUN_NETWORK_INTEGRATION=1`，backend Python 执行 `pytest apps/backend/tests/integration/test_harbor_network.py -q -o cache_dir=runtime/pytest-cache --basetemp=E:/9.1agent_exam/runtime/prototype/m0-dns-red-20260908-01`；1 failed / 24.56 秒，新增断言明确为 `Docker external DNS forwarding failed`，DNS 探针退出 1。不是未知启动失败；精确 project `agentexam-network-dfa952d93c91` 的四类资源残留为空。
+- 应用修正后同一 opt-in 回归（`-p no:cacheprovider`、新 `m0-dns-green-20260908-01`）：1 passed / 42.01 秒。两官方域名 getaddrinfo 成功；16 项既有网络行为检查通过，两个代理均有 public 退出 0 的正对照，allowlist 下 CONNECT 被拒绝；socket mark 权限拒绝、两目标 deny-all/恢复/侧车停止符合原契约。精确 project `agentexam-network-3d3b137b3d9e` 四类残留为空。
+- 初次轻量验证有两类本地问题：ruff 报新增字符串声明行 91 字符（已拆分 Python 声明、不改变导出脚本字节）；普通沙箱无权创建 runtime basetemp，85 passed / 128 setup errors，不能算回归通过。没有放宽 ACL；改用所有者权限和新目录 `m0-dns-light-20260908-02`，最终 194 passed / 19 skipped / 11.51 秒。19 项是未启用的重型检查；本轮没有重跑四场完整假值 Trial。
+- 最终 ruff check、format --check（68 文件）、mypy（36 源文件）通过。新增 4 个固定源码锚点缺失/重复拒绝场景；导出契约复算五个上游/生效哈希，只有 network-policy 变化且原目标不可覆盖。原始 policy SHA-256 为 `ff1cacfb95e17cda3668f389176ae54e5e4139cff12ee54b4d745722ad0ff0b2`，生效为 `55d963edbcf70791623a73331e9e24508f35c1191c289f7379a06eeedabb4b64`。
+- 无凭据追加程序复用现有网络夹具与固定 Harbor 的 `service_exec`/策略切换接口；以 UID 65534 测试 1 个匹配和 8 个未知配置（测试替换 resolv.conf 输入并将 nft 换成调用标记，不改真实规则），受控 UDP 回显正/负例，以及两个批准主机不带认证的 HTTPS HEAD；不以 HTTPS HTTP 错误页当作模型成功。
+- 追加边界第 01 轮：9 个 shell 守卫场景均符合预期；同一受控 UDP 服务在 public 返回回显，allowlist 下退出 1 / `PermissionError: [Errno 1] Operation not permitted`。探针错误地只接受 `ConnectionRefusedError`，所以整体断言失败，未执行后续 HTTPS。不是 UDP 放行失败或 DNS 回退。修正仅为诊断断言接受已实测的权限拒绝类型，生产代码和规则不变；在新的第 02 轮继续，不覆盖原证据。第 01 轮 project `agentexam-dns-boundary-ccf2ef444dee` 四类资源残留为空。
+- 追加边界第 02 轮：使用 backend Python 的 `probe.py prepare` 复用现有 `_definition`/`export_sidecar`，然后经 `harbor_environment()` 过滤后的环境和现有 `run_bounded_process` 调用固定 Harbor Python 的同一 probe（外层 300 秒、内层 240 秒、日志各 1 MiB）。退出 0、timed_out=false、warnings=[]；再次完成 9 个 shell 守卫与 UDP 正负对照。两个官方主机的无认证 HTTPS HEAD 均 exit 0、HTTP 403、ssl_verify_result=0；未使用 `-k`、无 Cookie/Authorization、不读登录文件。这是根路径 TLS/证书可达，不是模型接口或账号通过，也未核验具体 FlClash 路由。
+- 第 02 轮的实际 `effective-rules.json` 确认只有新增的 `ip daddr 192.168.65.7 udp dport 53 accept`；ICMP 和其余非 TCP reject 保持上游语义。`boundary-summary.json` 标注 real_codex_ready=false；project `agentexam-dns-boundary-7efb9fd715bb` 的容器/网络/卷/镜像残留均为空。
+- 最终独立 Docker 查询再次确认本轮四个精确 project 的四类资源均为空。三套 framework 的 HEAD 仍分别为固定 `b681068...` / `242429...` / `6af8d6...`，跟踪文件工作树干净。当前生产代码导出的生效哈希再次匹配上面的已测身份；未提交/push、重启或调整机器设置。
+- 源码行数：network.py 153、execution network 契约 198、preflight 契约 138、network probe 197；对应目录分别为 5/8/8 个文件，未新增受限源码目录。171 个相对文件链接、7 个本轮新锚点及代码围栏检查通过，git diff --check 通过。
+- 首次红测的相对 `cache_dir` 被 pytest 解释为 backend 下的新缓存目录；收尾核对其生成时间/五个 pytest 文件后，将缓存完整搬到该次红测证据根的 `pytest-cache/`，只移除空父目录。不是删除或重建既有 runtime/framework 缓存；后续检查均关闭 cacheprovider。
+
+追加第 02 轮证据 SHA-256（均在 `runtime/prototype/m0-dns-boundary-20260908-02/`）：`boundary-summary.json` = `fa444979efc47d1cacca55655e4ef57591829282ec2fdb5b3925a923e9f4eb0d`；`effective-rules.json` = `9b597de205ac6f7f156b7e91eb2c1500b12f4206fd10c7a6f07ba2cc49643630`；`boundary-cleanup.json` = `c6d3365af57f7cb853159e483e86ea5c71145697ec5da8cfef152bd9c37602bc`。
+
+遗留限制：不按 DNS 查询名过滤；当前 resolver/协议以外配置会拒绝启动，不自动放宽。根路径 TLS 不等于真实模型 API/WebSocket/刷新路径，未知的 IPv6、长连接、故障和完整凭据生命周期未据此验收，也没有全面输出保护或网络风险豁免。下一可见 M0 里程碑仍是经授权的一场真实 Codex 补丁与独立 Fork 报告，不是本次无凭据测试。以后解释失败时继续明确“为什么出错、修了什么、怎么修与验证”，不让用户仅靠错误码猜测。
+
+## 2026-09-08：第四次授权的固定真实单题
+
+### 状态与情况说明
+
+Completed（本次真实单题完整链路通过，不等于所有安全/生命周期验收或 MVP 完成）。用户在获知 DNS 修复结果、尚未重新调用模型后提出“那我们第四次？开始测试走一遍完整流程？”，本轮按一次固定真实单题及本机独立判卷执行。先说明会使用既有项目私有 ChatGPT 登录、可能消耗额度、不自动重试，不创建 API Key 或改变机器设置。本场 Job/evidence 为 `m0-real-codex-20260908-04`，Run 为 `m0-real-codex-run-04`。用户批准的 DNS 修正与本机私有输出例外直接沿用；这不是批量运行或全面风险豁免。
+
+固定配置仍为 `python__mypy-15413`、Codex `0.153.0`、`openai/gpt-5.6-terra`、`medium`、Web 关闭、单并发/单尝试/零重试；Agent 900 秒、1 CPU/4 GiB，沿用 8 GiB storage 配置；独立 Fork 300 秒、1 CPU/4 GiB。模型访问主机仍为 `auth.openai.com`、`chatgpt.com`。真实 API、模型工具兼容和本场生命周期只能以本场证据判断，前轮根路径 HTTP 403 不当作模型通过。输出仅所有者私有本机保存，未发送外部 Judge。
+
+### 实施措施与受影响文件树
+
+1. 只读核对当前 Git 增量、固定框架、任务/镜像、实际归档绑定和权限；采用一个可审计启动文件的 check/run 模式，复用同一构造，不凭记忆拼写另一套接口。
+2. check 不创建运行目录、不读认证正文、不启动 Trial；run 在相同预检通过后只调用一次现有 `run_prototype()`。保留现有 `ExecutionBackend → patch 校验 → PatchEvaluator`，不修改业务/安全实现。
+3. 运行时只输出限定状态/计数，独立核对本场身份、配置、资源、实际 UID、网络策略和私有证据权限；不显示模型原始输出或令牌。
+4. 完成后核对模型真实响应/工具/用量、补丁身份及独立判卷。基础设施失败保持 resolved=null；修题失败与基础设施错误分开，不自动发起第五场。按本场身份复核清理，更新权威文档。
+
+```text
+runtime/prototype/m0-real-codex-20260908-04-launch.py # 本次 check/run 同一启动构造，复用现有 ports；无秘密正文
+runtime/prototype/m0-real-codex-20260908-04-audit.py # 只读现场/收尾取证，只保存限定字段和计数，不输出原始内容
+runtime/prototype/m0-real-codex-20260908-04/ # 原型独占私有输出，含执行、补丁、独立判卷及本场检查证据
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 授权、执行偏差和真实结果
+docs/interfaces/HARBOR_EXECUTION.md # 本场执行/判卷与 M0 验收状态
+docs/interfaces/CODEX_AUTHENTICATION.md # 本场真实凭据生命周期及剩余风险
+docs/dependencies/DEPENDENCIES.md # 固定配置运行状态指针
+docs/architecture/ARCHITECTURE.md # 当前阶段和下一里程碑指针
+docs/research/2026-09-07-dns-icmp-risk-assessment.md # 历史风险报告指向最新真实运行，不重写旧取证
+docs/operations/LOCAL_DOCKER_ENVIRONMENT.md # 运行状态指针纠正，不改机器环境事实
+HANDOFF.md # 当前恢复入口、实际授权/运行状态
+```
+
+应用层接口、源码目录、框架和配置不变；不新建顶层模块、接口、表或目录。所有既有改动和缓存保留。
+
+### 自验证方法
+
+执行启动文件 check/run 前核验 backend/Harbor/Fork 的实际导入与签名；对实际绑定的 Linux tgz 校验大小及 SHA-512，认证只检查元数据和父目录 ACL；三套框架 HEAD/跟踪文件、Docker 固定镜像和 Fork 锁定环境必须一致。结果检查限定在本场：原型 request/execution/evaluation/result、Harbor config/result/trajectory、补丁字节和 SHA-256、Fork report/tests/cleanup。独立检查本场专属容器/网络/卷/镜像残留、认证副本、ACL 和有限秘密形态，不能把有限扫描升级成全面输出保护。文档同步后检查链接/围栏与 git diff --check；没有源码变化不重复无关轻量/假值回归。
+
+### 自验证情况
+
+本场已执行完成并核对结果。开始前 Docker 无在运行容器、固定 Linux amd64 任务镜像存在、E 盘剩余约 15.6 GB。登录文件为普通非链接、大小受限；父目录关闭 ACL 继承，仅保留先前批准的本机所有者与 Codex 沙箱身份，文件继承该受限 ACL，不更改权限、不读取正文用于检查。
+
+同一启动文件的 `check` 退出 0，包大小/SHA-512、任务快照、三套框架固定 HEAD/干净状态、DNS 生效 policy 哈希、真实 Codex 配置、单尝试零重试、镜像及 Fork 的 63 项锁定包和 Docker 连接均通过；check 未创建运行目录。Agent fingerprint 为 `b4766532f82d92c4be51d33ea9595b53b7bbcd5e9c8022338c3beee05188d8eb`。`run` 使用同一构造并再次执行同一预检后调用原型，无另一套手工启动参数；不把预检通过写成模型执行成功。
+
+收尾检查过程：真实 Codex 完成后，原型返回 completed、patch_applied=true、resolved=true；当时继续核对独立原始证据，不据启动汇总直接宣布全部 M0/MVP 通过。首次收尾辅助脚本在扫描固定 Fork 生成的 Linux `image_build_dir` 链接时，Windows `is_file()` 报 WinError 1920，尚未写出 audit-final.json；随后 PowerShell 的 null 汇总无效，不能作为证据。仅修正这个一次性审计脚本：先用 lstat 识别链接/reparse point，记录跳过数量且不跟随，再检查普通文件；不改模型、补丁或判卷，不重复真实运行。第一次 audit-live.json 生成时容器已经自然删除，故其空列表不能冒充运行中快照；更早的独立 Docker inspect/top 已实际观察到容器和 UID，后续按此来源分别记录。
+
+#### 第四场真实结果与证据核对
+
+Harbor Trial `python--mypy-15413__hkKTeaa`，专属 Compose project `python--mypy-15413__hkkteaa__env`。真实 Agent 为 Codex 0.153.0 / openai/gpt-5.6-terra；原生 exception_info=null，执行 mapper=completed、warnings=[]。Harbor Trial 墙钟 167.146368 秒，Agent 执行区间 05:04:49.021882Z—05:06:50.506330Z（约 121.48 秒）。Codex JSONL 有 1 个完成的 turn，完成项包括 4 个消息、12 个命令执行和 4 个文件变更事件；这次不再是 NOP 或合成 CLI。Harbor 与 Fork 主进程均 exit 0、未超时、warnings=[]，有界进程日志均未截断。
+
+收集的文本补丁为 1,225 bytes，SHA-256=`d5fefec345eb335c9b17d6305037ef47214c56d265f1ca11175c88c90d3ad09d`；`git apply --numstat` 只解析、不应用补丁，显示 `mypy/checker.py` 增加 1 行、`test-data/unit/check-flags.test` 增加 11 行。执行产物、Fork input/model.patch 和原始日志 patch.diff 三份实际文件哈希完全相等，原型/判卷器的完整性校验也已通过。ATIF 轨迹 85,131 bytes、SHA-256=`e14dd3397b7d6dae8d1965d39933cfe5f375d7864652eff96f7863871f78a91f`，未截断。
+
+固定 Fork 原始 report.json 745 bytes，SHA-256=`cf943803a6e2d818b446afdecb32d41b9e8c706ae36b00b279ae6a5ecf6cc1ec`；字段 patch_exists=true、patch_successfully_applied=true、resolved=true。数据集登记的 FAIL_TO_PASS 用例 `mypy/test/testcheck.py::TypeCheckSuite::check-flags.test::testReturnAnyLambda` 在 success，failure=[]；登记的 PASS_TO_PASS 为空。该题按固定基准规则通过，不扩大为整个 mypy 项目所有测试已通过。
+
+Codex 完成 turn 与执行映射的用量一致：input_tokens=343178、cached_input_tokens=314112、output_tokens=2583；turn 另报告 reasoning_output_tokens=527。Harbor `cost_usd=0.1519504` 是固定 Codex Adapter/LiteLLM 定价逻辑产生的估算字段，不是 ChatGPT 订阅账单或已核实扣款；本轮未查询账号账单。
+
+#### 本场安全、清理与检查偏差
+
+运行中第一次独立 `docker inspect` 的主容器为 `cd46d7dc09a8...`、侧车为 `92ecd8a2bfce...`：主容器 CapDrop=ALL、非 privileged、禁止提权、1 CPU/4 GiB/PID=64，共享侧车网络命名空间，只有三个日志/制品 bind 目标。侧车 0.5 CPU/128 MiB/PID=64，原生 NET_ADMIN/NET_RAW，无挂载。该次 `docker top -eo uid,pid,comm` 观察到真实 codex 及 codex-code-mode 进程均 UID=65534；这些是运行中工具取证，后写的 audit-live 空容器数组仅表示记录时已结束，不替代现场观察。
+
+实际 Harbor config 重新经生产 validate_agent_mode/validate_network_config 校验通过，n_attempts=1、max_retries=0、verifier.disable=true。Agent instruction.md 与冻结公开 problem_statement 的应写字节完全相同：1,223 bytes、SHA-256=`d2a5213fb53d6cd8a4da45d3305ea840524351960f7621888bfca8149dd125c5`；隐藏 gold/判分字段只由独立 Evaluator 使用。初次只读比对先有换行转义写法问题，随后仍因 read_text 将数据集原有 33 个 CRLF 归一化而误报；最终改为原始字节核对，未修改任何任务/结果文件。这是检查方法偏差，不是题目被篡改。
+
+独立 Fork 的 container.json 确认使用固定任务镜像、NetworkMode=none、无挂载、CapDrop=ALL、禁止提权、1 CPU/4 GiB/PID=256。其 cleanup verified=true、remaining_ids=[]；在本场 run_id 与 evidence_identity 双标签下独立查询也为空。Harbor 的精确 project 容器/网络/卷/镜像均为空，原型根 ACL 继承关闭、所有者为本机用户。本场根中 auth.json 副本数为 0，请求/Job 配置没有认证源目录标记；原私有登录源保留。
+
+修正后的 audit-final 退出 0：对 44 个本场文本/JSON/patch/diff 文件进行有限常见 Key/Bearer/JWT/私钥头形态检查，hits=0、超大跳过=0；1 个 Linux 目录链接不跟随。明确 full_output_protection_passed=false，不把有限形态检查升级为全面脱敏、编码外传防护或真实 Token 刷新验证。原始文件不送外部 Judge、不共享或加入 Git；输出阶段例外沿用认证接口第 6.2 节。
+
+关键汇总 SHA-256：result.json=`fdd6de054eac9dbb7b062499597f05d2eeb75abd1a4d32c86d3c36b0c5a0419e`；execution.json=`a49bdee65a86a4437a3ad0931175ef677f2995d4cba1db38ea2a96246e93826a`；evaluation.json=`4009d9f2caac09f1944c75a7aff23ef46448e8d943bdecf257e16171fec464e9`；audit-final.json=`c0d8bf04dd72ae1cc5929818675cd6df8984a2178621cd8b82a1960009163430`。
+
+本次交付是首次真实 Codex → 完整补丁 → 固定 Fork 独立判卷通过。没有发起第五场、修改生产源码/上游/机器设置或实现 M1。完整闭卷对抗、IPv6/长连接故障、真实 Token 刷新及强杀/崩溃等生命周期仍按权威接口收尾，不能把单场成功扩大为全部验收。M0 的真实单题核心闭环已通过，MVP 尚未完成。
+
+收尾文档检查：本轮 8 份文档的 174 个相对文件链接、11 个第四场新锚点及代码围栏检查通过；启动辅助脚本 150 行、审计辅助脚本 132 行，均未超过 200 行。git diff --check 通过，既有未提交改动保留。本轮未修改生产源码，未重跑上一轮 194 passed / 19 skipped 的轻量回归或完整假值 Trial；未提交或 push。
+
+## 2026-09-08：用户授权提交与推送
+
+### 状态与情况说明
+
+In Progress。用户在第四场真实单题成功后明确要求“先push上去吧”，授权把当前项目成果提交并普通推送至已有 `origin/main`。不强推、不改写历史、不自动合并远端变化，不上传登录文件、真实运行原始输出、补丁原件、框架或运行缓存。本轮不修改生产代码、不调用模型、不调整机器设置。
+
+### 实施措施与受影响文件树
+
+先核对本地与远端引用，再检查待提交文件及所有未推送历史中的敏感内容/路径；修正交接中的旧授权与 Git 状态描述，只暂存明确列出的现有源码、测试和文档，检查暂存区后提交、普通推送，最后比较远端 main 与本地 HEAD。不将本次授权延伸为后续自动提交或推送。
+
+```text
+docs/actions/2026-09-05-m0-codex-harbor-implementation.md # 更新：本次发布授权、排除范围及发布前检查
+HANDOFF.md # 更新：提交推送授权与 Git 恢复指引，不改变 M0/MVP 状态
+apps/backend/ # 仅提交既有 M0 原型、Codex 接线、DNS 修正和测试增量，不改实现
+docs/ # 仅提交既有架构、接口、依赖和实验状态同步，不新增业务范围
+runtime/、framework/ # 保留且不暂存；真实凭据、原始补丁/判卷输出和缓存不上传
+```
+
+### 自验证方法
+
+只读 `git ls-remote --heads origin main` 核对实际远端；检查待推送对象路径及常见秘密形态，仅输出计数和疑似命中位置，不输出匹配正文。明确文件清单暂存后核对 name-status、`git diff --cached --check`、敏感路径排除和文档链接/围栏；普通推送成功后核对远端 HEAD 等于本地 HEAD、工作树状态。沿用前轮真实单题/轻量回归证据，不为推送重复模型或 Docker 测试。
+
+### 自验证情况
+
+已只读确认远端 main 为 `42484d8472b3a258c49ca22d85a7b8a8b5166de2`，与本地缓存相同；提交前本地 HEAD 为 `f4fa625`，已有 11 个待推送提交。该范围 344 个 Git 对象中无 runtime/framework/认证文件路径；174 个历史 blob 和 32 个待提交现存文件的有限常见凭据形态检查均为 0 命中。runtime 私有证据/认证路径及 framework 均受忽略规则保护。有限扫描不是全面秘密防护验收。
+
+按明确的 35 条路径暂存，Git 将其中两组识别为移动，最终显示 33 项文件变更，全部在既有 M0 范围；暂存区范围与 `git diff --cached --check` 通过。两份本轮改动文档的 79 个相对链接及代码围栏检查通过，没有额外未暂存 backend 改动。本轮只更新发布记录/交接，不重新运行模型、Docker 或前轮轻量回归。最终 Git 传输结果待提交后核对。

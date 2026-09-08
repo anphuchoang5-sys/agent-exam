@@ -12,9 +12,9 @@ from pathlib import Path
 from harbor.environments.base import ExecResult
 from harbor.models.agent.context import AgentContext
 
-from eval_platform.adapters.execution.codex_agent import guarded_codex_class
-from eval_platform.adapters.execution.codex_install import VERSION
-from eval_platform.adapters.execution.codex_policy import CLEANUP_COMMAND, PROFILE
+from eval_platform.adapters.execution.codex.agent import guarded_codex_class
+from eval_platform.adapters.execution.codex.install import INSTALL_PATH, VERSION
+from eval_platform.adapters.execution.codex.policy import CLEANUP_COMMAND, PROFILE
 from eval_platform.adapters.execution.harbor.config_mapper import HARBOR_REVISION
 
 
@@ -23,7 +23,15 @@ class RecordingEnvironment:
 
     def __init__(self, auth, mode):
         self.auth, self.mode = auth, mode
-        self.commands, self.configs, self.uploads = [], [], []
+        self.commands, self.configs, self.uploads, self.directory_uploads = (
+            [],
+            [],
+            [],
+            [],
+        )
+
+    async def upload_dir(self, source, target):
+        self.directory_uploads.append((Path(source), target))
 
     async def upload_file(self, source, target):
         if target.endswith("/auth.json"):
@@ -35,8 +43,25 @@ class RecordingEnvironment:
             self.configs.append(tomllib.loads(Path(source).read_text()))
         self.uploads.append(target)
 
+    async def _run_docker_compose_command(
+        self, args, *, check, timeout_sec, stdin_data
+    ):
+        assert args[:7] == ["exec", "-T", "-u", self.default_user, "main", "sh", "-c"]
+        assert not check and timeout_sec == 30
+        if args[-1].endswith("/auth.json"):
+            assert stdin_data == self.auth.read_bytes()
+        else:
+            assert args[-1].endswith("/config.toml")
+            if self.mode == "config-upload-failure":
+                raise RuntimeError("SYNTHETIC_CONFIG_UPLOAD_FAILURE")
+            self.configs.append(tomllib.loads(stdin_data.decode()))
+        self.uploads.append(args[-1].split()[-1])
+        return ExecResult(return_code=0)
+
     async def exec(self, command, **kwargs):
         self.commands.append((command, kwargs))
+        if "codex --version" in command:
+            return ExecResult(return_code=0, stdout="preamble\ncodex-cli " + VERSION)
         if command == "set -o pipefail; " + CLEANUP_COMMAND:
             return ExecResult(return_code=7 if self.mode == "cleanup-failure" else 0)
         if command.startswith("set -o pipefail; codex exec "):
@@ -79,7 +104,10 @@ async def run_case(root, mode, base):
         cmd, opts = launches[0]
         assert "bypass" not in cmd and "nvm" not in cmd
         assert opts["cwd"] == "/testbed"
-        assert opts["env"] == {"CODEX_HOME": "/tmp/codex-home"}
+        assert opts["env"] == {
+            "CODEX_HOME": "/tmp/codex-home",
+            "PATH": INSTALL_PATH,
+        }
         config = env.configs[0]
         assert config["default_permissions"] == PROFILE
         assert config["approval_policy"] == "never"
@@ -127,6 +155,23 @@ async def main(root):
     else:
         raise AssertionError("Unbound real execution was not rejected")
     assert not env.commands and not env.uploads
+    bound_auth = root / "bound-auth.json"
+    bound_auth.write_text("{}")
+    bound_input = root / "bound-input"
+    bound_input.mkdir()
+    import eval_platform.adapters.execution.codex.agent as agent_module
+
+    agent_module.validate_codex_bundle = lambda _root: bound_input
+    bound = guarded_codex_class(auth_path=bound_auth, bundle_root=bound_input)(
+        logs_dir=root,
+        model_name="openai/gpt-5.6-terra",
+        version=VERSION,
+        reasoning_effort="medium",
+    )
+    install_env = RecordingEnvironment(bound_auth.resolve(), "success")
+    await bound.install(install_env)
+    assert install_env.directory_uploads == [(bound_input, "/opt/agentexam-codex")]
+    assert bound._resolve_auth_json_path() == bound_auth.resolve()
     rows = [
         await run_case(root, mode, base)
         for mode in (

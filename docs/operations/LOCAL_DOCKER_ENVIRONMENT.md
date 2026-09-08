@@ -172,7 +172,7 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 ## 8. 尚未验证
 
 - Harbor 固定环境、CLI `0.22.0`、NOP Job/Trial、正式有界进程 Adapter、四类非空 patch 和外层超时后的精确 Compose 清理已通过；真实 Codex 尚未验证。
-- 尚未执行带真实模型的 SWE-Gym Agent Trial。
+- 第四场授权真实 Codex 单题已完成补丁并由固定 Fork 独立判卷通过；本环境文档不维护逐场结果，最新证据见 [执行接口](../interfaces/HARBOR_EXECUTION.md#第四次授权运行真实补丁与独立判卷通过2026-09-08)。该轮未改变 Docker/WSL/代理设置。
 - 固定 SWE-Bench-Fork 的五类判卷已运行并验证（第 3.3 节）；真实 Codex→Fork 完整验收仍未通过。
 - 尚未确定单个 Trial 的安全内存、CPU、磁盘和超时上限。
 - 尚未确认 Codex CLI 实际所需的完整域名集合，也未完成只允许登记模型访问且阻断宿主/任意公网直连的网络策略。

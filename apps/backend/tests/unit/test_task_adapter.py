@@ -97,6 +97,8 @@ def test_rendered_harbor_task_contains_only_public_view(tmp_path: Path) -> None:
         assert forbidden not in rendered
     assert bundle.public.problem_statement in rendered
     assert bundle.public.base_commit in rendered
+    assert rendered.count('user = "65534:65534"') == 2
+    assert "RUN chown -R 65534:65534 /testbed" in rendered
 
 
 def test_dataset_hash_mismatch_is_rejected(tmp_path: Path) -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -13,10 +14,11 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
 from eval_platform.adapters.execution.harbor_entry import (
     harbor_command,
     harbor_environment,
+    validate_agent_mode,
     validate_network_config,
-    validate_no_model,
 )
 from eval_platform.adapters.execution.network import (
+    SIDECAR,
     compose_profile,
     export_sidecar,
     validate_hosts,
@@ -78,10 +80,16 @@ def test_environment_excludes_credentials_and_untrusted_python_settings(monkeypa
 
 
 def test_real_agents_are_blocked_before_importing_or_running_harbor():
-    validate_no_model({"agents": [{"name": "nop", "n_concurrent": 1}]})
+    assert (
+        validate_agent_mode(
+            {"agents": [{"name": "nop", "n_concurrent": 1}]},
+            runtime_bound=False,
+        )
+        == "nop"
+    )
     for agents in ([], [{"name": "codex"}], [{"name": "nop", "import_path": "x:y"}]):
-        with pytest.raises(ValueError, match="REAL_CODEX_NOT_READY"):
-            validate_no_model({"agents": agents})
+        with pytest.raises(ValueError, match="REAL_CODEX_CONFIG_INVALID"):
+            validate_agent_mode({"agents": agents}, runtime_bound=False)
 
 
 def test_command_uses_the_configured_harbor_python(tmp_path):
@@ -118,13 +126,23 @@ def test_bootstrap_imports_fixed_harbor_not_the_adjacent_adapter_package():
     )
 
 
-def test_sidecar_exports_fixed_original_blobs_and_never_overwrites(tmp_path):
+def test_sidecar_exports_traceable_dns_adaptation_and_never_overwrites(tmp_path):
     repo = Path(__file__).resolve().parents[4] / "framework/harbor"
     destination = tmp_path / "sidecar-source"
     export_sidecar(repo, destination, HARBOR_REVISION)
     assert (destination / "entrypoint.sh").read_bytes().startswith(b"#!/bin/sh\n")
     manifest = json.loads((tmp_path / "network-source.json").read_text())
     assert manifest["revision"] == HARBOR_REVISION and len(manifest["sha256"]) == 5
+    assert manifest["adaptation"] == "docker-desktop-dns-192.168.65.7-udp53-v1"
+    for name, digest in manifest["sha256"].items():
+        assert hashlib.sha256((destination / name).read_bytes()).hexdigest() == digest
+        source = f"{HARBOR_REVISION}:src/harbor/environments/docker/{SIDECAR}/{name}"
+        original = subprocess.check_output(
+            ["git", "-C", str(repo), "show", source], timeout=10
+        )
+        upstream = manifest["upstream_sha256"][name]
+        assert hashlib.sha256(original).hexdigest() == upstream
+        assert (digest != upstream) == (name == "bin/network-policy")
     with pytest.raises(FileExistsError):
         export_sidecar(repo, destination, HARBOR_REVISION)
 

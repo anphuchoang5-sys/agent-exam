@@ -45,11 +45,11 @@ def run_prototype(
     execution: ExecutionBackend,
     evaluator: PatchEvaluator,
     evidence_dir: Path,
-    execution_kind: Literal["internal_test", "harbor_nop"],
+    execution_kind: Literal["internal_test", "harbor_nop", "codex"],
 ) -> DeterministicResult:
-    """Join existing ports; real Codex remains gated on network/secret acceptance."""
-    if execution_kind not in {"internal_test", "harbor_nop"}:
-        raise ValueError("Real Codex network and credential gates are not complete")
+    """Join the fixed execution, patch-validation, and evaluator ports."""
+    if execution_kind not in {"internal_test", "harbor_nop", "codex"}:
+        raise ValueError("Unknown M0 execution kind")
     if len(request.runs) != 1:
         raise ValueError("M0 requires exactly one run")
     (run,) = request.runs
@@ -63,7 +63,7 @@ def run_prototype(
         jobs_dir=root / "execution",
         task_dirs={run.task.instance_id: root / "tasks" / run.task.instance_id},
     )
-    root.mkdir(parents=True, exist_ok=False)
+    root.mkdir(parents=True, mode=0o700, exist_ok=False)
     frozen = {
         "schema_version": 1,
         "prototype": True,

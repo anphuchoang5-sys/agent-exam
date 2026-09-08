@@ -125,7 +125,8 @@ def render_harbor_task(task: EvaluationTask, root: Path, limits: RunLimits) -> P
     (environment_dir / "Dockerfile").write_text(
         f"FROM {task.environment_image}\n"
         "COPY --chmod=0555 collect-patch.sh /opt/agent-exam/collect-patch.sh\n"
-        "WORKDIR /testbed\n",
+        "WORKDIR /testbed\n"
+        "RUN chown -R 65534:65534 /testbed\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -158,9 +159,11 @@ environment_mode = "shared"
 [[verifier.collect]]
 command = "bash /opt/agent-exam/collect-patch.sh {task.base_commit}"
 timeout_sec = 60.0
+user = "65534:65534"
 
 [agent]
 timeout_sec = {float(limits.wall_timeout_sec)}
+user = "65534:65534"
 
 [environment]
 network_mode = "allowlist"

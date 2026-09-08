@@ -138,7 +138,9 @@ def test_pipeline_evidence_and_failure_boundaries(pipeline, scenario):
     assert (pipeline.root / "request.json").read_bytes() == before
 
 
-@pytest.mark.parametrize("scenario", ["multiple_runs", "different_task", "live_codex"])
+@pytest.mark.parametrize(
+    "scenario", ["multiple_runs", "different_task", "unknown_kind"]
+)
 def test_preflight_rejects_before_creating_evidence(pipeline, scenario):
     request = pipeline.request
     if scenario == "multiple_runs":
@@ -157,6 +159,29 @@ def test_preflight_rejects_before_creating_evidence(pipeline, scenario):
             execution=object(),
             evaluator=object(),
             evidence_dir=pipeline.root,
-            execution_kind="codex" if scenario == "live_codex" else "internal_test",
+            execution_kind="unknown" if scenario == "unknown_kind" else "internal_test",
         )
     assert not pipeline.root.exists()
+
+
+def test_codex_mode_reaches_the_existing_execution_port(pipeline):
+    class ExpectedStop(Exception):
+        pass
+
+    def execute(_request):
+        raise ExpectedStop
+
+    with pytest.raises(ExpectedStop):
+        run_prototype(
+            pipeline.request,
+            pipeline.bundle,
+            execution=SimpleNamespace(execute=execute),
+            evaluator=object(),
+            evidence_dir=pipeline.root,
+            execution_kind="codex",
+        )
+    request = json.loads((pipeline.root / "request.json").read_text())
+    assert request["execution_kind"] == "codex"
+    assert json.loads((pipeline.root / "result.json").read_text())["stage"] == (
+        "execution"
+    )

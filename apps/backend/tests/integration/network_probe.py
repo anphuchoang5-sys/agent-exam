@@ -95,6 +95,13 @@ async def run(root, image, project):
     try:
         await env.start(force_build=False)
         await targets("initial", {"allowed"})
+        lookup = "import socket; " + "; ".join(
+            f"assert socket.getaddrinfo({host!r}, 443)"
+            for host in ("auth.openai.com", "chatgpt.com")
+        )
+        dns = await env.exec("python -c " + shlex.quote(lookup), timeout_sec=15)
+        save(root, "external-dns", {"returncode": dns.return_code})
+        assert dns.return_code == 0, "Docker external DNS forwarding failed"
         await env.set_network_policy(NetworkPolicy(network_mode="public"))
         hosts = [f"{name}.agentexam.test" for name in ("allowed", "blocked")]
         hosts += ["host.docker.internal", "http.docker.internal"]

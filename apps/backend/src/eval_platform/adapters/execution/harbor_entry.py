@@ -1,4 +1,4 @@
-"""Fixed Harbor CLI bootstrap; real Agent execution remains gated in M0."""
+"""Fixed Harbor CLI bootstrap with fail-closed Codex runtime binding."""
 
 from __future__ import annotations
 
@@ -8,9 +8,16 @@ import json
 import os
 import sys
 import tomllib
+from collections.abc import MutableMapping
 from pathlib import Path
 from typing import Any
 
+from eval_platform.adapters.execution.codex.agent import guarded_codex_class
+from eval_platform.adapters.execution.codex.install import (
+    VERSION,
+    validate_codex_bundle,
+)
+from eval_platform.adapters.execution.codex.uploads import validate_auth_file
 from eval_platform.adapters.execution.harbor.config_mapper import HARBOR_REVISION
 from eval_platform.adapters.execution.network import (
     compose_profile,
@@ -18,6 +25,19 @@ from eval_platform.adapters.execution.network import (
     validate_hosts,
 )
 from eval_platform.application.ports.execution import RunLimits
+
+_AUTH_ENV = "AGENTEXAM_PRIVATE_CODEX_AUTH_PATH"
+_BUNDLE_ENV = "AGENTEXAM_PRIVATE_CODEX_BUNDLE_ROOT"
+_FIXED_CODEX = {
+    "name": "codex",
+    "model_name": "openai/gpt-5.6-terra",
+    "n_concurrent": 1,
+    "kwargs": {
+        "version": VERSION,
+        "reasoning_effort": "medium",
+        "web_search": "disabled",
+    },
+}
 
 
 def harbor_command(executable: Path, config: Path) -> list[str]:
@@ -36,7 +56,9 @@ def harbor_command(executable: Path, config: Path) -> list[str]:
     ]
 
 
-def harbor_environment() -> dict[str, str]:
+def harbor_environment(
+    *, auth_path: Path | None = None, bundle_root: Path | None = None
+) -> dict[str, str]:
     permitted = set(
         (
             "PATH PATHEXT SYSTEMROOT WINDIR COMSPEC TEMP TMP LOCALAPPDATA APPDATA "
@@ -54,22 +76,53 @@ def harbor_environment() -> dict[str, str]:
         PYTHONSAFEPATH="1",
         PYTHONPATH=str(Path(__file__).resolve().parents[3]),
     )
+    if (auth_path is None) != (bundle_root is None):
+        raise ValueError("CODEX_RUNTIME_BINDING_INCOMPLETE")
+    if auth_path is not None and bundle_root is not None:
+        result[_AUTH_ENV] = str(validate_auth_file(auth_path))
+        if bundle_root.is_symlink() or not bundle_root.is_dir():
+            raise ValueError("CODEX_BUNDLE_INVALID")
+        result[_BUNDLE_ENV] = str(bundle_root.resolve())
     return result
 
 
-def validate_no_model(config: dict[str, Any]) -> None:
+def validate_agent_mode(config: dict[str, Any], *, runtime_bound: bool) -> str:
     agents = config.get("agents")
-    if (
-        not isinstance(agents, list)
-        or not agents
-        or any(
-            not isinstance(agent, dict)
-            or agent.get("name") != "nop"
-            or set(agent) - {"name", "n_concurrent"}
-            for agent in agents
+    if agents == [{"name": "nop", "n_concurrent": 1}]:
+        if runtime_bound:
+            raise ValueError("CODEX_RUNTIME_BINDING_UNUSED")
+        return "nop"
+    if agents != [_FIXED_CODEX]:
+        raise ValueError("REAL_CODEX_CONFIG_INVALID")
+    if not runtime_bound:
+        raise RuntimeError("CODEX_CREDENTIAL_BINDING_NOT_READY")
+    return "codex"
+
+
+def pop_runtime_inputs(
+    environment: MutableMapping[str, str],
+) -> tuple[Path, Path] | None:
+    auth = environment.pop(_AUTH_ENV, None)
+    bundle = environment.pop(_BUNDLE_ENV, None)
+    if auth is None and bundle is None:
+        return None
+    if auth is None or bundle is None:
+        raise ValueError("CODEX_RUNTIME_BINDING_INCOMPLETE")
+    root = Path(bundle)
+    validate_codex_bundle(root)
+    return validate_auth_file(auth), root.resolve()
+
+
+def register_guarded_codex(auth_path: Path, bundle_root: Path) -> None:
+    factory = importlib.import_module("harbor.agents.factory").AgentFactory
+    name = importlib.import_module("harbor.models.agent.name").AgentName
+    guarded = guarded_codex_class(auth_path=auth_path, bundle_root=bundle_root)
+    original = factory.get_agent_class
+    factory.get_agent_class = classmethod(
+        lambda _cls, requested: (
+            guarded if requested == name.CODEX else original(requested)
         )
-    ):
-        raise ValueError("REAL_CODEX_NOT_READY")
+    )
 
 
 def validate_network_config(config: dict[str, Any]) -> None:
@@ -108,7 +161,8 @@ def main() -> None:
     parser.add_argument("--harbor-root", type=Path, required=True)
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding="utf-8"))
-    validate_no_model(config)
+    runtime = pop_runtime_inputs(os.environ)
+    mode = validate_agent_mode(config, runtime_bound=runtime is not None)
     validate_network_config(config)
     context = args.config.parent / "sidecar-source"
     export_sidecar(args.harbor_root, context, HARBOR_REVISION)
@@ -121,6 +175,9 @@ def main() -> None:
         raise ValueError("HARBOR_IMPORT_SOURCE_MISMATCH")
     docker = importlib.import_module("harbor.environments.docker.docker")
     docker.DockerEnvironment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH = context
+    if mode == "codex":
+        assert runtime is not None
+        register_guarded_codex(*runtime)
     cli = importlib.import_module("harbor.cli.main")
     sys.argv = ["harbor", "run", "--config", str(args.config), "--yes"]
     cli.app()

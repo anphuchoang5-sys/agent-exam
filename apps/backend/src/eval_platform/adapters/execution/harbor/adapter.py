@@ -4,9 +4,10 @@ import json
 import re
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from eval_platform.adapters.execution.codex.install import prepare_codex_bundle
 from eval_platform.adapters.execution.harbor.config_mapper import (
     HarborJobPlan,
     build_job_plan,
@@ -46,9 +47,13 @@ class HarborExecutionAdapter:
     project_root: Path
     task_renderer: TaskRenderer = render_harbor_task
     network_hosts: tuple[str, ...] = ()
+    codex_archive: Path | None = field(default=None, repr=False)
+    codex_auth_path: Path | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         validate_hosts(self.network_hosts)
+        if (self.codex_archive is None) != (self.codex_auth_path is None):
+            raise ValueError("CODEX_RUNTIME_BINDING_INCOMPLETE")
         if not self.harbor_executable.is_file() or self.harbor_executable.is_symlink():
             raise FileNotFoundError("The fixed Harbor executable is unavailable")
         if not self.project_root.is_dir():
@@ -61,7 +66,11 @@ class HarborExecutionAdapter:
             raise FileExistsError(
                 f"Refusing to overwrite execution evidence: {run_root}"
             )
-        run_root.mkdir(parents=True)
+        run_root.mkdir(parents=True, mode=0o700)
+        bundle_root = None
+        if self.codex_archive is not None:
+            bundle_root = run_root / "codex-input"
+            prepare_codex_bundle(self.codex_archive, bundle_root)
         task_dirs = self._render_tasks(request, run_root / "tasks")
         plan = build_job_plan(
             request,
@@ -75,7 +84,7 @@ class HarborExecutionAdapter:
             encoding="utf-8",
             newline="\n",
         )
-        return self._run(plan, request, run_root, config_path)
+        return self._run(plan, request, run_root, config_path, bundle_root)
 
     def _render_tasks(
         self,
@@ -101,8 +110,11 @@ class HarborExecutionAdapter:
         request: ExecutionJobRequest,
         run_root: Path,
         config_path: Path,
+        bundle_root: Path | None,
     ) -> tuple[ExecutionTrialResult, ...]:
-        env = harbor_environment()
+        env = harbor_environment(
+            auth_path=self.codex_auth_path, bundle_root=bundle_root
+        )
         command = harbor_command(self.harbor_executable, config_path)
         outcome = run_bounded_process(
             command,

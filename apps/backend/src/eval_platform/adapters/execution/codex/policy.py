@@ -1,4 +1,4 @@
-"""Fixed Codex command/permission compatibility, not a credential provider."""
+"""Internal fixed Codex command/permission policy, not a credential provider."""
 
 from __future__ import annotations
 

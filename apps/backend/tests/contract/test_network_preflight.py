@@ -7,6 +7,7 @@ import pytest
 
 import prototype_codex_harbor_e2e as prototype
 from eval_platform.adapters.execution import preflight
+from eval_platform.adapters.execution.network import _adapt_dns_policy
 from eval_platform.adapters.tasks.swe_gym import CANDIDATE_IMAGE
 
 pytestmark = pytest.mark.contract
@@ -125,3 +126,13 @@ def test_task_only_preflight_does_not_touch_docker(monkeypatch, capsys):
     )
     assert prototype.main() == 0
     assert "network" not in json.loads(capsys.readouterr().out)
+
+
+@pytest.mark.parametrize(
+    "anchor", [b"setup_nftables() {\n", b"$(nft_dns_rules accept)\n"]
+)
+@pytest.mark.parametrize("count", [0, 2])
+def test_dns_adaptation_rejects_missing_or_ambiguous_source(anchor, count):
+    data = b"setup_nftables() {\n$(nft_dns_rules accept)\n"
+    with pytest.raises(ValueError, match="HARBOR_DNS_POLICY_SOURCE_UNSUPPORTED"):
+        _adapt_dns_policy(data.replace(anchor, anchor * count))
