@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel
+from starlette.datastructures import QueryParams
 
 from eval_platform.application.identity import IdentityService
 from eval_platform.application.reporting import JobReporting
@@ -129,6 +130,14 @@ def _parse_job_ids(raw: str) -> list[str]:
     return job_ids
 
 
+def _reject_foreign_params(params: QueryParams) -> None:
+    pairs = list(params.multi_items())
+    if any(name != "job_ids" for name, _ in pairs):
+        raise JobInputError("INVALID_REQUEST")
+    if len([name for name, _ in pairs if name == "job_ids"]) > 1:
+        raise JobInputError("INVALID_REQUEST")
+
+
 def comparison_router(
     identity: IdentityService, reporting: JobReporting, config: HttpConfig
 ) -> APIRouter:
@@ -146,6 +155,7 @@ def comparison_router(
     def comparisons(
         request: Request, job_ids: str = Query(...)
     ) -> ComparisonResponse:
+        _reject_foreign_params(request.query_params)
         actor = identity.current_actor(request.cookies.get(config.cookie_name))
         matrix = reporting.compare(actor, _parse_job_ids(job_ids))
         return ComparisonResponse.from_matrix(matrix)

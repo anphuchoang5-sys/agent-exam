@@ -127,3 +127,23 @@ def test_comparison_rejects_empty_bad_and_oversized_selections(internal_reports_
     oversized = _comparison(api, many)
     assert oversized.status_code == 400
     assert oversized.json()["error"]["code"] == "COMPARISON_LIMIT_EXCEEDED"
+
+
+def test_comparison_rejects_unknown_and_duplicate_query_params(internal_reports_api):
+    api = internal_reports_api
+    api.login()
+    job_id = "00000000-0000-0000-0000-000000000001"
+
+    unknown = api.client.get(
+        "/api/v1/reports/comparisons",
+        params={"job_ids": job_id, "extra": "1"},
+    )
+    assert unknown.status_code == 400
+    assert unknown.json()["error"]["code"] == "INVALID_REQUEST"
+
+    duplicate = api.client.get(
+        "/api/v1/reports/comparisons",
+        params=[("job_ids", job_id), ("job_ids", job_id)],
+    )
+    assert duplicate.status_code == 400
+    assert duplicate.json()["error"]["code"] == "INVALID_REQUEST"
