@@ -58,7 +58,7 @@
       "incomplete": 0,
       "missing": 0,
       "decided": 6,
-      "coverage": "6/6"
+      "total": 6
     }
   ]
 }
@@ -71,7 +71,7 @@
 | `columns[]` | 每个（Job × 配置）一列；列序 = `job_ids` 去重后的顺序；同一 Job 多配置时按 Run 顺序展开 | `MatrixColumn` |
 | `rows[]` | 全部 Job 的题目并集，按 `(repo, task_instance_id)` 排序 | `MatrixRow` |
 | `cells[]` | 该题在该列的结果，五档之一 | `MatrixCellValue` |
-| `totals[]` | 每列分类计数；`decided` = 四档有结论数，`coverage` = "有结论/总数" | `MatrixColumnTotals` |
+| `totals[]` | 每列分类计数；`decided` = 四档有结论数，`total` = 完整矩阵格数（decided + missing） | `MatrixColumnTotals` |
 
 **单元格 `outcome` 五档判定**（新类型 `ComparisonOutcome`，只用于本接口，**不改动** §10.1 既有 `outcome` 四档）：
 
@@ -83,7 +83,7 @@
 | `incomplete` | 其余非终态（取消/未完成） |
 | `missing` | ① 该组合没有 Run；或 ② Run `COMPLETED` 但报告不可读 |
 
-**硬规则（计划第 5 节原文，已由测试覆盖）**：`missing` 的 `resolved` 必须为 `null`（不是 `false`）、`report_path` 为 `null`，**不当作未通过或零**；`missing` 的 `run_id` 为 `null` 表示"没有 Run"、非 `null` 表示"有 Run 但报告缺失"（供界面区分文案）。`coverage` 保持完整矩阵分母，不因缺失扣减。
+**硬规则（计划第 5 节原文，已由测试覆盖）**：`missing` 的 `resolved` 必须为 `null`（不是 `false`）、`report_path` 为 `null`，**不当作未通过或零**；`missing` 的 `run_id` 为 `null` 表示"没有 Run"、非 `null` 表示"有 Run 但报告缺失"（供界面区分文案）。`total` 保持完整矩阵分母，不因缺失扣减。
 
 ## 3. 权限与可见性（沿用 §10.2 既有规则，不新设计）
 
@@ -140,8 +140,14 @@ tests/jobs/reporting/
 
 验证结果：
 
-- `pytest tests/jobs/reporting -q`（含数据库门禁）→ **16 passed**；
-- 全量回归（含数据库门禁）→ **2 failed / 452 passed / 36 skipped**（2 个失败均为缺 `framework/harbor` 的既有环境缺口，与本次无关；此前记录的 cancel/claim 竞态测试本次稳定通过）；
+- `pytest tests/jobs/reporting -q`（含数据库门禁）→ **17 passed**；
+- 全量回归（含数据库门禁）→ **2 failed / 453 passed / 36 skipped**（2 个失败均为缺 `framework/harbor` 的既有环境缺口，与本次无关；cancel/claim 竞态测试稳定通过）；
 - `ruff check`（改动文件）→ All checks passed；`mypy`（新路由文件）→ Success。
+
+2026-09-20 联调收口（B 反馈后）：
+
+- **§2 示例与字段表已由 `coverage` 更正为 `decided + total`**，与 §6 决定和实现一致；
+- **未知/重复查询参数拒绝已按文档实现**（`_reject_foreign_params`，与排行榜行为一致），并新增契约用例（当前该文件 4 个用例）；全量回归更新为 2 failed / 453 passed / 36 skipped；
+- `ComparisonOutcome` 与 domain 的 `MatrixCell` 保持**独立声明**（HTTP DTO 枚举不绑死 domain），经与 B 对齐决定不收敛、不提升为跨模块公开接口。
 
 共享文档 `docs/interfaces/HTTP_API.md` 未由 D 改动；§10.4 落笔仍待 B 完成。
