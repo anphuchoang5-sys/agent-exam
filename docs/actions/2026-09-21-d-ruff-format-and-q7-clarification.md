@@ -9,7 +9,7 @@
 当前事实（本机核对）：
 
 - `ruff format --check src tests prototype_codex_harbor_e2e.py`（`apps/backend` 下）→ 5 个文件待格式化、288 个已格式化，与 C 所列完全一致。
-- 重复 ID 行为核对：实现 `application/job_submission.py:55-56` 对 task_ids/agent_configuration_ids 做 `sorted(set(...))` 归一化；`tests/jobs/test_security.py:66` 明确断言数组翻倍后 `trial_count == 1`。权威文档一致：任务 04 行动记录 `docs/actions/2026-09-12-m1-job-submission.md:22` 已锁定"题目与配置去重后计数"（经用户确认）；`docs/interfaces/HTTP_API.md:384`"任务和 Agent 列表必须非空、去重"、`:388`"任务/配置列表在规范正文中去重并排序"（幂等规范化正文，`canonical_request_sha` 直接消费归一化列表）。`verification.md` §2 Q7 与 `plan.md` 第 5 节的"重复…拒绝"措辞与上述实现、测试、权威文档不一致。
+- 重复 ID 行为核对：实现 `application/job_submission.py:55-56` 对 task_ids/agent_configuration_ids 做 `sorted(set(...))` 归一化；`tests/jobs/test_security.py:66` 明确断言数组翻倍后 `trial_count == 1`。权威文档一致：任务 04 行动记录 `docs/actions/2026-09-12-m1-job-submission.md:22` 已锁定"题目与配置去重后计数"（经用户确认）；`docs/interfaces/HTTP_API.md:384`"任务和 Agent 列表必须非空、去重"、`:388`"任务/配置列表在规范正文中去重并排序"（幂等规范化正文，`canonical_request_sha` 直接消费归一化列表）。`verification.md` §2 Q7 与 `plan.md` 第 6 节第 5 步的"重复…拒绝"措辞与上述实现、测试、权威文档不一致。
 - 对比端点的"拒绝"与"去重"并非 URL/正文不对称：`report_comparisons.py:133-138` 拒绝未知与重复参数键，`:128-129` 对 job_ids 列表内的重复值同样去重——统一规则是"未知/重复参数键拒绝，值列表去重归一化"。
 - 知会核实：实现地图 `implementation-map.md:117` 写候选 `flexible-v2`，实际落地为 `continuous`（`delivery/job_presets.py:29`，行动记录 `2026-09-20-d-continuous-scale-and-rehearsal.md:14` 已确认）；`HTTP_API.md` 目前只记 demo/quick/standard（第 322 行），B 补写时应写 `continuous`（1–20）。
 
@@ -69,3 +69,5 @@ git diff --stat
 7. 验证后已 `pg_ctl stop`，恢复本机测试库到原先的停止状态。
 
 剩余风险：无。本行动不改任何代码行为；PG 门禁用例依赖本机便携 PG 手动启动，属既有已知限制（见 `2026-09-19-d-module-preparation.md:252`），非本次引入。
+
+另记录 C 转来的已知问题（本行动不改动）：`agent_type` 查询参数经路由字面量校验但不参与过滤（`routes/catalog.py:88` 校验后未传入，`agent_registry.list` 只收 enabled/cursor/limit）；当前因登记路径仅接受 codex 而行为等价，06/07 接入 DeepSeek/Kimi 时须真正接入过滤，否则筛选会静默失灵。
