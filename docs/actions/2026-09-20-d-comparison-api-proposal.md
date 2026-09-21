@@ -2,6 +2,8 @@
 
 > 状态：**已按 B 授权由 D 定稿**（2026-09-20）。成员 B 授权由 D 定案本接口；本文即定稿版本，可私下发给 B 过目。**尚未写入共享文档** `docs/interfaces/HTTP_API.md`——该文档归 B 维护，待 B 确认后由 B 落笔新增 §10.4，本文届时只留指针、不复制维护。
 >
+> **收尾（2026-09-21，D 拍板）**：本提案与分支 `xinyue-modules` 的剩余提交**已被 main 的 `7553ce0`（owner 独立实现的加固）取代**——main 版更完整（UUID 规范化、跨仓库同名题隔离），且 `ComparisonOutcome` 已收敛到 `matrix.py` 单一来源（本提案此前"不收敛"的决定作废）。分支剩余提交不再合入 main，`xinyue-modules` 转为历史存档，本文转为历史记录。
+>
 > 依据：规格 story 24–27（"每题一行、配置一列"、"分清未通过、执行故障和未完成"）；执行计划第 5 节（"复用批次报告建'题×配置'矩阵……缺失 Run 或报告标为缺失，不当作未通过或零"）；现有接口契约 §10.1/10.2/10.3。
 
 ## 0. 为什么需要这个接口
@@ -148,6 +150,6 @@ tests/jobs/reporting/
 
 - **§2 示例与字段表已由 `coverage` 更正为 `decided + total`**，与 §6 决定和实现一致；
 - **未知/重复查询参数拒绝已按文档实现**（`_reject_foreign_params`，与排行榜行为一致），并新增契约用例（当前该文件 4 个用例）；全量回归更新为 2 failed / 453 passed / 36 skipped；
-- `ComparisonOutcome` 与 domain 的 `MatrixCell` 保持**独立声明**（HTTP DTO 枚举不绑死 domain），经与 B 对齐决定不收敛、不提升为跨模块公开接口。
+- `ComparisonOutcome` 与 domain 的 `MatrixCell` 原本经与 B 对齐决定保持独立声明；**2026-09-21 收尾时该决定作废**——main 的 `7553ce0` 已把五档类型收敛到 `matrix.py` 单一来源（以 main 为准）。
 
 共享文档 `docs/interfaces/HTTP_API.md` 未由 D 改动；§10.4 落笔仍待 B 完成。
