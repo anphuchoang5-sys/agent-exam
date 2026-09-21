@@ -109,7 +109,7 @@
 |---|---|---|
 | 五档分类、缺失语义、去重/上限、授权（`JobReporting.compare` + `matrix.py`） | ✅ 已实现并测试 | D |
 | 本接口的路由、DTO、错误映射、OpenAPI | ✅ 已实现（2026-09-20，B 批准本方案后） | D 实施（文件在 B 的 HTTP 层，经 B 批准） |
-| 本文落入 `HTTP_API.md` §10.4 | ⬜ 待 B 落笔 | **B** |
+| 本文落入 `HTTP_API.md` §10.4 | ✅ 已由 B 落笔（2026-09-21 复核 main 的 §10.4 存在且与实现一致） | **B** |
 | 对比页 UI（列头、单元格、覆盖率、钻取） | ⬜ 待实现 | B（任务 03 主责） |
 | 每列指标汇总（用量/费用/耗时 `{value, coverage}`） | ⬜ 可后续增量；v1 不含，页面可经既有单 Run 报告惰性取得 | 待定 |
 
@@ -152,4 +152,4 @@ tests/jobs/reporting/
 - **未知/重复查询参数拒绝已按文档实现**（`_reject_foreign_params`，与排行榜行为一致），并新增契约用例（当前该文件 4 个用例）；全量回归更新为 2 failed / 453 passed / 36 skipped；
 - `ComparisonOutcome` 与 domain 的 `MatrixCell` 原本经与 B 对齐决定保持独立声明；**2026-09-21 收尾时该决定作废**——main 的 `7553ce0` 已把五档类型收敛到 `matrix.py` 单一来源（以 main 为准）。
 
-共享文档 `docs/interfaces/HTTP_API.md` 未由 D 改动；§10.4 落笔仍待 B 完成。
+共享文档 `docs/interfaces/HTTP_API.md` 未由 D 改动（D 从未直接编辑该文件）；§10.4 已由 B 落笔，随 main 的 `7553ce0` 同步。本文以下内容均为当时的过程记录，**当前事实以 main 为准**：路由最终位于 `routes/jobs/reporting/comparisons.py`（原 `report_comparisons.py` 已按直属文件上限迁移），五档类型与汇总已收敛到 `matrix.py`；迁移与加固过程见 main 的 `docs/actions/2026-09-20-post-merge-review-fixes.md`。
