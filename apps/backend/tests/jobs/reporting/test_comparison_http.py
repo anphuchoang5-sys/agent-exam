@@ -96,9 +96,7 @@ def test_comparison_requires_session_and_hides_unknown_or_foreign_jobs(
     api = internal_reports_api
     assert _comparison(api, ["00000000-0000-0000-0000-000000000001"]).status_code == 401
     api.login()
-    assert (
-        _comparison(api, ["00000000-0000-0000-0000-000000000001"]).status_code == 404
-    )
+    assert _comparison(api, ["00000000-0000-0000-0000-000000000001"]).status_code == 404
 
     task, agent = api.register_catalogs()
     owner_job = submit(

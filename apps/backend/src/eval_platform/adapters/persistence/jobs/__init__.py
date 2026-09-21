@@ -30,9 +30,7 @@ def job_read_transaction(dsn: str) -> Iterator[psycopg.Connection[DictRow]]:
     stored-state validation. REPEATABLE READ pins one snapshot for the read.
     """
     with job_transaction(dsn) as connection:
-        connection.execute(
-            "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
-        )
+        connection.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
         yield connection
 
 

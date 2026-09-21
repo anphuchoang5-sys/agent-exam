@@ -152,9 +152,7 @@ def comparison_router(
         response_model=ComparisonResponse,
         responses=error_responses(400, 401, 404, 503),
     )
-    def comparisons(
-        request: Request, job_ids: str = Query(...)
-    ) -> ComparisonResponse:
+    def comparisons(request: Request, job_ids: str = Query(...)) -> ComparisonResponse:
         _reject_foreign_params(request.query_params)
         actor = identity.current_actor(request.cookies.get(config.cookie_name))
         matrix = reporting.compare(actor, _parse_job_ids(job_ids))
