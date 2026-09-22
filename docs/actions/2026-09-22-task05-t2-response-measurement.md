@@ -129,3 +129,4 @@ Harbor 在拆除前记录了四个容器 ID 与两个网络 ID，并核对每一
 1. **关键验收缺口：其他 Trial 没有活体目标。** `t05-other-trial` 在该次 Compose 中不存在，因而脚本的 `PASS a3 workload -> other trial` 只是“名称不可达”，不能证明对另一个实际运行 Trial 的隔离。这不是实测失败，但不能写成完整第 3 条已证成。若要完成原验收，须取得对额外受控活体目标及其独立网络/Trial 的明确授权，给目标与观测端都加任务标签和新 scope，在固定 Harbor 内做通/不通正反对照，然后精确清理；当前硬范围只列 `internal`/`egress` 与 `main`/`proxy`/`fake-upstream`，**本轮没有擅自扩建**。在这个缺口签收前，按计划不进入 S9/S10/S11。
 2. **测量函数修复已实测有效，但两项子因素未单独定因。** 本轮同时修正请求 CRLF 和固定字节读取，离线/Harbor 正例均通过且负例仍失败；不声称“仅 `head -c 16`”或“仅 LF”就是前轮唯一根因。原期望、13 条判定与网络策略未放宽。
 3. **仍未验证**：真实 Codex CLI/模型、真 Key/真实供应商、产品化 `service.py` 网络接线、跨 Trial 活体隔离及 S9/S10/S11。没有读取真实 Key/登录文件，未发真实供应商请求、未充值，未修改共享 Docker/WSL/代理/防火墙。
+4. **PR 尚未打开**：本机没有 `gh`，当前可用工具也没有 GitHub PR 写入入口；已将本片提交安全推送到 `origin/lly/dev`，但未伪称 PR 已创建。解决方式是在 GitHub 上以 `lly/dev` 为 head、`main` 为 base 创建 PR，正文明确“最小 Trial verified，但活体跨 Trial 未验证、S9–S11 未做”；在补齐跨 Trial 授权与实测前，不把它当作完整 T2 验收的合并批准。
