@@ -51,7 +51,7 @@
 
 `domain/agent.py` 增加 `owner-codex`/`t05-fake-provider` 非秘密 profile ID 常量，登记预设与 Worker 选择器共用。`worker/bindings.py` 逐一检查冻结 Run 的 `(model_provider, authentication_type, credential_configuration_id)`，未知身份/错配拒绝；ChatGPT 保留 `auth.openai.com`、`chatgpt.com` 固定主机和归档、认证校验；受控假身份标记为代理路由、不需要 ChatGPT 认证，但 S10 前任何含此身份的 Job **在 Harbor 启动前**报 `PROVIDER_RUNTIME_NOT_READY`。多 Agent Job 全部 Run 先检查，任一代理路由均不允许其余 ChatGPT Run 借道执行。`runtime.py` 不再领取前无条件验证 ChatGPT 文件，而是在全 ChatGPT Job 的本次 `execute` 前按原逻辑验证并构造同参数 Harbor Adapter；这是计划要求的**验证时机变化**，不是完全逐行相同的启动行为。
 
-源文件指标：`runtime.py` 180 行、`bindings.py` 74 行；测试文件 `test_worker_runtime.py` 170 行、`test_worker_bindings.py` 154 行；`delivery/worker/` 5 个 Python 文件、`tests/jobs/runtime/` 3 个，均低于项目默认阈值。无新 `ExecutionBackend` Interface、数据库表或顶层模块。
+源文件指标：`runtime.py` 180 行、`bindings.py` 74 行；测试文件 `test_worker_runtime.py` 170 行、`test_worker_bindings.py` 156 行；`delivery/worker/` 5 个 Python 文件、`tests/jobs/runtime/` 3 个，均低于项目默认阈值。无新 `ExecutionBackend` Interface、数据库表或顶层模块。
 
 ### 运行命令与实际输出
 
