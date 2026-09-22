@@ -248,3 +248,12 @@ E 侧已有准备产物：[阶段 1 代理测试设计](../../../docs/LLY/01-pla
 2026-09-22 S9 补测更新（较新事实，覆盖上一条默认全量失败状态）：用户同意在现有 worktree 临时联接主工作区固定 Harbor；原两项契约测试 `2 passed`，默认全量 `624 passed / 105 skipped`、退出 0。首次普通沙箱因临时目录权限得到 `1 passed / 1 error`，受控权限重跑后通过；联接及空父目录精确移除，主 Harbor 仍为固定提交、受控文件干净。专属 PostgreSQL 显式全量仍因 `fe_sendauth: no password supplied` 未通过，本次未复跑、未碰凭据或服务；S9 整片验收待补，S10/S11 未启动。证据与方案见[S9 行动](../../../docs/actions/2026-09-22-task05-s9-run-bindings.md)。
 
 2026-09-22 S9 显式 PG 补测诊断：用户在本机隐藏输入后，专属身份预检返回 `auth_exit=1 / test_exit=not-run / cleanup=ok`，服务器报告密码认证失败；全量 pytest **未运行**。只读核对显示 `127.0.0.1:55432` 当前是既有 `agentexam-local` Docker PostgreSQL 的发布端口，而非计划的独立测试实例，故不能在上面执行会创建/删除随机数据库的测试；密码拒绝也不能据此断定用户输错。未保存凭据、未改持久化服务、无临时 Harbor 联接残留。须另备隔离专属实例或由已有专属环境执行 PG 全量；S9 整片验收待补，S10/S11 继续停下。详见[S9 行动](../../../docs/actions/2026-09-22-task05-s9-run-bindings.md)与 ISSUE-05。
+
+2026-09-22 S9 验收补齐：**PG 全量在本机取得，S9 验收缺口关闭，S10 可开工**
+
+- **卡点不在代码**：S9 选择片已实现并推送（`009e7cf`），卡的是显式 PG 全量——负责人机器 `127.0.0.1:55432` 是既有 `agentexam-local` Docker 服务的发布端口（ISSUE-05），夹具 62 项连接期即失败。
+- **按计划的机器归属解决**：该全量本就在**本机（E 的开发机）专属库**上执行（[阶段 1 实施方案第 4 节](../../../docs/LLY/01-plan/STAGE1_IMPLEMENTATION_PLAN.md)）。实测直连成功（回环 trust、无需密码）：`pytest tests/jobs/runtime --no-cov` **27 passed**；显式 PG 全量 **676 passed / 51 skipped / 2 failed**（2 项失败仍为缺 `framework/harbor` 的 ISSUE-04）。
+- **S9 复核要点**：`select_run_binding()` 同时校验身份对与**非秘密**凭据引用，未知/错配 `ValueError`；代理路由 `needs_chatgpt_auth=False` 但 `needs_codex_archive=True`（容器仍跑固定 CLI，只是不读 ChatGPT 认证）；混合 Job 在 Harbor 启动前 `PROVIDER_RUNTIME_NOT_READY` 失败关闭。
+- **一处观察（未改，交负责人）**：ChatGPT 归档/认证的校验时机由 worker 启动时推迟到首次执行 ChatGPT Run 前——这是"不再无条件要求 ChatGPT auth"的直接后果，但配置写错时 worker 仍能启动。若希望保留启动期快速失败，可加"两个环境变量都存在时仍在启动时校验"。
+- **文档同步**：`LOCAL_SETUP.md` 那条被误导的注记改为**按机器区分**（本机 trust 可用；那台机器的 55432 是既有服务），`ISSUE-05` 关闭。证据见[本机补测行动](../../../docs/actions/2026-09-22-task05-s9-pg-acceptance-local.md)。
+- **下一步**：S10 在负责人机器上开工（拓扑以 T2 已测结论为准）；**PG 相关回归一律在本机跑**。

@@ -1,6 +1,6 @@
 # 任务 05 S9：Worker 按冻结 Run 选择绑定
 
-> 状态：S9 选择代码已实现；通过临时复用主工作区固定 Harbor，A 机默认全量为 **624 passed / 105 skipped**。显式 PG 全量仍未测得：本机 `127.0.0.1:55432` 实为既有 `agentexam-local` Docker PostgreSQL 的发布端口，不是计划中的专属测试实例；身份预检被拒后安全停止。故 **S9 整片验收待补**，未进入 S10/S11。T2 在授权的最小 Harbor + 活体网络替身形态已测得 13/13 PASS；双 Harbor Trial 未验证。
+> 状态：S9 选择代码已实现；负责人机器侧默认全量 **624 passed / 105 skipped**（临时复用主工作区固定 Harbor 补测）。**显式 PG 全量已于同日在本机（E 的开发机）取得：676 passed / 51 skipped / 2 failed**——负责人机器的 `127.0.0.1:55432` 是既有 `agentexam-local` Docker 服务的发布端口、不是计划中的专属测试实例，故该全量按计划在**本机专属库**执行并回传证据，见[本机补测行动](2026-09-22-task05-s9-pg-acceptance-local.md)。**S9 的两项验收（定向单测 + 全量回归）已具备，S10 可开工。** T2 在授权的最小 Harbor + 活体网络替身形态已测得 13/13 PASS；双 Harbor Trial 未验证。
 
 ## 情况说明
 

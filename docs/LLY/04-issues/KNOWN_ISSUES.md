@@ -103,9 +103,11 @@
 
 **2026-09-22 当前补充**：主仓库 `E:/9.1agent_exam/framework/harbor` 已存在且为固定提交 `6af8d6e31eced13b93849cdf80feeadf24603d15`、受控文件干净、虚拟环境可用；独立 `runtime/lly-dev-verify` worktree 的同名路径默认不存在。S9 初次默认全量为 `620 passed / 107 skipped / 2 failed`，失败均来自该缺失路径。用户明确允许后，临时目录联接复用固定 Harbor，定向两项 `2 passed`、默认全量 `624 passed / 105 skipped`，证明这两项是环境依赖；补测后精确移除联接，主框架保持原提交且干净。当前 worktree 再次没有该路径，未来要复测这两项仍需恢复同样的受控前提；见[S9 行动](../../actions/2026-09-22-task05-s9-run-bindings.md)。
 
-## ISSUE-05：负责人 worktree 的 PostgreSQL 测试 DSN 指向既有服务（未解决）
+## ISSUE-05：负责人 worktree 的 PostgreSQL 测试 DSN 指向既有服务（已解决）
 
-**状态**：未解决　**影响**：S9 的显式 PG 全量回归尚未测到数据库断言。
+**状态**：已解决（2026-09-22）　**影响**：曾使 S9 的显式 PG 全量未测到数据库断言；已按“在已有专属实例的机器上执行并回传证据”这条路径关闭。
+
+**解决（2026-09-22）**：该全量按计划本就在本机（E 的开发机）的专属库上执行——本机 `127.0.0.1:55432` 是可用的便携专属实例（回环 trust、无需密码），实测跑通 **676 passed / 51 skipped / 2 failed**（2 项失败为缺 `framework/harbor` 的 ISSUE-04，与本问题无关）；负责人机器上那 62 个连接期 error 在同一批用例上全部进入数据库断言并通过。**结论：负责人机器不运行 PG 全量（那里的 55432 是既有 `agentexam-local` 服务，不得建/删临时库）；PG 相关回归一律在本机跑。** 证据见[本机补测行动](../../actions/2026-09-22-task05-s9-pg-acceptance-local.md)。以下为定位过程（保留原样）。
 
 - 2026-09-22 初次实测：端口 `127.0.0.1:55432` 可连接，但按[本机环境文档](../02-environment/LOCAL_SETUP.md)历史的无密码专属测试 DSN 开启 `AGENTEXAM_RUN_IDENTITY_POSTGRES=1`，夹具收到 `fe_sendauth: no password supplied`。全量结果 `620 passed / 45 skipped / 2 failed / 62 errors`；62 个 error 均在连接时出现，没有进入建临时库或数据库断言。
 - 同日补查：用户在可见 PowerShell 为专属测试角色隐藏输入密码，预检实际为 `auth_exit=1 / test_exit=not-run / cleanup=ok`，服务器返回 `password authentication failed for user "agentexam_identity_test"`；脚本未运行全量。随后只读确认 `127.0.0.1:55432` 由 Docker Desktop 转发给既有 Compose 项目 `agentexam-local` 的 `agentexam-local-postgres-1`，**不是**文档所述便携专属测试实例；此机器上 `D:/pgsql` 与本机 `postgres.exe` 进程均不存在。密码拒绝不能证明输入有误，旧“仅认证方式漂移”的假设已被现场证据取代。未读取凭据、改配置或动既有服务。
