@@ -4,6 +4,18 @@
 >
 > 记录纪律：失败、跳过和未验证一律如实写出，不把"配置存在"等同于"实测通过"；真实设备名、账号与私有网络地址不入 Git。
 
+## 2026-09-22：列表与工作台的 job_id 改短码显示（保留可追溯性）
+
+用户嫌整串 36 位 UUID 在行里难看。只改 Web 呈现层两个点，**未动后端、未动 `globals.css`**；详细对照与未做项见[行动 16](actions/delivery/16-job-id-short-display.md)。
+
+- **改了什么**：`features/jobs/listing/labels.ts` 新增 `shortJobId()`（`jobId.slice(0, 8)` + `…`，两处共用的唯一格式来源）；工作台 `dashboard.tsx` 与列表 `listing/view.tsx` 的批次行 `<code>` 改短码、`<article>` 加 `title={job.job_id}`（**完整值悬停可见，不依赖 API**）、按钮文案去掉 id（`打开评测 {id}`/`查看评测 {id}` → `打开评测`/`查看评测`）。顺手补了列表行里**改前就存在**的时间与 id 黏连（`23:13:08a1ec6d23-…` → `23:17:09 · d432c1e5…`）。
+- **请求里与代码不符的一处**：请求称"详情页仍显示完整 id（`features/jobs/details.tsx`）"，实测 **`details.tsx` 不渲染 `job_id`**（只有 `rerun_of_job_id`）；详情页完整 id 的唯一载体是 URL `?job=` 参数，本次未改它，并以"点开详情后 `?job=` 仍等于完整 id"作为实测证据。
+- **请求量漏的用例**：说"只有 4 处断言受影响"，实测 **5 处**（多出 `task-02.spec.ts:129` 的按钮定位名与 `:139` 重载后的第二次 `toContainText`）。首轮 `task-02.spec.ts` 因此失败 1 条（strict mode violation：去 id 后同页两个"查看评测"按钮），修法是把点击 scope 到被断言行，断言不放宽；复跑通过。
+- **实测（本机、串行）**：`npx tsc --noEmit` 0；`npx eslint . --max-warnings 0` 0；`npm run build` 0；`tests/a11y/` **6 passed**；全量 `npm run test:e2e` → **31 个 spec 文件、63 passed / 0 failed / 0 skipped，退出码 0**（日志 `runtime/tests/jobid-full-e2e.log`）。390 宽度实测工作台与列表均 `scrollWidth = clientWidth = 390`，**不溢出**；1440 同样不溢出。
+- **前后对照截图**：`runtime/tests/visual-polish/before|after-jobid-{dashboard,jobs}-{1440,390}.png`（脚本 `runtime/tests/jobid-shots.mjs`，runtime/ 未入 Git）。390 的 before 图里整串 UUID 出现两次且按钮换行，after 图里是 `d432c1e5…` 与单行按钮。
+- **仍未改（交用户决定）**：`reporting/comparison.tsx:146`、`reporting/matrix.tsx:30`、`reporting/configuration.tsx:70` 与 `report.tsx:14`（run_id）仍显示整串；行动 16 §8 有完整清单。
+- **已知取舍**：按钮文案去 id 后，同一页多个"打开评测/查看评测"可访问名相同（行 `<article>` 因 `title` 获得 UUID 级可访问名，article 导航仍可区分，按钮列表不能）。本次未用 `aria-label` 补短码，因为请求明确要求文案不带 id。
+
 ## 2026-09-22：Web 三件 UX 改进（无障碍扫描 / 刷新失败提示 / 排行榜预填）
 
 三件**串行**完成，逐件单独跑通后跑全量：**29 个 spec 文件、59 passed / 0 failed / 0 skipped，退出码 0**（日志 `runtime/tests/full-e2e.log`）。逐控件契约行、逐条负控与本轮**未修项清单**见[行动 15](actions/delivery/15-web-ux-improvements.md)。

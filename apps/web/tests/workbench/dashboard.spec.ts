@@ -32,10 +32,18 @@ test("owner dashboard reads visible jobs and priority groups from the server", a
     }
   });
   await navigation.getByRole("button", { name: "工作台" }).click();
-  await expect(page.getByRole("region", { name: "当前可见评测" }))
-    .toContainText(created.job_id);
-  await expect(page.getByRole("region", { name: "待处理审批" }))
-    .toContainText(created.job_id);
+  // 行只显示 8 位短码，完整 job_id 由行自己的 title 承载，可见文本里不再出现整串。
+  const shortId = created.job_id.slice(0, 8);
+  const visibleRow = page.getByRole("region", { name: "当前可见评测" })
+    .locator("article").filter({ hasText: shortId });
+  await expect(visibleRow).toHaveAttribute("title", created.job_id);
+  await expect(visibleRow.locator("code")).toHaveText(`${shortId}…`);
+  await expect(visibleRow).not.toContainText(created.job_id);
+  const pendingRow = page.getByRole("region", { name: "待处理审批" })
+    .locator("article").filter({ hasText: shortId });
+  await expect(pendingRow).toHaveAttribute("title", created.job_id);
+  await expect(pendingRow.locator("code")).toHaveText(`${shortId}…`);
+  await expect(pendingRow).not.toContainText(created.job_id);
   await expect(page.getByRole("region", { name: "待处理审批" }))
     .toContainText("最多显示服务器返回的 5 条");
   await expect(page.getByRole("region", { name: "执行队列" })).toBeVisible();

@@ -1,6 +1,6 @@
 // 无障碍基线：对九个可达视图做 axe 扫描（wcag2a + wcag2aa）。
 // 分工：机械性问题（可访问名、label 关联、landmark/role、aria-*、重复 id）必须为零；
-// 颜色对比度与视觉版式按约定只报告不改，在 REPORT_ONLY 里逐条列名并写明理由。
+// 报告桶机制仍在（REPORT_ONLY 可逐条列名并写明理由），但当前它是空的：那条整类 color-contrast 排除已随主按钮悬停缺陷的修复一并收掉，对比度现在参与断言。将来某态若扫出对比度违规，先报给用户决定配色，不要预先放行。
 // 本 spec 自己造数据（登记目录、提交并批准批次），因此独立成文件：造数据的用例
 // 不能与别的 spec 共享后端状态。
 import { AxeBuilder } from "@axe-core/playwright";
@@ -13,7 +13,7 @@ import {
 type AxeViolations = Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"];
 type Violation = AxeViolations[number];
 
-// 只报告、不修：配色与字号由用户决定是否调整（行动 15 §1 的修复边界）。
+// 报告桶机制仍在（REPORT_ONLY 可逐条列名并写明理由），但当前它是空的：那条整类 color-contrast 排除已随主按钮悬停缺陷的修复一并收掉，对比度现在参与断言。将来某态若扫出对比度违规，先报给用户决定配色，不要预先放行。
 // 排除范围最小化——这里只列**规则 id**，其余规则照常参与"必须为零"的断言。
 // 2026-09-22 已修：`form > button` 这类表单主按钮的悬停原来会被通用的
 // `button:hover:not(:disabled)`（权重 0,2,1）压掉底色而字色仍是白色 → 白字落在 #f7faf8 上，实测 1.05:1。

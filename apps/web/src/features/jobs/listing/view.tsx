@@ -6,7 +6,7 @@ import type { Actor, JobSummary, Page } from "../../../lib/contracts";
 import { JOB_STATUSES } from "../../../lib/contracts";
 import { jobs } from "../../../lib/job-client";
 import { COMPARISON_LIMIT } from "../../../lib/reporting/comparison-shapes";
-import { JOB_STATUS_NAMES } from "./labels";
+import { JOB_STATUS_NAMES, shortJobId } from "./labels";
 
 type Filters = { status: string; mine: boolean };
 
@@ -129,7 +129,7 @@ export default function JobList({
       <h3>这里还没有评测</h3><p>调整筛选，或开始一次新评测。</p>
     </div>}
     <div className="job-list">{data?.items.map((job) => <article key={job.job_id}
-      className="job-row">
+      className="job-row" title={job.job_id}>
       <label className="inline-check">
         <input type="checkbox" checked={selected.includes(job.job_id)}
           disabled={busy || (!selected.includes(job.job_id) &&
@@ -138,9 +138,9 @@ export default function JobList({
         选择对比
       </label>
       <div><strong>{JOB_STATUS_NAMES[job.status]}</strong>
-        <span>{job.trial_count} 个 Run · {new Date(job.created_at).toLocaleString("zh-CN")}</span>
-        <code>{job.job_id}</code></div>
-      <button onClick={() => openJob(job.job_id)}>查看评测 {job.job_id}</button>
+        <span>{job.trial_count} 个 Run · {new Date(job.created_at).toLocaleString("zh-CN")} ·</span>{" "}
+        <code>{shortJobId(job.job_id)}</code></div>
+      <button onClick={() => openJob(job.job_id)}>查看评测</button>
     </article>)}</div>
     {data && <div className="pagination">
       <button disabled={busy || page === 0} onClick={previous}>上一页</button>

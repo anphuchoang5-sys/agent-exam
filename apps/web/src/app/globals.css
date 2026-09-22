@@ -8,17 +8,22 @@
 }
 * { box-sizing: border-box; }
 html { min-width: 320px; background: var(--canvas); }
-body { margin: 0; min-height: 100vh; overflow-x: hidden; background: var(--canvas); }
+/* 正文行距原来靠各字体的 normal 值（中文约 1.35–1.4），同一行文本在不同控件里高度不一致；
+   统一到 1.5。表单控件在下面单独钉住 1.25，免得按钮/输入框跟着长高。 */
+body { margin: 0; min-height: 100vh; overflow-x: hidden; background: var(--canvas); line-height: 1.5; }
 main { min-height: 100vh; }
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 10px; font-size: clamp(2rem, 5vw, 2.8rem); letter-spacing: -.04em; }
-h2 { margin: 8px 0 18px; font-size: 1.55rem; letter-spacing: -.025em; }
+h2 { margin: 8px 0 16px; font-size: 1.55rem; letter-spacing: -.025em; }
 h3 { margin-bottom: 8px; }
-p { line-height: 1.65; }
+/* 段落下边距原来用浏览器默认的 1em（随字号变化：1rem 是 16px、.8rem 只有 12.8px），
+   同一页里段间距因此忽大忽小；固定为 16px。 */
+p { line-height: 1.65; margin-bottom: 16px; }
 .eyebrow { display: block; margin-bottom: 8px; color: var(--accent); font-size: .72rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .muted { color: var(--muted); }
 .small { font-size: .8rem; }
-button, input, select { font: inherit; }
+/* 控件的行距钉在 1.25：正文的 1.5 若跟着继承，按钮/输入框会整体长高 4px。 */
+button, input, select { font: inherit; line-height: 1.25; }
 button { border: 1px solid var(--line); border-radius: 10px; padding: 10px 15px; background: var(--paper); color: var(--ink); cursor: pointer; }
 button:hover:not(:disabled) { border-color: #9db4a8; background: #f7faf8; }
 button:disabled { cursor: not-allowed; opacity: .5; }
@@ -29,15 +34,32 @@ form > button, .section-heading > button, .heading-actions button:last-child { b
    白字会落到 #f7faf8 上（实测 1.05:1，等于看不见）。这里用更高权重保持深绿底 + 白字。 */
 form > button:hover:not(:disabled), .section-heading > button:hover:not(:disabled),
 .heading-actions button:last-child:hover:not(:disabled) { border-color: var(--accent-dark); background: var(--accent-dark); color: white; }
-label { display: grid; gap: 6px; color: #42544c; font-size: .86rem; font-weight: 650; }
+label { display: grid; gap: 8px; color: #42544c; font-size: .86rem; font-weight: 650; }
 input, select { width: 100%; border: 1px solid #b8c8bf; border-radius: 9px; padding: 11px 12px; background: white; color: inherit; }
 input[type="checkbox"] { width: auto; }
-fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 12px; margin: 10px 0; padding: 14px; }
+fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; padding: 16px; }
+/* legend 由浏览器渲染在顶框线那一条带上，默认左右只有 2px 内边距：线的断口紧贴字形，
+   看着像"五个字压在线上"。给到 8px 水平内边距（线的断口因此离开文字），-4px 左外边距
+   让文字与下面的 h3、勾选框同一列起排。字号字色与 label 统一，读起来是一组的标题。
+   只作用于向导里的两个 fieldset：对比页的 .comparison-picker 是 grid，legend 不在框线上。 */
+.wizard fieldset > legend {
+  margin-left: -4px; padding: 3px 8px;
+  color: #42544c; font-size: .86rem; font-weight: 650;
+}
+/* 勾选框原来被 label 的 grid 拉成整行宽、文字掉到第二行（方框悬在行中间）。
+   改成一行 flex：方框固定 1rem 不参与拉伸、与文字垂直居中，行与行之间留 8px。 */
+.wizard fieldset label { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.wizard fieldset label input[type="checkbox"] { flex: none; width: 1rem; height: 1rem; margin: 0; }
+/* 向导里 fieldset 之后的选择项（批次规模/赛道/资源限制）原来零间距、彼此贴住。 */
+.wizard > label { margin-bottom: 12px; }
 code, pre { max-width: 100%; overflow-wrap: anywhere; }
 .error { border: 1px solid #ebccca; border-radius: 10px; padding: 12px; background: #fff3f1; color: #a53a38; }
 .login-shell { width: min(760px, calc(100% - 36px)); margin: 8vh auto; }
 .login-shell > header { margin-bottom: 28px; }
 .session-card { border: 1px solid var(--line); border-radius: 19px; padding: 30px; background: white; box-shadow: 0 18px 50px #1e362b14; }
+/* 卡片内部原来按各元素自带的边距堆叠：主按钮下的小字零间距、贴着按钮下沿。
+   相邻块统一 16px（与段落自带的下边距折叠，不会双倍）。 */
+.session-card > * + * { margin-top: 16px; }
 .workbench-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
 .workbench-sidebar { position: sticky; top: 0; display: flex; flex-direction: column; height: 100vh; padding: 25px 18px; border-right: 1px solid var(--line); background: #fbfcfb; }
 .workbench-brand { padding: 0 8px 24px; font-size: 1.12rem; font-weight: 900; letter-spacing: -.04em; }
@@ -53,16 +75,27 @@ code, pre { max-width: 100%; overflow-wrap: anywhere; }
 .workbench-content > section, .dashboard-panel, .job-row, .dashboard-jobs article,
 .workbench-content article { border: 1px solid var(--line); border-radius: 15px; background: white; }
 .workbench-content > section { padding: clamp(18px, 3vw, 28px); box-shadow: 0 8px 30px #263d3209; }
+/* 任务目录 / 配置目录的卡片原来没有内边距：标题与指纹直接贴住卡片边框。
+   与工作台行（.job-row / .dashboard-jobs article）用同一套内边距。 */
+[aria-label="任务目录"] > article, [aria-label="Codex 配置目录"] > article,
+[aria-label="评测批次详情"] { padding: 16px; }
+/* 目录面板里同级块（按钮 → 筛选标签 → 卡片 → 刷新按钮）原来零间距、彼此贴住；
+   相邻块统一 12px，且与段落自带的下边距折叠，不会变成双倍。 */
+[aria-label="任务目录"] > * + *, [aria-label="Codex 配置目录"] > * + * { margin-top: 12px; }
+/* 卡片里的两个按钮原来边框相接：同一行的按钮之间留 8px。
+   用 margin-right 而不是 margin-left：窄屏换行时后一个按钮不会缩进。 */
+[aria-label="任务目录"] article button + button,
+[aria-label="Codex 配置目录"] article button + button { margin-right: 8px; }
 .section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
 .heading-actions, .wizard-actions, .pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .heading-actions { justify-content: flex-end; }
 .dashboard-panel { margin-top: 16px; padding: 18px; }
-.dashboard-jobs, .job-list { display: grid; gap: 10px; }
-.dashboard-jobs article, .job-row { display: grid; gap: 7px; padding: 15px; }
+.dashboard-jobs, .job-list { display: grid; gap: 12px; }
+.dashboard-jobs article, .job-row { display: grid; gap: 10px; padding: 16px; }
 .dashboard-jobs article span, .job-row span { color: var(--muted); font-size: .8rem; }
 .job-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 .filter-bar { grid-template-columns: repeat(2, minmax(150px, 1fr)); max-width: none; margin-bottom: 18px; }
-.inline-check { display: flex; align-items: center; }
+.inline-check { display: flex; align-items: center; gap: 8px; }
 .pagination { justify-content: center; margin-top: 18px; }
 .empty-state { padding: 30px 18px; text-align: center; }
 .wizard-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0 0 22px; padding: 0; list-style: none; }

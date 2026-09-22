@@ -125,8 +125,15 @@ test("job list filters server results and restores a linked detail", async ({ pa
   await expect(list).toBeVisible();
   await list.getByLabel("状态筛选").selectOption("AWAITING_OWNER_APPROVAL");
   await list.getByRole("button", { name: "应用筛选" }).click();
-  await expect(list).toContainText(created.job_id);
-  await list.getByRole("button", { name: `查看评测 ${created.job_id}` }).click();
+  // 行只显示 8 位短码；完整 job_id 在行 title 上，按钮文案不再拼 id。
+  const shortId = created.job_id.slice(0, 8);
+  const row = list.locator("article").filter({ hasText: shortId });
+  await expect(row).toHaveAttribute("title", created.job_id);
+  await expect(row.locator("code")).toHaveText(`${shortId}…`);
+  await expect(row).not.toContainText(created.job_id);
+  await expect(row.getByRole("button", { name: "查看评测", exact: true })).toBeVisible();
+  // 按钮文案不再带 id，同一列表里可能有多个同名按钮，只点这一行的那个。
+  await row.getByRole("button", { name: "查看评测", exact: true }).click();
   await expect.poll(() => new URL(page.url()).searchParams.get("job"))
     .toBe(created.job_id);
 
@@ -135,6 +142,8 @@ test("job list filters server results and restores a linked detail", async ({ pa
   await page.getByRole("button", { name: "返回评测列表" }).click();
   await expect(page.getByRole("region", { name: "评测列表" })
     .getByLabel("状态筛选")).toHaveValue("AWAITING_OWNER_APPROVAL");
-  await expect(page.getByRole("region", { name: "评测列表" }))
-    .toContainText(created.job_id);
+  const restored = page.getByRole("region", { name: "评测列表" })
+    .locator("article").filter({ hasText: shortId });
+  await expect(restored).toHaveAttribute("title", created.job_id);
+  await expect(restored.locator("code")).toHaveText(`${shortId}…`);
 });

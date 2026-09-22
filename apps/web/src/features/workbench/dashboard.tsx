@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ApiError } from "../../lib/api-client";
 import type { JobSummary } from "../../lib/contracts";
 import { jobs } from "../../lib/job-client";
-import { JOB_STATUS_NAMES } from "../jobs/listing/labels";
+import { JOB_STATUS_NAMES, shortJobId } from "../jobs/listing/labels";
 
 const ACTIVE_STATUSES = [
   "QUEUED", "PREPARING", "EXECUTING", "FINALIZING", "CANCEL_REQUESTED",
@@ -28,11 +28,13 @@ function JobCards({
   empty: string;
 }) {
   if (items.length === 0) return <p className="muted">{empty}</p>;
-  return <div className="dashboard-jobs">{items.map((job) => <article key={job.job_id}>
+  // 行上只留短码；完整 job_id 挂在 title 上，悬停即可读到整串，不必去查 API。
+  return <div className="dashboard-jobs">{items.map((job) => <article key={job.job_id}
+    title={job.job_id}>
     <strong>{JOB_STATUS_NAMES[job.status]}</strong>
     <span>{job.trial_count} 个 Run</span>
-    <code>{job.job_id}</code>
-    <button onClick={() => openJob(job.job_id)}>打开评测 {job.job_id}</button>
+    <code>{shortJobId(job.job_id)}</code>
+    <button onClick={() => openJob(job.job_id)}>打开评测</button>
   </article>)}</div>;
 }
 
