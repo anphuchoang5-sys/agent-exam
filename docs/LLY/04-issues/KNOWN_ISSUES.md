@@ -103,10 +103,10 @@
 
 **2026-09-22 当前补充**：主仓库 `E:/9.1agent_exam/framework/harbor` 已存在且为固定提交 `6af8d6e31eced13b93849cdf80feeadf24603d15`、受控文件干净、虚拟环境可用；独立 `runtime/lly-dev-verify` worktree 的同名路径默认不存在。S9 初次默认全量为 `620 passed / 107 skipped / 2 failed`，失败均来自该缺失路径。用户明确允许后，临时目录联接复用固定 Harbor，定向两项 `2 passed`、默认全量 `624 passed / 105 skipped`，证明这两项是环境依赖；补测后精确移除联接，主框架保持原提交且干净。当前 worktree 再次没有该路径，未来要复测这两项仍需恢复同样的受控前提；见[S9 行动](../../actions/2026-09-22-task05-s9-run-bindings.md)。
 
-## ISSUE-05：专属 PostgreSQL 测试库当前要求密码（未解决）
+## ISSUE-05：负责人 worktree 的 PostgreSQL 测试 DSN 指向既有服务（未解决）
 
 **状态**：未解决　**影响**：S9 的显式 PG 全量回归尚未测到数据库断言。
 
-- 2026-09-22 实测：端口 `127.0.0.1:55432` 可连接，但按[本机环境文档](../02-environment/LOCAL_SETUP.md)原记载的无密码、专属测试 DSN 开启 `AGENTEXAM_RUN_IDENTITY_POSTGRES=1`，夹具收到 `fe_sendauth: no password supplied`。全量结果 `620 passed / 45 skipped / 2 failed / 62 errors`；62 个 error 均在专属测试库连接时出现，没有进入建临时库或数据库断言。
-- 原因尚未确认：可能是当前 `pg_hba.conf` 或角色认证方式已变化，不能只凭端口监听推断。未读取登录文件/凭据，也未改配置或猜密码。
-- 解决方案：由 owner 先确认**专属测试库**的当前认证方式；如需密码，只通过当前测试进程的安全输入提供，不写仓库、聊天、命令行明文或报告。确认后重跑显式 PG 回归，并把[本机环境文档](../02-environment/LOCAL_SETUP.md)的当前配置改成实测事实。不得用开发库或团队共享库替代专属测试库。
+- 2026-09-22 初次实测：端口 `127.0.0.1:55432` 可连接，但按[本机环境文档](../02-environment/LOCAL_SETUP.md)历史的无密码专属测试 DSN 开启 `AGENTEXAM_RUN_IDENTITY_POSTGRES=1`，夹具收到 `fe_sendauth: no password supplied`。全量结果 `620 passed / 45 skipped / 2 failed / 62 errors`；62 个 error 均在连接时出现，没有进入建临时库或数据库断言。
+- 同日补查：用户在可见 PowerShell 为专属测试角色隐藏输入密码，预检实际为 `auth_exit=1 / test_exit=not-run / cleanup=ok`，服务器返回 `password authentication failed for user "agentexam_identity_test"`；脚本未运行全量。随后只读确认 `127.0.0.1:55432` 由 Docker Desktop 转发给既有 Compose 项目 `agentexam-local` 的 `agentexam-local-postgres-1`，**不是**文档所述便携专属测试实例；此机器上 `D:/pgsql` 与本机 `postgres.exe` 进程均不存在。密码拒绝不能证明输入有误，旧“仅认证方式漂移”的假设已被现场证据取代。未读取凭据、改配置或动既有服务。
+- 解决方案：不要再对 `agentexam-local` 重试密码，也不要在该既有持久化服务上运行会创建/删除临时数据库的测试。负责人确认后，在**隔离的专属 PostgreSQL 实例**上提供单独端口和 `agentexam_identity_test` 角色/库（角色需 `CREATEDB`），或在已有专属实例的机器上执行 PG 全量并回传证据；不改既有 Docker/数据库服务。当前环境不足以签收 S9 的 PG 全量，S10/S11 暂停。

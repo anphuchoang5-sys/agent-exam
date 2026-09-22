@@ -1,6 +1,6 @@
 # 任务 05 S9：Worker 按冻结 Run 选择绑定
 
-> 状态：S9 选择代码已实现；通过临时复用主工作区固定 Harbor，A 机默认全量现为 **624 passed / 105 skipped**。专属 PostgreSQL 仍要求密码，显式 PG 全量未通过，故 **S9 整片验收待补**，未进入 S10/S11。T2 在授权的最小 Harbor + 活体网络替身形态已测得 13/13 PASS；双 Harbor Trial 未验证。
+> 状态：S9 选择代码已实现；通过临时复用主工作区固定 Harbor，A 机默认全量为 **624 passed / 105 skipped**。显式 PG 全量仍未测得：本机 `127.0.0.1:55432` 实为既有 `agentexam-local` Docker PostgreSQL 的发布端口，不是计划中的专属测试实例；身份预检被拒后安全停止。故 **S9 整片验收待补**，未进入 S10/S11。T2 在授权的最小 Harbor + 活体网络替身形态已测得 13/13 PASS；双 Harbor Trial 未验证。
 
 ## 情况说明
 
@@ -96,3 +96,21 @@
 **实际输出与偏差**：普通沙箱在 `New-Item framework` 及 `Remove-Item framework/harbor` 时均返回 `Access is denied`；经受控权限执行相同精确路径操作成功。建立后 `Get-Item` 显示 `LinkType: Junction`、`Target: E:/9.1agent_exam/framework/harbor`。首次定向 pytest 因专属临时目录无法创建而得 `1 passed, 1 error`，错误为 `PermissionError: [WinError 5]`，第二项未测到断言；在受控权限下改用新专属临时目录重跑，同两条命令得到 `2 passed in 0.63s`。默认全量（`python -m pytest -q -p no:cacheprovider --no-cov --basetemp .../.tmp/pytest-s9-harbor-full-01 --tb=line`）实际为 `624 passed, 105 skipped in 78.52s`，退出码 0；跳过的 PostgreSQL、Docker/Fork 等显式集成用例不计通过。解释器沿用主工作区后端现有 `.venv`；测试未改断言，也未运行真实模型或供应商请求。补测后先核实仅有这一条目录联接且目标准确，`Remove-Item` 不带 `-Recurse` 精确移除联接和空父目录；复核 `LinkExists=False`、`ParentExists=False`、`SourceExists=True`、`SourceRevision=6af8d6e31eced13b93849cdf80feeadf24603d15`、主框架受控文件 `git status --short` 为空。
 
 **剩余限制**：显式 PostgreSQL 全量尚未重跑，沿用上文 `fe_sendauth: no password supplied` 的本轮失败实测；未取得专属测试库安全认证配置前不能写为通过。S10/S11 仍未开工。
+
+### 2026-09-22 专属 PostgreSQL 隐藏输入补测（执行前记录）
+
+用户同意尝试在本机可见的交互窗口隐藏输入专属测试角色 `agentexam_identity_test` 的 PostgreSQL 密码；不是 owner 登录密码，也不接收真实 Key。范围仅为先验证 `127.0.0.1:55432/agentexam_identity_test` 的角色/库身份，再按计划运行开启 `AGENTEXAM_RUN_IDENTITY_POSTGRES=1` 的全量后端 pytest。密码不写聊天、命令参数、脚本、仓库或报告；只在窗口进程内存与其测试子进程的短时 `PGPASSWORD` 环境中使用，结束时移除。普通测试输出先在内存替换密码字面量后才写入 `.tmp`；若连接失败不跑全量。此方法仍有进程内存/环境暴露风险，因此只可输入专属低权限测试凭据，不使用任何生产或可复用高权限密码。
+
+实施措施与临时文件树：在现有 `.tmp/` 新建不含秘密的 `s9-pg-interactive.ps1`（隐藏输入、专属库预检、全量测试、脱敏结果与 `finally` 清理），生成同目录的 `.status`/`.log`（仅非秘密状态和脱敏输出）；为使全量同时覆盖两项 Harbor 契约，窗口在通过数据库预检后只在此 worktree 临时建立 `framework/harbor` 目录联接，目标为主工作区固定、干净的 `6af8d6e3…` Harbor，结束后先核身份再无递归精确移除联接与空父目录。不修改测试断言、数据库/共享服务配置或其他 worktree；不运行真实模型/供应商请求。涉及的唯一跟踪文件是本行动记录；`.tmp` 与临时联接均被 Git 忽略。
+
+自验证方式：静态解析脚本、检查不含凭据字面量；窗口身份预检必须返回测试用户名/库名；PG 全量需观察 pytest 退出码与统计（不能把跳过算通过）；窗口退出后检查联接及空父目录不存在、主 Harbor 固定提交与受控文件不变、短时环境变量清除；更新 ISSUE-05、进度日志和任务单为实测状态。**自验证结果：待执行。**
+
+**本次尝试进展**：`.tmp/s9-pg-interactive.ps1` 静态解析 `parse_errors=0`，107 行，未含密码字面量。经用户同意用 `Start-Process -WindowStyle Normal` 启动 PID 47740，但系统回报 `MainWindowHandle=0`，状态一直为 `phase=waiting-for-input`，说明该工具执行会话没有把窗口呈现到用户桌面；未收到输入、未连接数据库、未建立临时 Harbor 联接、未运行 pytest。核对进程路径、PID、状态与无联接后，只停止这一条空等辅助进程；普通沙箱拒绝停止，受控权限精确停止成功。现改为请用户在自己可见的 PowerShell 中运行同一个不含密码的脚本。**数据库预检与 PG 全量实际结果仍待用户本机隐藏输入，不能记为通过。**
+
+**隐藏输入后启动器诊断及修正计划（执行前）**：用户已在可见 PowerShell 输入专属测试库密码，但 `.status` 实际为 `outcome=launcher-error / auth_exit=not-run / test_exit=not-run / cleanup=ok`，`.log` 仅有 `File "<string>", line 1`；没有创建 Harbor 联接或 pytest 临时目录。无密码复现证明 Windows PowerShell 5.1 会剥掉 `python -c 'print("ok")'` 内的双引号，导致 Python 看到 `print(ok)`；`$ErrorActionPreference='Stop'` 又在首条原生 stderr 处提前抛出，使诊断截断。拟在现有 `.tmp/` 新增不含密码的 `s9-pg-preflight.py`，把数据库身份预检从命令内联代码移到文件；`s9-pg-interactive.ps1` 改为调用该文件，并在原生程序调用期间完整捕获、脱敏 stderr 后按退出码判定。先运行 Python 语法检查与不连接数据库的自检，再请用户重新输入专属测试密码。首次输入已由原脚本 `finally` 从进程环境移除；不尝试取回、输出或保存密码。**修正后自验证结果：待执行。**
+
+**修正后无密码自验证**：新增 `.tmp/s9-pg-preflight.py`（仅固定本机专属测试库 DSN、角色/库身份检查和 `--self-check`，不含密码），交互脚本改为执行文件而非 `python -c`；原生 stderr 捕获时临时使用 `ErrorActionPreference=Continue` 并恢复原设置。PowerShell 语法解析 `powershell_parse_errors=0`；Python 不连接数据库的 `--self-check` 返回 `preflight-launch-ok`、exit 0；在 Windows PowerShell 5.1 注入非秘密的 `--bad-argument` 故障，完整收到 `invalid preflight arguments` 且 `native_exit=2`，证明不再被首行 stderr 截断。**数据库身份预检与 PG 全量仍未重跑，需用户在可见窗口重新隐藏输入一次；原密码不留存。**
+
+**重新隐藏输入后的实际结果（较新事实）**：`.tmp/s9-pg-interactive.status` 为 `outcome=authentication-failed / auth_exit=1 / test_exit=not-run / cleanup=ok`；脱敏日志的关键原文为 `psycopg.OperationalError: ... 127.0.0.1, port 55432 ... FATAL: password authentication failed for user "agentexam_identity_test"`。预检在 PostgreSQL 认证阶段失败，未进入身份 SQL、未建立 Harbor 联接或 pytest 临时目录，显式 PG 全量**未运行**。脚本的短时环境变量由 `finally` 移除；没有读取、保存或回显密码。`framework` 路径不存在，源 Harbor 保持固定提交且受控文件干净。
+
+**只读定位与停止条件**：`netstat` 显示 `127.0.0.1:55432` 的监听者为 `com.docker.backend.exe`（PID 30416）；`docker ps --filter publish=55432` 显示既有 `agentexam-local-postgres-1`（`postgres`，`127.0.0.1:55432->5432/tcp`），只读标签为 Compose 项目 `agentexam-local`、服务 `postgres`。本机没有运行的 `postgres.exe`，也没有文档所指的 `D:/pgsql/bin/postgres.exe` 或 `D:/pgsql/data`。因此原先“专属测试库仅认证方式变化”的假设不足；当前 DSN 实际指向既有持久化服务，不能用它执行会 `CREATE DATABASE`/`DROP DATABASE` 的专属测试。密码被拒不能证明用户输错，也无需再对该服务重试。**解决方案**：先由负责人另行提供隔离的专属测试 PostgreSQL 实例（非现有 `agentexam-local`，单独端口、`agentexam_identity_test` 角色/库且具所需 `CREATEDB` 权限），或由已有专属环境的机器执行 PG 全量并回传证据；实例创建/改端口/改现有服务都不在本轮授权内。S9 保持未验收，S10/S11 不启动。
