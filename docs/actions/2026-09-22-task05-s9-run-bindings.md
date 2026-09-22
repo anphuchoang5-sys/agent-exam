@@ -1,6 +1,6 @@
 # 任务 05 S9：Worker 按冻结 Run 选择绑定
 
-> 状态：S9 选择代码已实现并通过定向/静态检查；计划要求的完整 A 机回归受本 worktree 缺固定 Harbor 路径、专属 PostgreSQL 要求密码阻碍，故 **S9 整片验收待补**，未进入 S10/S11。T2 在授权的最小 Harbor + 活体网络替身形态已测得 13/13 PASS；双 Harbor Trial 未验证。
+> 状态：S9 选择代码已实现；通过临时复用主工作区固定 Harbor，A 机默认全量现为 **624 passed / 105 skipped**。专属 PostgreSQL 仍要求密码，显式 PG 全量未通过，故 **S9 整片验收待补**，未进入 S10/S11。T2 在授权的最小 Harbor + 活体网络替身形态已测得 13/13 PASS；双 Harbor Trial 未验证。
 
 ## 情况说明
 
@@ -83,6 +83,16 @@
 
 ### 问题、解决方案与未验证项
 
-1. **固定 Harbor 契约全量检查缺口**：当前 worktree 未有 `framework/harbor`，不可把主仓库框架的历史通过外推到本 worktree。只读核对发现 `E:/9.1agent_exam/framework/harbor` 确实存在、受控文件干净、HEAD 等于固定 `6af8d6e31eced13b93849cdf80feeadf24603d15`，且 `.venv/Scripts/python.exe` 可用；目录被 Git 忽略，不会自动随 worktree 出现。较小的解决方案是在本 worktree 内临时建立指向它的目录联接、只跑读取该框架的测试，结束后精确移除联接；但该操作会新建 `framework` 目录/联接，与此前“不新建目录”约束冲突，故**本轮尚未执行，待用户明确允许**。不修改断言或复制/重建固定 Harbor。
+1. **固定 Harbor 契约全量检查缺口（已补测）**：初跑时当前 worktree 未有 `framework/harbor`，不可把主仓库框架的历史通过外推到本 worktree。用户随后允许临时目录联接，已实际补跑两项契约测试及默认全量，结果见下节；补测后精确移除联接，当前 worktree 再次没有该 Git 忽略路径。不修改断言或复制/重建固定 Harbor。
 2. **专属 PG 环境漂移**：端口 `127.0.0.1:55432` 可连，但当前要求密码，与[本机环境文档](../LLY/02-environment/LOCAL_SETUP.md)的“回环信任、无密码”不一致。解决方案由 owner 确认专属测试库认证方式并提供安全测试进程配置，或更新环境文档并在授权后重跑；本轮未读登录文件、未猜密码、未改服务器。
 3. **S10 前的预期限制**：代理绑定只完成选择，不启动代理、不导出令牌、不生成双网络。若把受控假身份提交为正式 Job，会显式失败关闭；这是安全停止点，非 T2 回归。S10 在 S9 必要回归补齐前不启动。真实 Key、真实供应商、Codex CLI、Harbor 正式 Job、Fork、双 Harbor Trial 均未在本片运行。
+
+### 2026-09-22 补测：临时复用主工作区固定 Harbor（执行前记录）
+
+用户已明确同意在现有 `runtime/lly-dev-verify` worktree 临时建立目录联接，复用主工作区 `E:/9.1agent_exam/framework/harbor`，补跑缺失路径引起的两项契约检查，随后精确移除联接。不复制、不重建、不修改固定 Harbor，也不改变测试断言；这项临时目录创建是此前“不新建目录”约束的本次明确例外。主工作区框架受控文件干净、提交为固定 `6af8d6e31eced13b93849cdf80feeadf24603d15`，虚拟环境解释器存在；本 worktree `framework` 当前不存在。
+
+实施与临时文件树：只在 `runtime/lly-dev-verify/framework/` 建目录作为本次入口，在其下建立 `harbor` 目录联接（目标为上述主工作区固定 Harbor）；完成后先核实联接类型与目标，再只移除 `harbor` 联接和本次创建且为空的 `framework` 目录。受控源码和其他 worktree 不在删除范围。验证：先运行 `tests/contract/test_execution_network.py` 中上述两项，再运行默认全量；预期两项通过，默认全量不再有 Harbor 路径失败。显式 PG 全量仍受专属库认证问题阻挡，不使用凭据、不修改服务。
+
+**实际输出与偏差**：普通沙箱在 `New-Item framework` 及 `Remove-Item framework/harbor` 时均返回 `Access is denied`；经受控权限执行相同精确路径操作成功。建立后 `Get-Item` 显示 `LinkType: Junction`、`Target: E:/9.1agent_exam/framework/harbor`。首次定向 pytest 因专属临时目录无法创建而得 `1 passed, 1 error`，错误为 `PermissionError: [WinError 5]`，第二项未测到断言；在受控权限下改用新专属临时目录重跑，同两条命令得到 `2 passed in 0.63s`。默认全量（`python -m pytest -q -p no:cacheprovider --no-cov --basetemp .../.tmp/pytest-s9-harbor-full-01 --tb=line`）实际为 `624 passed, 105 skipped in 78.52s`，退出码 0；跳过的 PostgreSQL、Docker/Fork 等显式集成用例不计通过。解释器沿用主工作区后端现有 `.venv`；测试未改断言，也未运行真实模型或供应商请求。补测后先核实仅有这一条目录联接且目标准确，`Remove-Item` 不带 `-Recurse` 精确移除联接和空父目录；复核 `LinkExists=False`、`ParentExists=False`、`SourceExists=True`、`SourceRevision=6af8d6e31eced13b93849cdf80feeadf24603d15`、主框架受控文件 `git status --short` 为空。
+
+**剩余限制**：显式 PostgreSQL 全量尚未重跑，沿用上文 `fe_sendauth: no password supplied` 的本轮失败实测；未取得专属测试库安全认证配置前不能写为通过。S10/S11 仍未开工。

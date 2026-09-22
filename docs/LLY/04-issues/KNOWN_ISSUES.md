@@ -101,7 +101,7 @@
 
 不要为了让它变绿而修改这两个测试。若确实需要在本机跑，唯一正确做法是按[依赖总表](../../dependencies/DEPENDENCIES.md)固定版本恢复 `framework/`，这需要单独授权与时间预算。
 
-**2026-09-22 当前补充**：主仓库 `E:/9.1agent_exam/framework/harbor` 已存在且为固定提交 `6af8d6e31eced13b93849cdf80feeadf24603d15`、受控文件干净、虚拟环境可用；但独立 `runtime/lly-dev-verify` worktree 的同名路径仍不存在。S9 默认全量仍是上述两项失败（`620 passed / 107 skipped / 2 failed`）。不需要重建 Harbor；若用户允许在现有 worktree 内临时新建目录联接，可只读复用主仓库固定框架复测，结束后精确移除。该目录联接与此前“不新建目录”限制冲突，尚未执行；见[S9 行动](../../actions/2026-09-22-task05-s9-run-bindings.md)。
+**2026-09-22 当前补充**：主仓库 `E:/9.1agent_exam/framework/harbor` 已存在且为固定提交 `6af8d6e31eced13b93849cdf80feeadf24603d15`、受控文件干净、虚拟环境可用；独立 `runtime/lly-dev-verify` worktree 的同名路径默认不存在。S9 初次默认全量为 `620 passed / 107 skipped / 2 failed`，失败均来自该缺失路径。用户明确允许后，临时目录联接复用固定 Harbor，定向两项 `2 passed`、默认全量 `624 passed / 105 skipped`，证明这两项是环境依赖；补测后精确移除联接，主框架保持原提交且干净。当前 worktree 再次没有该路径，未来要复测这两项仍需恢复同样的受控前提；见[S9 行动](../../actions/2026-09-22-task05-s9-run-bindings.md)。
 
 ## ISSUE-05：专属 PostgreSQL 测试库当前要求密码（未解决）
 
