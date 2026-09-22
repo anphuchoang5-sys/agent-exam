@@ -15,8 +15,10 @@ from typing import Any
 # resolve outside the isolated trial network and a production binding fails closed. Real
 # provider identities (DeepSeek/Kimi) stay with tasks 06/07.
 CHATGPT_IDENTITY = ("openai_chatgpt", "chatgpt_auth_json")
+CHATGPT_CREDENTIAL_ID = "owner-codex"
 INTERNAL_TEST_PROVIDER = "internal_test_fake"
 INTERNAL_TEST_AUTHENTICATION = "provider_run_token"
+INTERNAL_TEST_CREDENTIAL_ID = "t05-fake-provider"
 INTERNAL_TEST_UPSTREAM = "https://fake-upstream.t05.invalid"
 INTERNAL_TEST_IDENTITY = (INTERNAL_TEST_PROVIDER, INTERNAL_TEST_AUTHENTICATION)
 CONTROLLED_IDENTITIES = frozenset({CHATGPT_IDENTITY, INTERNAL_TEST_IDENTITY})

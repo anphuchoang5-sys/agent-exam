@@ -20,10 +20,12 @@ from eval_platform.application.execute_job import JobExecutor
 from eval_platform.application.ports.execution import RunLimits
 from eval_platform.delivery.http.config import database_url
 from eval_platform.delivery.job_presets import submission_policy
+from eval_platform.delivery.worker.bindings import (
+    CHATGPT_NETWORK_HOSTS,
+    RunBoundExecutionBackend,
+)
 from eval_platform.delivery.worker.command import run_command
 from eval_platform.delivery.worker.main import WorkerShell
-
-MODEL_HOSTS = ("auth.openai.com", "chatgpt.com")
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,8 +33,8 @@ class RuntimeWorkerConfig:
     project_root: Path
     evidence_root: Path
     task_parquet: Path
-    codex_archive: Path = field(repr=False)
-    codex_auth_path: Path = field(repr=False)
+    codex_archive: Path | None = field(repr=False)
+    codex_auth_path: Path | None = field(repr=False)
     dsn: str = field(repr=False)
     minio: MinioConfig = field(repr=False)
 
@@ -53,8 +55,8 @@ class RuntimeWorkerConfig:
             project,
             evidence,
             _required_path("AGENTEXAM_TASK_PARQUET"),
-            _required_path("AGENTEXAM_CODEX_ARCHIVE"),
-            _required_path("AGENTEXAM_CODEX_AUTH_PATH"),
+            _optional_path("AGENTEXAM_CODEX_ARCHIVE"),
+            _optional_path("AGENTEXAM_CODEX_AUTH_PATH"),
             database_url(),
             MinioConfig.from_environment(),
         )
@@ -62,8 +64,6 @@ class RuntimeWorkerConfig:
 
 def create_runtime_worker(config: RuntimeWorkerConfig) -> WorkerShell:
     """Validate fixed local inputs, then compose the existing Worker seam."""
-    _verify_codex_archive(config.codex_archive)
-    validate_auth_file(config.codex_auth_path)
     _verify_framework(config.project_root / "framework/harbor", HARBOR_REVISION)
     _verify_framework(config.project_root / "framework/swe-bench-fork", FORK_REVISION)
     source = SWEGymTaskSource(config.task_parquet)
@@ -77,14 +77,7 @@ def create_runtime_worker(config: RuntimeWorkerConfig) -> WorkerShell:
         raise ValueError("Fixed Worker limit profile is unavailable")
     repository = PostgresJobRepository(config.dsn)
     artifacts = MinioArtifactStore(create_client(config.minio), config.minio.bucket)
-    backend = HarborExecutionAdapter(
-        config.project_root / "framework/harbor/.venv/Scripts/harbor.exe",
-        config.evidence_root / "execution",
-        config.project_root,
-        network_hosts=MODEL_HOSTS,
-        codex_archive=config.codex_archive,
-        codex_auth_path=config.codex_auth_path,
-    )
+    backend = RunBoundExecutionBackend(lambda: _create_chatgpt_backend(config))
     evaluator = SWEbenchEvaluator(
         repo_root=config.project_root,
         task_source=source,
@@ -114,6 +107,22 @@ def create_runtime_worker(config: RuntimeWorkerConfig) -> WorkerShell:
 def main(argv: list[str] | None = None) -> int:
     return run_command(
         argv, lambda: create_runtime_worker(RuntimeWorkerConfig.from_environment())
+    )
+
+
+def _create_chatgpt_backend(config: RuntimeWorkerConfig) -> HarborExecutionAdapter:
+    archive, auth_path = config.codex_archive, config.codex_auth_path
+    if archive is None or auth_path is None:
+        raise ValueError("CODEX_RUNTIME_BINDING_INCOMPLETE")
+    _verify_codex_archive(archive)
+    validate_auth_file(auth_path)
+    return HarborExecutionAdapter(
+        config.project_root / "framework/harbor/.venv/Scripts/harbor.exe",
+        config.evidence_root / "execution",
+        config.project_root,
+        network_hosts=CHATGPT_NETWORK_HOSTS,
+        codex_archive=archive,
+        codex_auth_path=auth_path,
     )
 
 
@@ -153,6 +162,16 @@ def _required_path(name: str) -> Path:
     value = os.environ.get(name, "")
     path = Path(value)
     if not value or not path.is_absolute():
+        raise ValueError(f"{name} must be an explicit absolute path")
+    return path.resolve()
+
+
+def _optional_path(name: str) -> Path | None:
+    value = os.environ.get(name, "")
+    if not value:
+        return None
+    path = Path(value)
+    if not path.is_absolute():
         raise ValueError(f"{name} must be an explicit absolute path")
     return path.resolve()
 

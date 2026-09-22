@@ -103,6 +103,8 @@ npm ci --ignore-scripts
 
 注意：本机库使用回环信任认证，连接串里不需要密码；所以本机不存在任何需要保管的数据库密码。
 
+> 2026-09-22 S9 现场复核：上句是 2026-09-19 的历史配置，不再可作为当前认证方式使用。端口 `127.0.0.1:55432` 可连，但以表中无密码测试 DSN 连接返回 `fe_sendauth: no password supplied`；本轮 PG 回归的 62 项夹具在连接前失败，未创建测试数据库。未读取密码文件、未猜测或改动 PostgreSQL 配置。恢复前须由 owner 确认当前专属测试角色的认证方式，并以仅当前测试进程可见的安全配置重跑；本文件不保存密码。问题见[ISSUE-05](../04-issues/KNOWN_ISSUES.md)。
+
 两个连接串不得互换：`AGENTEXAM_TEST_DATABASE_URL` 只指向测试控制库，`AGENTEXAM_DATABASE_URL` 只指向开发库。变量只设置在当前 PowerShell 进程，不持久写入系统或仓库。
 
 `infra/.env` 是另一种场景：它是 owner 单机部署的私有配置输入，由 `infra/local/AgentExam.Local.psm1` 和 Docker Compose 使用。若以后本机承担 owner 部署职责，应按 [`infra/.env.example`](../../../infra/.env.example) 创建并私下填写；在当前“不依赖 Docker”的开发范围内不需要创建，也不能向管理员索取或复制他人的真实 `.env`。

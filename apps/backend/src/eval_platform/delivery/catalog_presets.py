@@ -10,7 +10,9 @@ from eval_platform.adapters.tasks.swe_gym import CANDIDATE_INSTANCE_ID, SWEGymTa
 from eval_platform.application.agent_registry import AgentRegistry
 from eval_platform.application.task_catalog import TaskCatalog
 from eval_platform.domain.agent import (
+    CHATGPT_CREDENTIAL_ID,
     INTERNAL_TEST_AUTHENTICATION,
+    INTERNAL_TEST_CREDENTIAL_ID,
     INTERNAL_TEST_PROVIDER,
     AgentConfiguration,
 )
@@ -36,7 +38,7 @@ AGENT_PRESETS = {
             "openai_chatgpt",
             "gpt-5.6-terra",
             "chatgpt_auth_json",
-            "owner-codex",
+            CHATGPT_CREDENTIAL_ID,
             {"reasoning_effort": "medium"},
         ),
     ),
@@ -55,7 +57,7 @@ INTERNAL_TEST_AGENT_PRESETS = {
             INTERNAL_TEST_PROVIDER,
             "deepseek-flash",
             INTERNAL_TEST_AUTHENTICATION,
-            "t05-fake-provider",
+            INTERNAL_TEST_CREDENTIAL_ID,
             {"reasoning_effort": "medium"},
         ),
     ),

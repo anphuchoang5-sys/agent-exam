@@ -100,3 +100,13 @@
 ### 建议
 
 不要为了让它变绿而修改这两个测试。若确实需要在本机跑，唯一正确做法是按[依赖总表](../../dependencies/DEPENDENCIES.md)固定版本恢复 `framework/`，这需要单独授权与时间预算。
+
+**2026-09-22 当前补充**：主仓库 `E:/9.1agent_exam/framework/harbor` 已存在且为固定提交 `6af8d6e31eced13b93849cdf80feeadf24603d15`、受控文件干净、虚拟环境可用；但独立 `runtime/lly-dev-verify` worktree 的同名路径仍不存在。S9 默认全量仍是上述两项失败（`620 passed / 107 skipped / 2 failed`）。不需要重建 Harbor；若用户允许在现有 worktree 内临时新建目录联接，可只读复用主仓库固定框架复测，结束后精确移除。该目录联接与此前“不新建目录”限制冲突，尚未执行；见[S9 行动](../../actions/2026-09-22-task05-s9-run-bindings.md)。
+
+## ISSUE-05：专属 PostgreSQL 测试库当前要求密码（未解决）
+
+**状态**：未解决　**影响**：S9 的显式 PG 全量回归尚未测到数据库断言。
+
+- 2026-09-22 实测：端口 `127.0.0.1:55432` 可连接，但按[本机环境文档](../02-environment/LOCAL_SETUP.md)原记载的无密码、专属测试 DSN 开启 `AGENTEXAM_RUN_IDENTITY_POSTGRES=1`，夹具收到 `fe_sendauth: no password supplied`。全量结果 `620 passed / 45 skipped / 2 failed / 62 errors`；62 个 error 均在专属测试库连接时出现，没有进入建临时库或数据库断言。
+- 原因尚未确认：可能是当前 `pg_hba.conf` 或角色认证方式已变化，不能只凭端口监听推断。未读取登录文件/凭据，也未改配置或猜密码。
+- 解决方案：由 owner 先确认**专属测试库**的当前认证方式；如需密码，只通过当前测试进程的安全输入提供，不写仓库、聊天、命令行明文或报告。确认后重跑显式 PG 回归，并把[本机环境文档](../02-environment/LOCAL_SETUP.md)的当前配置改成实测事实。不得用开发库或团队共享库替代专属测试库。
