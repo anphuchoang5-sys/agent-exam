@@ -1,6 +1,7 @@
 """Production Codex presets survive owner registration and fixed Harbor mapping."""
 
 from pathlib import Path
+from uuid import UUID
 
 import pytest
 from identity.conftest import WRITE_HEADERS
@@ -40,6 +41,8 @@ def test_owner_registers_distinct_fixed_runtime(
         )
         assert response.status_code == 201
         registered = response.json()
+        record_id = registered["agent_configuration_id"]
+        assert str(UUID(record_id)) == record_id
         assert registered["model"] == model
         assert registered["public_options"] == {"reasoning_effort": effort}
         assert registered["model_provider"] == "openai_chatgpt"
@@ -49,6 +52,16 @@ def test_owner_registers_distinct_fixed_runtime(
             ).json()
             == registered
         )
+        page = api.client.get(endpoint, params={"limit": 100, "agent_type": "codex"})
+        assert page.status_code == 200
+        matches = [
+            item
+            for item in page.json()["items"]
+            if item["agent_configuration_id"] == record_id
+        ]
+        assert len(matches) == 1
+        assert matches[0]["model"] == model
+        assert matches[0]["enabled"] is True
 
     task = task_bundle().public
     configuration = AGENT_PRESETS[preset_id][1]

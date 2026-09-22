@@ -77,5 +77,7 @@ runtime/prototype/agent-presets-20260922/                             # 忽略�
 | `python__mypy-15184` | resolved | resolved |
 | `python__mypy-15208` | resolved | resolved |
 | `python__mypy-15876` | 未解决 | resolved |
+
 - 切换运行服务前确认正式活动 Job 为 0。更新版后端先在备用端口 8001 返回 HTTP 200，再替换 8000 的旧进程并再次取得 HTTP 200，备用实例已关闭；旧 Worker 的两个 Python 进程被定向停止，新 Worker 的两个 Python 进程运行且 stderr 文件为空。Web 旧版为 `next start`，更新版生产构建先在备用端口 3001 返回 HTTP 200，再替换 3000 的旧进程；新版主页 200、经 Web 转发的未登录 Agent API 401，备用实例已关闭。2026-09-23 00:09 +08:00 复查：后端 200、Web 200、新 Worker Python 进程两个，专属 PostgreSQL/MinIO 运行，正式活动 Job 0。实际 owner 登录、两个新配置登记及网页向导选择仍待执行，不把无登录 HTTP 检查充作该验收。已准备本机交互式 owner 登记与浏览器核对脚本并通过 PowerShell/Node 语法检查；脚本尚未输入凭据或运行登记。
 - Git：15 个明确文件以 `877b7b1` 本地提交，提交前 `git diff --cached --check` 通过；原有三个未跟踪临时产物仍保留。提交前已核对远端 `agent+api` 为 `2381480`，推送该新提交时自动审批以「远端归属未确认」拒绝创建进程，没有发生远端写入；已向用户请求对具体 GitHub 目的地的确认，不经其他入口绕过。
+- 2026-09-23 续查当前 owner 目录仍只有启用的 Terra/medium；交互脚本尚未运行。准备投入使用前发现脚本把 POST 响应的 `agent_configuration_id` 误当成预置 ID 比较，而 `AgentRegistry.register` 实际生成 UUID；这会在首项成功登记后误报失败并停止第二项。已改为检查响应 UUID、模型、版本、提供方、推理档位及启用状态，按 UUID 核对 GET 列表中两条不同记录。PowerShell 语法解析、独立 UUID 查找表达式和浏览器脚本 Node 语法检查通过；生产预置 HTTP 回归新增响应 UUID 与目录列表同 ID 断言后 **5 passed**，Ruff 全量检查和 348 文件格式门禁通过。尚未用 owner 凭据实跑，不能把这些检查当作真实登记通过。
