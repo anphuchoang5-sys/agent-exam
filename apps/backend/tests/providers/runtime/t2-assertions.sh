@@ -12,9 +12,7 @@
 # names topology-verdicts.sh uses, so the two lists can be reviewed together. It never
 # loosens an expectation to make a run pass.
 #
-# NOT RUN ON THE DEVELOPMENT MACHINE: this machine has no framework/harbor and no running
-# Docker daemon, so this script has only been syntax-checked (bash -n) here. Its first real
-# run is the owner's next T2 round, and that run's actual output is the evidence.
+# It is run inside the fixed Harbor workload for T2; host-side Docker evidence is separate.
 #
 # Environment (set them in the Trial command; defaults match the shape in runbook appendix
 # three, where the services are named proxy and fake-upstream):
@@ -67,8 +65,9 @@ t05_through_proxy() {
   local reply
   reply="$(timeout 5 bash -c "
     exec 3<>/dev/tcp/${PROXY_HOST}/${PROXY_PORT} || exit 1
-    printf 'PING\n' >&3
-    head -c 16 <&3
+    printf 'PING\r\n' >&3
+    IFS= read -r -t 3 line <&3 || exit 1
+    printf '%s\n' \"\$line\"
   " 2>/dev/null | tr -d '\r\n')"
   case "${reply}" in
     *+PONG*) echo "PONG" ;;
