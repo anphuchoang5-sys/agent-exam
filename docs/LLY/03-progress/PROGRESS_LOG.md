@@ -7,7 +7,8 @@
 
 ### 已完成
 
-- **合并 `origin/main` 并让 `provider_access/server/` 适配加固接缝（本日最后一件事，已完成）**。合并提交 **`b8bbc0b`**（合并基点 `4f2c606`，main 侧 `858d30a`），6 处冲突全部解决。过程与完整证据见[合并与适配行动](../../actions/2026-09-22-merge-main-hardening-into-lly-dev.md)。要点：
+- **负责人机器 T2 第二轮已实际运行，但 `status=failed`，依停止条件停在 T2。** 在现有 `runtime/lly-dev-verify` 的 `lly/dev` 合入最新 `origin/main`（`c66a79f`）后，固定 Harbor 侧车目录 `entrypoint.sh`/`bin/network-policy` 为 `i/lf w/crlf`；探针显式用 `export_sidecar()` 的 LF+DNS 适配上下文。侧车本轮 `running/healthy`，原 127 不再出现；`main` 只接 `internal`、代理接 `internal+egress`、假上游只接 `egress`，容器无发布端口/宿主挂载。Trial 脚本 13 个逐项判定中 **11 PASS、2 FAIL**：经代理回复 `NO-REPLY`、`/tmp` 哨兵命中 1，末行 `status=failed`。假上游自身日志已有来自代理 IP 的 `cmd=ping`，故不能把 `NO-REPLY` 简化成未转发；`head -c 16` 等待短回复与断言脚本自身置于 `/tmp` 被自扫描，是两处强测量疑点，未修改断言或重跑。镜像 90/卷 16 前后零差异，按项目名+任务标签+本轮 scope 精确清理与独立复核均为 0；31 个原始证据文件已列 SHA-256 manifest。详见[本轮 T2 行动](../../actions/2026-09-22-task05-t2-verified.md)（文件名按计划，正文明确**未验证通过**）。**S9/S10/S11 均未开工，真 Key 与真实供应商均未接触。**
+- **合并 `origin/main` 并让 `provider_access/server/` 适配加固接缝（此前切片，已完成）**。合并提交 **`b8bbc0b`**（合并基点 `4f2c606`，main 侧 `858d30a`），6 处冲突全部解决。过程与完整证据见[合并与适配行动](../../actions/2026-09-22-merge-main-hardening-into-lly-dev.md)。要点：
   - **与任务描述不符的两处实测事实（重要）**：① main 侧的 `failures.py` **不是**"同一份文件的超集"——本分支的 `_UPSTREAM_FAILED` 组（`PROVIDER_UPSTREAM_FAILED` ＋ 六个 `TRANSPORT_*` 码）与另外 4 个码是 main 从未有过的，按"取 main 侧"会静默删掉它们，后果是六个上游失败码全部落到兜底的 500。已改为**手工并集**。② main 侧的词表守卫用 `glob("*.py")`（不递归），本分支用 `rglob`；实测把一个未审查码注入 `server/egress.py`，**rglob 版守卫失败并指名，glob 版 7 项全通过**——即以 main 版为准会让整个 `server/` 子包逃出防漂移门禁。已恢复递归遍历。
   - **`server/` 适配四件事**：① 五处 `except ValueError` ＋ `str(error)` 改为按 `ProviderAccessError` 捕获并读 `.code`；② **入站先剥连接自有头**（`Host`／`Connection`／`Transfer-Encoding` 等）——main 的白名单会拒绝未列出的客户端头，而任何真实客户端都必发 `Host`，不剥就会拒绝一切真实请求（实测去掉后 **7 条用例失败**）；`X-Forwarded-Host`／`Forwarded`／`Proxy-Connection` 故意不剥，仍由策略层拒绝；③ **头白名单提前到预留之前**——合并后发现一处**真实缺陷**：白名单原本在 `build_outbound`（第 6 步）才求值，在 `reserve`（第 5 步）之后，于是"带一个非白名单头"的请求会在取走预留后才被拒绝，而该预留因为不会创建 relay **永远不会结算**，等于凭一个请求头白耗该 Run 的额度；④ `egress.py` 删除自持的 `TRANSPORT_OWNED_HEADERS`，转发/忽略统一由 main 的 `FORWARDED_CLIENT_HEADERS`／`IGNORED_CLIENT_HEADERS` 决定。
   - **补回一处被 main 静默弄失效的守卫**：CR-13 把 `REGISTERED_UPSTREAMS` 收窄到只剩受控假上游，于是 `codex/provider_config.py` 里"拒绝任何登记过的真实上游地址"那条**静默失效**，`https://api.deepseek.com` 从"被拒绝"变成"被接受"（即 CLI 可绕过代理直连真实供应商的入口）。已按真实提供方主机名补 `REAL_PROVIDER_HOSTS`。**该文件只在 `lly/dev` 上，属于合并才暴露的跨分支耦合**。
@@ -52,8 +53,8 @@
 ### 当前停点
 
 - **任务 05 本机侧已实施完毕**（S2–S8、T1 与 `service.py` 的 S6a–S6e），**并已合并 `origin/main` 的加固改造、`server/` 适配完毕、全套重跑通过**（合并提交 `b8bbc0b`，见本日第一条）。剩余全部等 T2：**S9（worker 按 Run 选绑定）、S10（`net/` 与网络接线）、S11（集成层）**。
-- **T2 的状态（2026-09-22 更新两次）**：T1 已在负责人机器复测通过；Harbor 源码结论为"允许按服务绕过侧车附加"；授权增补已给出并**已实际执行一次，但未测得**——自带侧车退出 127（入口 ENOENT）且未执行任何 Trial 命令。**第二轮更新**：产品入口被证实无法承载该拓扑（`HARBOR_NETWORK_CONFIG_INVALID`），故下一轮只能走**探针 + 显式携带适配**；诊断只剩一条只读命令（侧车目录的行尾）。**下一件本机可开工的切片**：写 T2 的"仅断言"脚本 + 最小 job config 驱动（本机无法执行，交付形态是负责人机器上一条命令）。
-- **待推送**：本轮合并提交 `b8bbc0b` 与后续适配提交将推送到 `origin/lly/dev`（推送前本机领先）。上一条"与 `origin/lly/dev` 一致"是上一轮的状态。
+- **T2 的最新状态（2026-09-22）**：上述旧的“侧车 127、七条全未测得”只描述首轮历史。本轮用显式适配启动固定 Harbor 并实际执行做题侧断言，侧车已健康，但脚本 `status=failed`（11 PASS、2 FAIL），且宿主侧第 4/7 条正对照因即停未补测。**T2 仍未验证通过**；不进入 S9/S10/S11。两处疑似测量缺陷与完整失败证据见[本轮 T2 行动](../../actions/2026-09-22-task05-t2-verified.md)；不得把旁证或 T1 结果外推为 T2 通过。
+- **当时的推送状态（历史）**：合并提交 `b8bbc0b` 与后续适配提交在该窗口准备推送；此句不代表本轮实时远端状态，最新状态以本轮 Git 核对为准。
 - **与 B 的往来状态（2026-09-22 更新两次）**：B 已完成两处契约对齐（§10.2 五个受控码、§4.2 受控集合与 `internal_test_fake`），**"仍等 B"的旧说法作废**。**第二轮更新**：本日再次合并 `origin/main` 的 `858d30a`→`4c31c66`，带入 B 的夹具控制端点与两项呈现验证——**②那一项因此关闭**（B 的记录明确"E 说明其前置不成立"这一判断已被采纳，见 `docs/architecture/modules/web-and-http/actions/05-necessary-error-presentation.md` 第 54 行与 `delivery/14-fixture-failure-injection-and-presentation-verifications.md`）。当前挂在 B 侧只剩：① 可选——在 §4.2 补一句超集合记录的状态码（503 `DEPENDENCY_UNAVAILABLE`）；② **`PROVIDER_UPSTREAM_FAILED` 仍未列入 §10.2**（该节只有 5 个受控码），而 `server/` 已按 502 使用它，属本分支的候选码待列入。
 - **交给 S11 的两条**：① 用真实上游复核 `Accept-Encoding` 转发后的流压缩与用量结算（见本日第一条遗留）；② `provider_config.py` 的裸 `ValueError("PROVIDER_CONFIG_*")` 在接线时一并收口为受控失败（合并前已记的旧待办）。
 
