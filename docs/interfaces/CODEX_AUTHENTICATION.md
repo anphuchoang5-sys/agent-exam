@@ -197,7 +197,9 @@ DeepSeek/Kimi 真实 Key 只由评测机所有者在本机可信秘密配置中�
 
 当前代码状态已晚于上面的历史假值取证：既有 `HarborExecutionAdapter` 可以由可信本机构造器显式接收固定 Codex 归档和所有者登录文件引用，逐次把完整校验后的离线 bundle 放入该次 0700 原型目录；这两个引用只进入受控 Harbor 子进程环境，不进入 `ExecutionJobRequest`、Harbor Job JSON、公开任务或 Adapter 的 `repr`。`harbor_environment()` 仍不复制同名或其他宿主认证环境变量，缺少任一显式绑定都会失败关闭。
 
-`harbor_entry.py` 现在只接受原 NOP 或唯一固定 Codex 配置 `0.153.0` / `openai/gpt-5.6-terra` / `medium` / Web 关闭；固定配置缺少私有绑定时报 `CODEX_CREDENTIAL_BINDING_NOT_READY`，配置不一致在导入 Harbor/创建容器前拒绝。入口重新核验 bundle manifest 及 8 个文件 SHA-256，再把由闭包绑定的 `GuardedCodex` 注册到固定 `AgentFactory`；路径不写入 Agent kwargs。兼容类只返回显式绑定的普通非符号链接文件，不再读取 ambient API Key/Base URL；未绑定类继续保持原拒绝行为。
+2026-09-07 接线时，`harbor_entry.py` 只接受原 NOP 或唯一固定 Codex 配置 `0.153.0` / `openai/gpt-5.6-terra` / `medium` / Web 关闭；固定配置缺少私有绑定时报 `CODEX_CREDENTIAL_BINDING_NOT_READY`，配置不一致在导入 Harbor/创建容器前拒绝。入口重新核验 bundle manifest 及 8 个文件 SHA-256，再把由闭包绑定的 `GuardedCodex` 注册到固定 `AgentFactory`；路径不写入 Agent kwargs。兼容类只返回显式绑定的普通非符号链接文件，不再读取 ambient API Key/Base URL；未绑定类继续保持原拒绝行为。
+
+2026-09-22 当前运行入口从轻量的 `delivery/agent_presets.py` 精确生成受控配置集合，允许 Terra/medium、Luna/low、Sol/medium 的非空且不重复组合，仍要求相同固定版本、Web 关闭与私有绑定；任意模型或参数依旧在启动前拒绝。两项新配置的实际试跑证据见[本次行动](../actions/2026-09-22-expand-codex-agent-configurations.md)。
 
 生产安装上传到 `/opt/agentexam-codex`，固定 PATH 指向其 `bin` 与 `codex-path`；版本不等于 `0.153.0` 即失败，不调用上游 curl/npm 安装分支。正式任务渲染现在把 Agent 和 collect 都固定为 `65534:65534`，镜像构建时把 `/testbed` 交给同一 UID:GID。一次固定镜像、`network none`、假认证的生产安装契约已验证真实 CLI 版本/帮助、无 curl/npm 回退、非 root 和精确容器清理；另一次完整禁网假认证 success Trial 验证新的生产 UID/PATH 与合成补丁/自然清理协作。后者第一次因测试替身覆盖后才检查版本而失败，调整为覆盖前检查后通过；两次都没有调用模型，不能证明账号、真实 Token 刷新或真实工具链。
 

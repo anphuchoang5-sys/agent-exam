@@ -32,13 +32,13 @@ apps/backend/src/eval_platform/
     ports/evaluator.py                     # PatchEvaluator Interface
   adapters/execution/
     harbor/adapter.py                      # Harbor ExecutionBackend Adapter
-    harbor/config_mapper.py                # 平台请求 → 固定 Harbor 配置
+    harbor/config_mapper.py                # 冻结的受控 Agent → 固定 Harbor 配置
     harbor/process_runner.py               # 有界子进程与日志采集
     harbor/process_evidence.py             # 进程证据归一化
     harbor/result_mapper.py                # Harbor 结果 → 平台 Trial 结果
     harbor/artifacts.py / result_values.py # Harbor 制品和值解析
     harbor/lifecycle/                      # 启动、监控、超时和精确资源清理
-    harbor_entry.py                        # Harbor 子进程 Composition Root
+    harbor_entry.py                        # Harbor 子进程 Composition Root；从生产预置核对 Codex 模型/档位
     codex/agent.py                         # 固定上游 Codex 的窄 Adapter
     codex/install.py                       # 固定离线 CLI 校验与安装
     codex/policy.py                        # 非 root、命令和运行策略
@@ -65,6 +65,7 @@ apps/backend/src/eval_platform/
   delivery/worker/
     runtime.py                             # 正式 owner 本机 Worker Composition Root
     main.py                                # 一次 claim 后委托 JobExecutor 的薄 shell
+  delivery/agent_presets.py               # 目录与隔离 Harbor 运行入口共用的三项轻量生产配置
 framework/
   harbor/                                  # 固定 revision 的外部执行框架源码/环境
   swe-bench-fork/                          # 固定 revision 的独立判卷框架源码/环境
@@ -86,6 +87,8 @@ PostgreSQL claim 冻结 Job
 ```
 
 Worker 只从 owner 本机绝对路径读取固定 framework、数据集、Codex 归档和认证引用；这些秘密路径不进入 Job、HTTP、PostgreSQL 或 MinIO。
+
+`harbor_entry.py` 在导入 Harbor 前，以生产 `AGENT_PRESETS` 映射出的完整配置为白名单：允许 Terra/medium、Luna/low、Sol/medium 的非空且不重复组合，同时要求现有私有认证绑定；未知模型、档位、额外参数与混合 NOP 均拒绝。模型和档位的唯一生产配置源是轻量的 `delivery/agent_presets.py`，目录装配和 `config_mapper.py` 复用它，避免 Harbor 的独立 Python 环境导入后端存储依赖。新型号在固定 CLI 和 owner 账号上的真实可用性仍要按[本次配置行动](../../../actions/2026-09-22-expand-codex-agent-configurations.md)的实测结论判断。
 
 当前生产数据流尚不经过 `provider_access`。该目录已有拒绝越权 header/path/model、绑定和撤销 Run 令牌、保守处理并发预算、读取受限本机配置、受控失败码及 HTTP/流式代理服务；`codex/provider_config.py` 已能渲染固定测试配置，仍待固定 CLI 字段和事件对账。固定测试上游使用 `.invalid` 保留域。双网络生命周期、Worker/Harbor Composition Root 接线及 T2 七条断言未完成，因此任何真实 DeepSeek/Kimi 请求都不在当前能力内。
 

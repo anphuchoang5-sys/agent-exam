@@ -1,6 +1,6 @@
 # AgentExam 当前接续交接
 
-> 更新：2026-09-22；工作区：`E:\9.1agent_exam`；当前分支：`agent+api`（已快进至 `origin/main` 的 `594f51f`；本地 `main` 仍在另一 worktree 的 `e6a7138`）。
+> 更新：2026-09-23；工作区：`E:\9.1agent_exam`；当前分支：`agent+api`；本轮开始前的已推送提交为 `2381480`，本次 Agent 配置扩展仍在工作区进行中。本地 `main` 由另一 worktree 使用；Git 现状以现场命令为准。
 >
 > 本文是新窗口的恢复入口，不替代架构、接口、运维、任务和行动文档。若本文与当前代码或专题权威文档冲突，先核对 Git 与现实实现并同步当前状态型文档；`docs/actions/` 中已结束的记录是历史档案，不反向改写。
 >
@@ -15,6 +15,7 @@
 - P1–P4 最小本地持久化已完成；备份恢复已明确移出课设范围。
 - 任务 01–02 已完成；任务 03 的跨批次对比 Web 已实现并验证，任务单保持 `ready-for-human` 等待最终人工确认。
 - 任务 04 的六题受控目录、五道新题三补丁门禁、`continuous(1–20)`、六题向导与暴露面检查已经落地；2026-09-22 当前 owner 运行目录也已登记全部六题并完成网页选择核对，证据见[本机登记行动](docs/actions/2026-09-22-register-five-verified-tasks.md)。任务单保持 `ready-for-human` 等待最终人工确认。
+- 生产代码已有 Terra/medium、Luna/low、Sol/medium 三种固定 Codex/ChatGPT 配置，Web 可选择，Harbor 入口按同一预置精确校验。两项新配置各自在隔离原型中完成六题固定 CLI/Fork 试跑：Luna/low 解出 3/6，Sol/medium 解出 6/6；它们尚未登记到当前 owner 目录，也未作为正式 Job 提交。证据与轨迹缺失限制见[本次 Agent 配置行动](docs/actions/2026-09-22-expand-codex-agent-configurations.md)。
 - 任务 05 的 9 项负责人决定已确认并进入主线。`provider_access/` 已有私有配置读取、Run 令牌绑定、预算、请求、受控失败及 S6 代理服务；S2 固定配置渲染和仅供 `internal_test` 使用的假提供方身份与目录切片已实现，T1 拓扑探针有 7 条断言证据。S8 真实提供方预设、S9–S11、Worker/Harbor 装配和正式全链仍未完成；T2 曾尝试但七条断言未测得。
 - 任务 06–08 未实施；不得因 04 完成、Worker 曾在线或 05 决策已确认而自动开始真实供应商调用、充值或冻结矩阵。
 
@@ -39,7 +40,7 @@
 | 任务 04 | 六道题、连续规模与相关回归已落地；当前 owner 目录已登记六题且网页可选择 | 等最终人工确认，不再按旧计划重复拉镜像、跑门禁或改白名单 |
 | 任务 05 | 策略、S2 配置渲染、S6 代理服务、`internal_test` 身份切片与 T1 已有代码/验证；真实提供方预设、S9–S11 和正式全链未完成，T2 未测得断言 | 不得把测试假提供方当真实上游；不得读取真实 Key、调用供应商或把未完成链路写成已验收 |
 | 任务 06–08 | 未实施 | 真实调用、账户设置、费用与矩阵必须重新取得当轮授权 |
-| 正式运行态 | 2026-09-22 19:52 +08:00 核对：专属存储、Web 3000、Backend 8000、私有 HTTPS 与正式持续 Worker 同时运行；五道新题的固定镜像已准备并通过无模型构建 | 当前队列为空，原三 Run 失败批次保持原样；E 盘约余 4.22 GiB，完整新 Trial 尚未验收，接续时重查容量和运行态 |
+| 正式运行态 | 2026-09-23 00:09 +08:00 核对：专属 PostgreSQL/MinIO、更新版 Web 3000、Backend 8000 与持续 Worker 运行；Web/Backend 200，经转发的匿名 Agent API 401；正式活动 Job 为 0。私有 HTTPS 本轮未复查 | 两种新配置的六题隔离原型试跑已完成，E 盘约余 3.10 GiB；原型结果不等于正式 Job 提交；owner 目录登记和真实网页向导选择仍待本人登录 |
 | 团队数据库接入 | B 侧已定位为不在同一 tailnet；当前不需要数据库，暂不重试 | 不写入私有 tailnet 名/IP；由 owner 分享设备或邀请账号后才重验 |
 
 通用边界：不把规划或文档回执当作产品实现；不自动批准 Job、不自动重试真实模型、不自动充值；不读取或输出 `auth.json`、Key、Cookie、密码等正文；不使用全局 Docker prune；不把历史 passed/skipped 数字冒充本轮刚跑结果。
@@ -62,14 +63,14 @@
 
 当前主要依赖方向仍为 `Web/CLI → delivery → application → domain/ports ← adapters`。继续工作前按涉及模块实际读实现和测试：
 
-- 目录与六题身份：[受控镜像映射](apps/backend/src/eval_platform/adapters/tasks/catalog.py)、[HTTP 预设](apps/backend/src/eval_platform/delivery/catalog_presets.py)及 `apps/backend/tests/catalog/`。
+- 目录与六题身份：[受控镜像映射](apps/backend/src/eval_platform/adapters/tasks/catalog.py)、[HTTP 题目预设](apps/backend/src/eval_platform/delivery/catalog_presets.py)、[三项生产 Agent 预设](apps/backend/src/eval_platform/delivery/agent_presets.py)及 `apps/backend/tests/catalog/`。
 - Job 提交/批准/执行：[提交](apps/backend/src/eval_platform/application/job_submission.py)、[批准](apps/backend/src/eval_platform/application/owner_approval.py)、[执行](apps/backend/src/eval_platform/application/execute_job.py)、`application/job_lifecycle/` 与 `adapters/persistence/jobs/`。
 - 报告与五结果矩阵：[矩阵](apps/backend/src/eval_platform/application/reporting/matrix.py)、[比较路由](apps/backend/src/eval_platform/delivery/http/routes/jobs/reporting/comparisons.py)及 `apps/backend/tests/jobs/reporting/`。
-- Worker 与现有提供方边界：[Worker 装配](apps/backend/src/eval_platform/delivery/worker/runtime.py)、[固定配置渲染](apps/backend/src/eval_platform/adapters/execution/codex/provider_config.py)、[代理服务](apps/backend/src/eval_platform/adapters/execution/provider_access/server/)和认证接口。正式执行仍是固定 Codex/`openai_chatgpt` 链；新配置与服务尚未接入 Worker/Harbor。
+- Worker 与现有提供方边界：[Worker 装配](apps/backend/src/eval_platform/delivery/worker/runtime.py)、[固定配置渲染](apps/backend/src/eval_platform/adapters/execution/codex/provider_config.py)、[代理服务](apps/backend/src/eval_platform/adapters/execution/provider_access/server/)和认证接口。正式执行仍是固定 Codex/`openai_chatgpt` 链；三项固定 Codex 预置已由 Worker/Harbor 现有链路接受，新提供方代理服务尚未接入正式执行。
 - Web 工作台与对比页：`apps/web/src/features/workbench/`、`apps/web/src/features/jobs/`、[对比页](apps/web/src/features/jobs/reporting/comparison.tsx)及 `apps/web/tests/`。
 - 生命周期与部署：`infra/local/` 下的四个公开 PowerShell 入口、`infra/compose.yaml` 和 owner-host-runtime 文档；运行状态必须现场检查。
 
-核心诊断与代码修复的历史验证见对应行动；当前 `agent+api` 分支已按用户要求核对文档与代码、收拢结果文案映射，并统一 Web 两条比较请求入口的响应解析器，未开始新的 Agent/API 接入。接续时先读本轮两份行动和现实源码，不把旧行动中的状态或测试数字当作本轮新结果。
+核心诊断与代码修复的历史验证见对应行动；当前 `agent+api` 分支已按用户要求核对文档与代码、收拢结果文案映射、统一 Web 两条比较请求入口的响应解析器，并在本轮扩展三项固定 Codex 配置。接续时先读[配置扩展行动](docs/actions/2026-09-22-expand-codex-agent-configurations.md)和现实源码，不把旧行动中的状态或测试数字当作本轮新结果。
 
 ## 5. Git、环境与测试快照
 

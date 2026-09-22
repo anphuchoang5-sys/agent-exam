@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api-client";
-import { agentDetail, agents, disableAgent, registerAgent } from "../../lib/catalog-client";
+import { AGENT_PRESET_CHOICES, agentDetail, agents, disableAgent, registerAgent } from "../../lib/catalog-client";
+import type { AgentPresetId } from "../../lib/catalog-client";
 import type { CatalogAgent, Page } from "../../lib/contracts";
 
 export default function AgentsPanel({ owner }: { owner: boolean }) {
   const [data, setData] = useState<Page<CatalogAgent> | null>(null);
   const [detail, setDetail] = useState<CatalogAgent | null>(null);
   const [enabled, setEnabled] = useState("");
+  const [presetId, setPresetId] = useState<AgentPresetId>("codex-0153-terra-medium");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const generation = useRef(0);
@@ -48,7 +50,7 @@ export default function AgentsPanel({ owner }: { owner: boolean }) {
     const revision = ++generation.current;
     setBusy(true); setError(""); setDetail(null);
     try {
-      if (id) await disableAgent(id); else await registerAgent();
+      if (id) await disableAgent(id); else await registerAgent(presetId);
       if (revision === generation.current) await load();
     } catch (value) { if (revision === generation.current) { explain(value); setBusy(false); } }
   }
@@ -56,7 +58,14 @@ export default function AgentsPanel({ owner }: { owner: boolean }) {
   return <section aria-label="Codex 配置目录">
     <h2>Codex 配置目录</h2>
     <p className="muted">固定配置是评测身份；禁用后仍保留历史，不会自动恢复启用。</p>
-    {owner && <button disabled={busy} onClick={() => manage()}>登记固定 Codex 配置</button>}
+    {owner && <>
+      <label>固定 Codex 配置<select value={presetId} disabled={busy}
+        onChange={(event) => setPresetId(event.target.value as AgentPresetId)}>
+        {AGENT_PRESET_CHOICES.map((choice) =>
+          <option key={choice.id} value={choice.id}>{choice.label}</option>)}
+      </select></label>
+      <button disabled={busy} onClick={() => manage()}>登记固定 Codex 配置</button>
+    </>}
     <label>配置状态<select value={enabled} disabled={busy} onChange={(event) => {
       setEnabled(event.target.value); filter.current = event.target.value; void load();
     }}>

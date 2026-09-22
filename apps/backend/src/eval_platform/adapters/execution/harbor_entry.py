@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Any
 
 from eval_platform.adapters.execution.codex.agent import guarded_codex_class
-from eval_platform.adapters.execution.codex.install import (
-    VERSION,
-    validate_codex_bundle,
-)
+from eval_platform.adapters.execution.codex.install import validate_codex_bundle
 from eval_platform.adapters.execution.codex.uploads import validate_auth_file
-from eval_platform.adapters.execution.harbor.config_mapper import HARBOR_REVISION
+from eval_platform.adapters.execution.harbor.config_mapper import (
+    HARBOR_REVISION,
+    map_codex_agent,
+)
 from eval_platform.adapters.execution.harbor.lifecycle.control import (
     configure_controlled_runner,
 )
@@ -28,19 +28,13 @@ from eval_platform.adapters.execution.network import (
     validate_hosts,
 )
 from eval_platform.application.ports.execution import RunLimits
+from eval_platform.delivery.agent_presets import AGENT_PRESETS
 
 _AUTH_ENV = "AGENTEXAM_PRIVATE_CODEX_AUTH_PATH"
 _BUNDLE_ENV = "AGENTEXAM_PRIVATE_CODEX_BUNDLE_ROOT"
-_FIXED_CODEX = {
-    "name": "codex",
-    "model_name": "openai/gpt-5.6-terra",
-    "n_concurrent": 1,
-    "kwargs": {
-        "version": VERSION,
-        "reasoning_effort": "medium",
-        "web_search": "disabled",
-    },
-}
+_FIXED_CODEX = tuple(
+    map_codex_agent(configuration) for _, configuration in AGENT_PRESETS.values()
+)
 
 
 def harbor_command(
@@ -100,7 +94,13 @@ def validate_agent_mode(config: dict[str, Any], *, runtime_bound: bool) -> str:
         if runtime_bound:
             raise ValueError("CODEX_RUNTIME_BINDING_UNUSED")
         return "nop"
-    if agents != [_FIXED_CODEX]:
+    if (
+        not isinstance(agents, list)
+        or not agents
+        or len(agents) > len(_FIXED_CODEX)
+        or any(agent not in _FIXED_CODEX for agent in agents)
+        or any(agents.count(agent) != 1 for agent in agents)
+    ):
         raise ValueError("REAL_CODEX_CONFIG_INVALID")
     if not runtime_bound:
         raise RuntimeError("CODEX_CREDENTIAL_BINDING_NOT_READY")

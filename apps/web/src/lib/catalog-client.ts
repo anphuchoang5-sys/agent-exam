@@ -66,8 +66,15 @@ export async function agents(query: URLSearchParams): Promise<Page<CatalogAgent>
 export async function agentDetail(id: string): Promise<CatalogAgent> {
   return agent(await request("agent-configurations/" + encodeURIComponent(id)), true);
 }
-export async function registerAgent(): Promise<CatalogAgent> {
-  return agent(await request("agent-configurations", { preset_id: "codex-0153-terra-medium" }), true);
+export const AGENT_PRESET_CHOICES = [
+  { id: "codex-0153-terra-medium", label: "GPT-5.6 Terra / medium" },
+  { id: "codex-0153-luna-low", label: "GPT-5.6 Luna / low" },
+  { id: "codex-0153-sol-medium", label: "GPT-5.6 Sol / medium" },
+] as const;
+export type AgentPresetId = typeof AGENT_PRESET_CHOICES[number]["id"];
+
+export async function registerAgent(presetId: AgentPresetId = "codex-0153-terra-medium"): Promise<CatalogAgent> {
+  return agent(await request("agent-configurations", { preset_id: presetId }), true);
 }
 export async function disableAgent(id: string): Promise<void> {
   await request("agent-configurations/" + encodeURIComponent(id) + "/disable", {});

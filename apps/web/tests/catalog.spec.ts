@@ -83,3 +83,32 @@ test("owner registers catalogs; collaborator browses but cannot manage them", as
     await expect(join.locator("body")).not.toContainText("private-test-reference");
   } finally { await guest.close(); }
 });
+
+test("owner chooses the Luna and Sol registration presets", async ({ page }) => {
+  const registered: string[] = [];
+  await page.route("**/api/v1/agent-configurations", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const preset = (route.request().postDataJSON() as { preset_id: string }).preset_id;
+    registered.push(preset);
+    const model = preset === "codex-0153-luna-low" ? "gpt-5.6-luna" : "gpt-5.6-sol";
+    await route.fulfill({ status: 201, json: {
+      agent_configuration_id: `00000000-0000-0000-0000-00000000000${registered.length}`,
+      display_name: model, agent_type: "codex", agent_version: "0.153.0",
+      model_provider: "openai_chatgpt", model,
+      configuration_fingerprint: "a".repeat(64), enabled: true,
+      public_options: { reasoning_effort: model.endsWith("luna") ? "low" : "medium" },
+      limit_profile_id: null,
+    } });
+  });
+  await loginOwner(page);
+  await navigation(page).getByRole("button", { name: "配置目录" }).click();
+  const agents = page.getByRole("region", { name: "Codex 配置目录" });
+  const choice = agents.getByLabel("固定 Codex 配置");
+  await choice.selectOption("codex-0153-luna-low");
+  await agents.getByRole("button", { name: "登记固定 Codex 配置" }).click();
+  await expect.poll(() => registered.length).toBe(1);
+  await choice.selectOption("codex-0153-sol-medium");
+  await agents.getByRole("button", { name: "登记固定 Codex 配置" }).click();
+  await expect.poll(() => registered.length).toBe(2);
+  expect(registered).toEqual(["codex-0153-luna-low", "codex-0153-sol-medium"]);
+});

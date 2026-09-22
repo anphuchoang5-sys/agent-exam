@@ -322,7 +322,7 @@ M1 的 `review_status` 使用既有 `NOT_REQUIRED`，不产生虚假的待复核
 
 登记/修改 Agent 配置属于 `owner` 流程；协作者只能选择项目已经登记并启用的配置。
 
-任务 03 已落地的管理切片：`POST /api/v1/agent-configurations` 仅 owner 接受 `{"preset_id":"codex-0153-terra-medium"}`，不接受其他字段；201 返回配置详情，同指纹重入仍返回原记录。`POST /api/v1/agent-configurations/{configuration_id}/disable` 仅 owner，正文无或空对象，成功 204；重复禁用幂等、不删除历史、重新登记不恢复启用。详情的 public_options 当前仅 reasoning_effort，limit_profile_id 未绑定时为 null。未知预置、身份冲突、依赖失败沿用第 5 节目录错误，缺失配置为 404 AGENT_CONFIGURATION_NOT_FOUND。列表/详情不返回凭据逻辑引用，原始快照也没有下载端点。
+任务 03 已落地的管理切片：`POST /api/v1/agent-configurations` 仅 owner 接受一个 `preset_id` 字段；当前生产固定值由 `delivery/agent_presets.py` 的 `AGENT_PRESETS` 维护，分别为 `codex-0153-terra-medium`、`codex-0153-luna-low`、`codex-0153-sol-medium`。其他字段及未知预置拒绝；201 返回配置详情，同指纹重入仍返回原记录。`POST /api/v1/agent-configurations/{configuration_id}/disable` 仅 owner，正文无或空对象，成功 204；重复禁用幂等、不删除历史、重新登记不恢复启用。详情的 public_options 当前仅 reasoning_effort，limit_profile_id 未绑定时为 null。身份冲突、依赖失败沿用第 5 节目录错误，缺失配置为 404 AGENT_CONFIGURATION_NOT_FOUND。列表/详情不返回凭据逻辑引用，原始快照也没有下载端点。
 
 两类目录列表均拒绝未知或重复 query 字段（400 INVALID_REQUEST），字段/UUID 格式和数值边界错误为 422。配置列表 agent_type 仅 codex；未知类型拒绝，合法筛选无匹配返回空列表。`model_provider` 是第 4.2 节的受控集合，列表与详情都按记录如实呈现；受控 API 预设 `internal-test-provider-proxy` 只在 `internal_test` 装配下登记，出现时其 `model_provider` 为 `internal_test_fake`。
 
