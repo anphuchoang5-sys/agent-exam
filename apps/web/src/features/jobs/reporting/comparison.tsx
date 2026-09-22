@@ -7,8 +7,7 @@ import { jobs, runReport } from "../../../lib/job-client";
 import {
   comparison, comparisonDetails, comparisonReports,
 } from "../../../lib/reporting/comparison-client";
-import type { ComparisonMatrix } from "../../../lib/reporting/comparison-shape";
-import { COMPARISON_LIMIT } from "../../../lib/reporting/comparison-shapes";
+import { COMPARISON_LIMIT, type ComparisonMatrix } from "../../../lib/reporting/comparison-shape";
 import RunReportView from "../report";
 import { JOB_STATUS_NAMES } from "../listing/labels";
 import ConfigurationComparison from "./configuration";

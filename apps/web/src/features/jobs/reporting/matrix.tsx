@@ -1,9 +1,6 @@
-import type { ComparisonMatrix, ComparisonOutcome } from "../../../lib/reporting/comparison-shape";
-
-const names: Record<ComparisonOutcome, string> = {
-  resolved: "已解决", unresolved: "未解决",
-  infrastructure_error: "基础设施错误", incomplete: "未完成", missing: "缺失",
-};
+import {
+  COMPARISON_OUTCOME_NAMES, type ComparisonMatrix, type ComparisonOutcome,
+} from "../../../lib/reporting/comparison-shape";
 
 function explanation(outcome: ComparisonOutcome) {
   if (outcome === "infrastructure_error") return "运行环境未能形成可判定结果。";
@@ -33,9 +30,9 @@ export default function ComparisonMatrixView({
         <th scope="row">{row.task_instance_id}<small>{row.repo}</small></th>
         {row.cells.map((cell, index) => <td key={index} data-outcome={cell.outcome}>
           {cell.run_id && cell.report_path ? <button
-            aria-label={`查看 ${row.task_instance_id} 运行报告 / 查看单次证据：配置 ${index + 1}，${names[cell.outcome]}`}
-            onClick={() => openRun(cell.run_id as string)}>{names[cell.outcome]}</button> :
-            <strong>{names[cell.outcome]}</strong>}
+            aria-label={`查看 ${row.task_instance_id} 运行报告 / 查看单次证据：配置 ${index + 1}，${COMPARISON_OUTCOME_NAMES[cell.outcome]}`}
+            onClick={() => openRun(cell.run_id as string)}>{COMPARISON_OUTCOME_NAMES[cell.outcome]}</button> :
+            <strong>{COMPARISON_OUTCOME_NAMES[cell.outcome]}</strong>}
           <span>{explanation(cell.outcome)}</span>
           {cell.failure_code && <details><summary>技术错误码</summary>
             <code>{cell.failure_code}</code></details>}

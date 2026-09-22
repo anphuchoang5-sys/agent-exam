@@ -2,7 +2,7 @@ Status: needs-info
 
 # 分层验收与证据规范
 
-> 这是分阶段验收规范。任务 01–04 已完成相应实现与验证；任务 03、04 的执行证据分别由[03 行动](../../docs/actions/2026-09-21-ui-comparison-report.md)和[04 行动](../../docs/actions/2026-09-19-task-04-catalog-candidates-and-scale.md)维护。任务 05 已完成 S3–S8 纯策略与 T1，但 T2、正式 Worker/Harbor 链、工具循环和生命周期仍未通过；06–08 未实施。未实际运行、失败或跳过的检查不得写成通过。
+> 这是分阶段验收规范。任务 01–04 已完成相应实现与验证；任务 03、04 的执行证据分别由[03 行动](../../docs/actions/2026-09-21-ui-comparison-report.md)和[04 行动](../../docs/actions/2026-09-19-task-04-catalog-candidates-and-scale.md)维护。任务 05 已有独立策略组件、隔离的 `internal_test` 身份切片、S2 固定配置渲染、S6 代理服务与 T1 证据；T2 尝试因侧车退出 127 未测得断言，正式 Worker/Harbor 链、工具循环和生命周期仍未通过；06–08 未实施。未实际运行、失败或跳过的检查不得写成通过。
 
 ## 1. 测试层次与通过条件
 

@@ -11,8 +11,7 @@ import {
   parseJobSummary,
 } from "./job-shapes";
 import { parseRunReport, parseTrajectoryPage } from "./report-shapes";
-import { parseComparisonMatrix } from "./reporting/comparison-shapes";
-import type { ComparisonMatrix } from "./reporting/comparison-shapes";
+import { parseComparison, type ComparisonMatrix } from "./reporting/comparison-shape";
 
 export async function jobOptions(): Promise<JobOptions> {
   return parseJobOptions(await request("job-options"));
@@ -78,7 +77,7 @@ export async function jobReport(id: string): Promise<JobReport> {
 
 export async function comparisons(ids: string[]): Promise<ComparisonMatrix> {
   const query = new URLSearchParams({ job_ids: ids.join(",") });
-  return parseComparisonMatrix(await request("reports/comparisons?" + query));
+  return parseComparison(await request("reports/comparisons?" + query));
 }
 
 export async function runTrajectory(id: string, after = 0): Promise<TrajectoryPage> {

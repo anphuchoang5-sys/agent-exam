@@ -1,6 +1,6 @@
 # 执行与判卷 Module
 
-> 当前状态：固定 Codex → Harbor → patch → 固定 SWE-Bench-Fork 的真实单题核心闭环已通过；M1 任务 13 又把正式 Job/Run、持久化与 Worker 接到该链路。任务 05 的提供方访问策略切片已实现，但未接入 Worker/Harbor；完整安全/生命周期和真实新提供方仍未完成。
+> 当前状态：固定 Codex → Harbor → patch → 固定 SWE-Bench-Fork 的真实单题核心闭环已通过；M1 任务 13 又把正式 Job/Run、持久化与 Worker 接到该链路。任务 05 的提供方策略、固定配置渲染和假上游代理服务已实现，但未接入 Worker/Harbor；完整安全/生命周期和真实新提供方仍未完成。
 > 权威范围：Worker 如何把冻结 Run 交给执行后端和独立判卷器；外部框架和认证细节仍由专题 Interface 维护。
 
 ## 1. 职责与非职责
@@ -43,12 +43,18 @@ apps/backend/src/eval_platform/
     codex/install.py                       # 固定离线 CLI 校验与安装
     codex/policy.py                        # 非 root、命令和运行策略
     codex/uploads.py                       # 受限私有认证输入传递
-    provider_access/                       # 任务 05 内部策略切片，不是独立业务 Module
+    codex/provider_config.py               # 固定 TOML 与模型目录渲染；尚未由正式链调用
+    provider_access/                       # 任务 05 内部实现，不是独立业务 Module
       binding.py                           # Run 短令牌、固定身份和撤销
       budget.py                            # 并发预留、保守结算和超额失败关闭
       failures.py                          # 单一受控提供方失败码/异常
       private_file.py / secrets.py         # 私有配置 schema、权限和竞态防护
       request_policy.py / transport.py     # 最小路径/模型/header 允许集合与固定出站请求
+      server/                               # 假上游代理服务；下列文件只服务内部执行 Adapter
+        contracts.py / service.py           # 请求合同和受控处理入口
+        http.py / egress.py                 # HTTP 应答与唯一出站连接
+        stream.py / runner.py               # 流事件解析、预算结算及运行编排
+        closure.py / __init__.py            # Run 收束与内部导出
     network.py                             # 固定 Harbor 侧车网络策略副本适配
     preflight.py                           # 外部输入身份与运行前门禁
     redaction.py                           # 执行诊断的受限错误归一化
@@ -81,7 +87,7 @@ PostgreSQL claim 冻结 Job
 
 Worker 只从 owner 本机绝对路径读取固定 framework、数据集、Codex 归档和认证引用；这些秘密路径不进入 Job、HTTP、PostgreSQL 或 MinIO。
 
-当前生产数据流尚不经过 `provider_access`。该目录只证明内部策略可以拒绝越权 header/path/model、绑定和撤销 Run 令牌、保守处理并发预算、读取受限本机配置并生成安全失败码；固定测试上游使用 `.invalid` 保留域。S2 `provider_config`、代理服务、双网络生命周期、Worker/Harbor Composition Root 接线及 T2 未实现，因此任何真实 DeepSeek/Kimi 请求都不在当前能力内。
+当前生产数据流尚不经过 `provider_access`。该目录已有拒绝越权 header/path/model、绑定和撤销 Run 令牌、保守处理并发预算、读取受限本机配置、受控失败码及 HTTP/流式代理服务；`codex/provider_config.py` 已能渲染固定测试配置，仍待固定 CLI 字段和事件对账。固定测试上游使用 `.invalid` 保留域。双网络生命周期、Worker/Harbor Composition Root 接线及 T2 七条断言未完成，因此任何真实 DeepSeek/Kimi 请求都不在当前能力内。
 
 ## 5. 模式、依赖和深度
 
@@ -91,6 +97,6 @@ Composition Root 在 `delivery/worker/runtime.py`，不是应用用例内部临�
 
 ## 6. 当前验证、风险和规划
 
-M0 第四场真实结果见[M0 行动](../../../actions/2026-09-05-m0-codex-harbor-implementation.md)；M1 正式持久化链见[本机真实验收行动](../../../actions/2026-09-13-m1-local-real-acceptance.md)。这些是历史证据；本轮核心修复没有运行 Harbor、Fork 或模型，提供方策略单元回归与 T1 历史拓扑证据不能替代 T2 或完整真实链路。
+M0 第四场真实结果见[M0 行动](../../../actions/2026-09-05-m0-codex-harbor-implementation.md)；M1 正式持久化链见[本机真实验收行动](../../../actions/2026-09-13-m1-local-real-acceptance.md)。这些是历史证据；任务 05 的服务合同与生命周期测试、T1 历史拓扑证据不能替代 T2 或完整真实链路。T2 曾在负责人机器尝试，但 Harbor 侧车退出 127，七条断言未测得。
 
-现存限制包括：完整故障/强杀/刷新生命周期未全验收；当前真实提供方只有 owner ChatGPT 登录；DeepSeek/Kimi 只有未接线的内部安全策略，没有真实身份、服务或调用；owner 电脑离线不执行。新提供方应继续深化现有 Execution Adapter 内部实现，不新增第二套 Job 队列或判卷器；详情见[认证 Interface](../../../interfaces/CODEX_AUTHENTICATION.md)。
+现存限制包括：完整故障/强杀/刷新生命周期未全验收；当前真实提供方只有 owner ChatGPT 登录；DeepSeek/Kimi 的策略和代理服务尚未接入正式链，没有真实身份或调用；owner 电脑离线不执行。新提供方应继续深化现有 Execution Adapter 内部实现，不新增第二套 Job 队列或判卷器；详情见[认证 Interface](../../../interfaces/CODEX_AUTHENTICATION.md)。

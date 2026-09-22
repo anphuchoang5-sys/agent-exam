@@ -266,7 +266,7 @@ M1 的 `review_status` 使用既有 `NOT_REQUIRED`，不产生虚假的待复核
 
 任务 03 已实现：任务与配置端点、生产存储组装、真实集成和 Web 目录流程已有验证。所有端点要求有效登录；沿用第 3 节同源写检查、no-store 与空 details 安全错误。ID/游标采用不透明 UUID 字符串，分页按 ID 稳定排序，不承诺跨页快照一致。无效格式为 422；未知预置为 400 INVALID_REQUEST；固定身份内容冲突为 409 CATALOG_CONFLICT；对象缺失/损坏或依赖故障为 503 DEPENDENCY_UNAVAILABLE，不回显对象键、连接、SDK 异常或原始数据。
 
-已批准的 `POST /api/v1/tasks/register` 仅 owner 可调用；正文仅 `{"preset_id":"swe-gym-lite-mypy-15413"}`，拒绝额外字段。成功或同内容重入均为 201 TaskDetail，重入保留原 task_id；普通用户不能上传任务 JSON、命令、镜像或来源路径。正式 preset 复用现有固定单题，不代表整个题库可执行。合成测试使用独立 preset 和数据，不能进入正式目录。
+`POST /api/v1/tasks/register` 仅 owner 可调用；正文只接受一个固定 `preset_id`，拒绝额外字段。当前受控生产集合为旧题 `swe-gym-lite-mypy-15413` 与五道经三补丁门禁的 `swe-gym-lite-mypy-15131`、`swe-gym-lite-mypy-15139`、`swe-gym-lite-mypy-15184`、`swe-gym-lite-mypy-15208`、`swe-gym-lite-mypy-15876`；实际身份和镜像以 `delivery/catalog_presets.py`、`adapters/tasks/catalog.py` 为准。成功或同内容重入均为 201 TaskDetail，重入保留原 task_id；普通用户不能上传任务 JSON、命令、镜像或来源路径。网页 owner 目录的单个“登记已核验题目”按钮目前仍只发送旧题 preset；新题可经同一 owner HTTP 端点登记，登记后由目录和提交向导读取。合成测试使用独立 preset 和数据，不能进入正式目录。
 
 ### 5.1 查询任务列表
 

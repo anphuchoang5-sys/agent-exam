@@ -1,11 +1,5 @@
 import type { JobReport } from "../../lib/contracts";
-
-const outcomes = {
-  resolved: "已解决",
-  unresolved: "未解决",
-  infrastructure_error: "基础设施错误",
-  incomplete: "未完成",
-};
+import { COMPARISON_OUTCOME_NAMES } from "../../lib/reporting/comparison-shape";
 const terminalStatuses = new Set<string>(["COMPLETED", "FAILED", "CANCELED"]);
 
 export default function BatchReportView({
@@ -22,7 +16,7 @@ export default function BatchReportView({
     {report.failure_code && <p>批次错误：{report.failure_code}</p>}
     <ul>{report.runs.map((run) => <li key={run.run_id}>
       <strong>{run.task_instance_id}</strong> × {run.agent_display_name}：
-      {outcomes[run.outcome]}。{run.stage_message}
+      {COMPARISON_OUTCOME_NAMES[run.outcome]}。{run.stage_message}
       {run.failure_code && <> 错误码：{run.failure_code}。</>}
       {terminalStatuses.has(run.status) &&
       <button onClick={() => openRun(run.run_id)}>

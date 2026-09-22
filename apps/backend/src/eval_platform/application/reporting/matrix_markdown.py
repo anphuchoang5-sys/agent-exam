@@ -33,11 +33,11 @@ def render_matrix_markdown(matrix: ReportMatrix) -> str:
         labels = [_CELL_LABELS[cell.outcome] for cell in row.cells]
         lines.append("| " + " | ".join([row.task_instance_id, *labels]) + " |")
 
+    summary_header = ["配置", *_CELL_LABELS.values(), "有结论", "覆盖率"]
     lines.extend(
         [
             "",
-            "| 配置 | 已解决 | 未解决 | 基础设施错误 "
-            "| 未完成 | 缺失 | 有结论 | 覆盖率 |",
+            "| " + " | ".join(summary_header) + " |",
             "|---|---|---|---|---|---|---|---|",
         ]
     )

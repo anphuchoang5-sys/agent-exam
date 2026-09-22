@@ -1,25 +1,27 @@
 # 远端协作者接入评测机
 
-> 文档状态：两类应用角色、所有者在线批准与私有网络原则已确认；Web 私有 HTTPS 与 Tailscale PostgreSQL `55432` 已在 owner 主机运行。2026-09-20 用户决定增加物理局域网 PostgreSQL `55432`，但本轮只改文档，该入口尚未实施或验证
+> 文档状态：两类应用角色、所有者在线批准与私有网络原则已确认；Web 私有 HTTPS 与 Tailscale PostgreSQL `55432` 已在 owner 主机运行。2026-09-20 用户决定增加物理局域网 PostgreSQL `55432`，当时只改文档，该入口至今尚未实施或验证
 >
-> 最后更新：2026-09-20
+> 最后更新：2026-09-22（现有私有 HTTPS 转发已切换到当前 Web 3000；PostgreSQL TCP 55432 保留）
 >
 > 权威范围：本文件只维护远端协作者怎样到达单机平台、校园网/VPN共存、最小网络暴露面、配置和诊断步骤。组员数据库连接的逐步操作由 [`TEAM_POSTGRESQL_CONNECTION.md`](./TEAM_POSTGRESQL_CONNECTION.md) 唯一维护；Job 权限与状态见 [`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](../architecture/DATA_MODEL.md)；Codex 与自研 Agent 的模型凭据边界见 [`CODEX_AUTHENTICATION.md`](../interfaces/CODEX_AUTHENTICATION.md)。
 
 ## 1. 先说结论
 
-采用路径是：**不用校园网公网 IP，不做路由器端口映射；Web 继续只通过受控 Tailscale HTTPS 分享。PostgreSQL 统一使用 TCP `55432`，保留 Tailscale 私有入口，并增加仅供同一可信物理局域网使用的直连入口。** MinIO、FastAPI、Docker、Worker 和模型凭据仍不开放。
+采用路径是：**不用校园网公网 IP，不做路由器端口映射；Web 继续只通过受控 Tailscale HTTPS 分享。PostgreSQL 统一使用 TCP `55432` 并保留 Tailscale 私有入口；同一可信物理局域网的直连入口仍待单独实施。** MinIO、FastAPI、Docker、Worker 和模型凭据仍不开放。
 
-2026-09-20 只读核对确认当前实际运行的 Tailscale Serve 为 `sss.tail03c757.ts.net:55432 → 127.0.0.1:55432`；主机经 Tailscale 地址的 TCP `55432` 检查成功，旧教程端口检查失败。物理局域网入口是已确认方向，但 Compose 仍绑定 `127.0.0.1:55432`，本轮没有修改 Compose、防火墙或容器，因此局域网直连尚不可用。数据库密码不进入本文档或 Git，五人共用现有 PostgreSQL 超级管理员 `agentexam_admin`。
+2026-09-20 只读核对时的 Tailscale Serve 为 `sss.tail03c757.ts.net:55432 → 127.0.0.1:55432`；主机经 Tailscale 地址的 TCP `55432` 检查成功，旧教程端口检查失败。物理局域网入口是已确认方向，但 Compose 仍绑定 `127.0.0.1:55432`，尚未修改 Compose、防火墙或容器，因此局域网直连尚不可用。数据库密码不进入本文档或 Git，五人共用现有 PostgreSQL 超级管理员 `agentexam_admin`。
+
+2026-09-22 再次启动并核对当前实例后，现有私有 HTTPS 根路径代理已从旧 Web 59336 切到 `127.0.0.1:3000`，主机通过该 HTTPS 页面读取返回 200；Tailscale PostgreSQL TCP `55432 → 127.0.0.1:55432` 保持原样。旧 Web 进程已退出，运行过程见[本次行动](../actions/2026-09-22-start-current-project-and-stop-old-processes.md)。该核对是 owner 主机时点证据，不替代另一设备的正反验收。
 
 协作者打开页面并提交后，平台只创建 `AWAITING_OWNER_APPROVAL` Job。评测机所有者在页面检查任务、Agent、赛道和 Trial 数，明确批准后才变为 `QUEUED`。本机 Worker 只领取 `QUEUED`，所以“能连到页面”和“能花费所有者资源运行真实 Codex”是两件事。
 
 ```mermaid
 flowchart LR
     C[协作者浏览器] -->|Tailscale 私有 HTTPS| S[Tailscale Serve]
-    O[评测机所有者] --> W[Next.js Web\n127.0.0.1:3000 候选]
+    O[评测机所有者] --> W[Next.js Web\n127.0.0.1:3000]
     S --> W
-    W -->|同源转发| A[FastAPI\n127.0.0.1:8000 候选]
+    W -->|同源转发| A[FastAPI\n127.0.0.1:8000]
     A --> DB[(PostgreSQL)]
     A --> M[(MinIO)]
     C -->|Tailscale TCP 55432\n共享管理员| DB
@@ -32,7 +34,7 @@ flowchart LR
     C -. 不可直达 .-> L
 ```
 
-示例端口 `3000`/`8000` 是当前规划值，不表示服务已经实现或启动。
+`3000`/`8000` 是 2026-09-22 当前实例的实测回环端口；进程是否仍在线应在使用时重新检查。
 
 ## 2. 为什么校园网下推荐这样做
 
@@ -45,12 +47,9 @@ flowchart LR
 
 ## 3. 启用前的安全前置条件
 
-应用角色已经固定，但登录技术尚未实现，因此分两阶段：
+应用登录和两类角色已经实现：评测机本地存在唯一 `owner`，由其在应用内邀请 `collaborator`；没有公开注册，也不依赖邮件服务。正式协作仍需完成另一设备的允许来源正向与未允许来源负向验收，不能用 owner 主机自测替代。
 
-1. **连通性实验阶段**：只用无秘密测试页，或只允许所有者自己的第二台设备访问；不要让协作者连接带真实 Job 批准能力的页面。
-2. **正式协作阶段**：评测机本地引导已经建立唯一 `owner`，由其在应用内邀请 `collaborator`；没有公开注册，也不依赖邮件服务。应用能识别这两类登录用户后，协作者才使用真实提交页面。
-
-Tailscale 成员身份只负责网络准入，不能代替应用层授权。即使协作者是 tailnet 成员，`POST /jobs/{id}/approve` 也必须返回 `403 OWNER_APPROVAL_REQUIRED`。账户、密码哈希、邀请和会话的具体落点要先核实现有代码；如果需要新增顶层模块、接口或表，另行说明并确认。
+Tailscale 成员身份只负责网络准入，不能代替应用层授权。即使协作者是 tailnet 成员，`POST /jobs/{id}/approve` 也必须返回 `403 OWNER_APPROVAL_REQUIRED`。当前账号、邀请和会话接口见[HTTP API](../interfaces/HTTP_API.md)，后续扩展继续先核实现有代码。
 
 ## 4. 采用的实施配置：Tailscale Serve
 
@@ -59,11 +58,11 @@ Tailscale 成员身份只负责网络准入，不能代替应用层授权。即�
 1. 从 Tailscale 官方渠道在 Windows 评测机安装客户端，以项目使用的管理账户登录并创建 tailnet。
 2. 给评测机取稳定名称，例如 `agentexam-host`。不要把它配置成 exit node（出口节点），也不要开启 subnet router（子网路由器）。
 3. 只邀请具体的项目成员账户；不要使用公开邀请链接。成员离组后从 tailnet 删除其用户和设备。
-4. 平台实现后，让 Next.js 只监听回环地址，FastAPI 只监听 `127.0.0.1:8000`；由 Next.js 同源转发 `/api/v1/**` 到 FastAPI。MinIO 只留在本机/Docker 私网。当前 PostgreSQL 宿主端仍绑定 `127.0.0.1:55432`，由 Tailscale Serve 转发到 tailnet 的 `55432`；物理局域网发布将在单独实施任务中完成。
+4. 当前 Next.js 只监听 `127.0.0.1:3000`，FastAPI 只监听 `127.0.0.1:8000`；Next.js 同源转发 `/api/v1/**` 到 FastAPI。MinIO 只留在本机/Docker 私网。当前 PostgreSQL 宿主端仍绑定 `127.0.0.1:55432`，由 Tailscale Serve 转发到 tailnet 的 `55432`；物理局域网发布将在单独实施任务中完成。
 5. 先确认本机页面和 PostgreSQL 都可用，再在管理员 PowerShell 中执行当前 CLI 语法。当前 Web 实际回环端口以 `tailscale serve status` 为准；数据库命令固定如下：
 
 ```powershell
-tailscale serve --bg localhost:3000
+tailscale serve --bg --https=443 http://127.0.0.1:3000
 tailscale serve --bg --tcp=55432 tcp://127.0.0.1:55432
 tailscale serve status
 ```

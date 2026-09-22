@@ -6,6 +6,17 @@ export const COMPARISON_OUTCOMES = [
 ] as const;
 export type ComparisonOutcome = typeof COMPARISON_OUTCOMES[number];
 
+/** 与服务端 MAX_COMPARISON_JOBS 一致。 */
+export const COMPARISON_LIMIT = 20;
+
+export const COMPARISON_OUTCOME_NAMES: Record<ComparisonOutcome, string> = {
+  resolved: "已解决",
+  unresolved: "未解决",
+  infrastructure_error: "基础设施错误",
+  incomplete: "未完成",
+  missing: "缺失",
+};
+
 export type ComparisonCell = {
   outcome: ComparisonOutcome; resolved: boolean | null; run_id: string | null;
   failure_code: string | null; report_path: string | null;
