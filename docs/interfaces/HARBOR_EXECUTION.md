@@ -383,6 +383,16 @@ M1 接 Web、PostgreSQL 和 MinIO，最终验证协作者提交 → 所有者批
 
 同日无模型证据为：固定 Codex 离线安装/Harbor 复用 `1 passed`，真实 45 秒外层超时及 Compose 精确清理 `1 passed`，专属 PG/MinIO 取消/恢复/制品回归 `135 passed`；一次性编排预检确认 storage/HTTP ready、零 Job、零认证读取、零模型调用和清理完成。首次真实 Run 完成提交/批准并产生 1302 字节 patch，但 composition root 漏传 `LocalArtifactReader`，在固定 Fork 前以 `EVIDENCE_UNAVAILABLE` 失败；`10f0c53`、`3d66230`、`1b8e9ba` 依次补回 reader、修复绝对/相对引用和集中安全校验。第二次获批 Run 在源码等价的 `m1-task13-20260913-02` 中只尝试一次：平台 Job/Run 均为 `COMPLETED`、固定 Fork `resolved=true`，但忽略态验收器误读 Trial 配置并在浏览器前退出。该验证器及浏览器前置门禁经红绿和双轴评审修复后，`m1-task13-20260914-04` 用一次模型尝试、零重试完成正式 Job/Run、固定 Fork、MinIO/PostgreSQL 读回与真实页面报告，最终 `status=passed/phase=complete/cleanup=verified`；patch SHA-256 为 `d5fefec345eb335c9b17d6305037ef47214c56d265f1ca11175c88c90d3ad09d`，submitted/resolved/error=`1/1/0`，独立 Docker 标签查询为空。详细限制见[任务 13 行动](../actions/2026-09-13-m1-local-real-acceptance.md)。
 
+#### 九 Run 批次的第五个 Trial 收尾卡死（2026-09-23）
+
+Job `c9e9a414-ea5c-4317-af85-2e7fb680b743` 以单并发运行 9 个组合。前四个 Trial 已生成各自 `result.json`，平台显示 `RUNNING_AGENT / collecting`；该状态表示 Trial 文件已出现、整批 Harbor 进程尚未退出，受控映射还未开始，并非前四个结果自身正在重复执行。第五个 Trial 于 15:08:12 获准，Agent 日志在 15:09:47 停止，制品清单在 15:09:48 写出且状态为 `ok`；其 Harbor 内置 verifier 为 disabled，之后只剩共享环境停止和 Trial `result.json` 写入。
+
+第五个 Trial 同时记录会话目录复制失败、一行 JSONL 截断及 `collect-patch.sh` 的 `git diff` 写入退出 128；当时 E 盘只剩 `529,211,392` bytes。Harbor 进程随后无 CPU 增量、无存活子进程、无新文件和无第五个 `result.json`，数据库心跳停在 15:08:12，第六个 Trial 也没有获得 permit。代码核对确认固定 Harbor `DockerEnvironment.stop()` 对 Compose `stop/down` 未传 `timeout_sec`，可以无限等待；平台外层只对完整顺序批次设置兜底，本批次为 `9 × (1800 + 360 + 900 + 60 + 120) = 29,160` 秒，约 8 小时 6 分钟。故“15 分钟 Agent 限制”没有覆盖收尾清理，页面会长期显示未完成。
+
+用户授权在必要时停止后，只终止 Harbor 子进程树并保留 Worker。Worker 于 15:53 将 Job 和 9 个 Run 收束为 `FAILED / EXECUTION_PIPELINE_INVALID`；由于整批 Harbor `result.json` 从未形成，前四个半成品也没有发布成可信结果，本次不计入模型成绩且不自动重试。
+
+当前项目自有 Harbor Composition Root 会为未显式设限的 Compose `stop/down` 注入既有 `PROCESS_TERMINATION_GRACE_SEC=120`，上游执行器到时会终止命令并让 Trial 形成明确异常；其他 Compose 命令和显式超时保持不变，外层按 project label 的精确资源复核仍保留。该修复阻止无限等待，不会修复磁盘不足本身；恢复真实批次前仍须由 owner 按本机运维规则确认并精确释放空间。完整行动与验证见[本次修复记录](../actions/runtime/2026-09-23-harbor-trial-cleanup-timeout.md)。
+
 ### 13.3 后续 Agent
 
 M1 通过后，先使用相同契约登记并验证 Harbor 已有的 Aider、Claude Code。P2 自研 Agent 再追加验证：固定 Python 进程 Interface 能由平台包装为 Harbor Agent；DeepSeek 与 Kimi 分别形成独立配置；被测容器、环境快照、日志、轨迹和制品均不出现真实提供方 Key；受控模型访问失败只影响该运行并留下明确错误。P2 未完成不阻塞 MVP，也不得提前把自研 Agent 写成已支持。
@@ -407,3 +417,4 @@ M1 通过后，先使用相同契约登记并验证 Harbor 已有的 Aider、Cla
 - 2026-09-05：固定 M0 本机 Codex 脚本原型、M1 Codex 平台 MVP、Aider/Claude Code、P2 自研 Agent 的顺序；补充闭卷限制、取消/中断不自动重试和 patch/原始制品限额。
 - 2026-09-06：真实 Harbor NOP Docker Trial 与项目结果映射通过；薄进程 Adapter、有界双流日志和宿主进程树超时终止完成测试；记录落盘 Job 结果不含 `trial_results`、Windows CLI UTF-8 要求、任务 collect hook/单目录 artifact 契约，以及仍未通过的真实 Codex、Harbor 超时后 Compose 清理和固定 Fork 门槛。
 - 2026-09-06：阻塞 collect 的公开 Adapter 探针复现外层强杀后的 Compose 残留；新增基于本 Job Trial 身份的精确 project label 清理与日志线程总收束期限，真实超时、正常 NOP 和父子进程回归均通过。真实 Codex 与固定 Fork 仍未通过。
+- 2026-09-23：九 Run 真实批次在第五个 Trial 写入异常后卡于无界 Compose 清理；按授权停止并由 Worker 收束为基础设施失败。正式 Harbor 入口现只为 Compose `stop/down` 补 120 秒上限，磁盘空间仍须独立处理。

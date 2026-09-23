@@ -13,7 +13,9 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
     validate_job_id,
 )
 from eval_platform.adapters.execution.harbor.lifecycle.cleanup import (
+    COMPOSE_CLEANUP_RETRY_WARNING,
     cleanup_timed_out_projects,
+    compose_cleanup_failure_path,
 )
 from eval_platform.adapters.execution.harbor.lifecycle.control import stop_path
 from eval_platform.adapters.execution.harbor.lifecycle.monitor import (
@@ -145,7 +147,10 @@ class HarborExecutionAdapter:
         if outcome.start_error is not None:
             return process_start_failure(request, outcome.start_error, outcome.warnings)
         process_warnings = outcome.warnings
-        if outcome.timed_out:
+        cleanup_failed = compose_cleanup_failure_path(run_root).is_file()
+        if cleanup_failed:
+            process_warnings += (COMPOSE_CLEANUP_RETRY_WARNING,)
+        if outcome.timed_out or cleanup_failed:
             process_warnings += cleanup_timed_out_projects(job_dir)
         results = map_job_results(
             plan,

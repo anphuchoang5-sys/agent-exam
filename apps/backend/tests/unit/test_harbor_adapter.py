@@ -14,6 +14,10 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
     ARTIFACT_CONTRACT_VERSION,
     HARBOR_REVISION,
 )
+from eval_platform.adapters.execution.harbor.lifecycle.cleanup import (
+    COMPOSE_CLEANUP_RETRY_WARNING,
+    compose_cleanup_failure_path,
+)
 from eval_platform.adapters.execution.harbor.process_evidence import CapturedLog
 from eval_platform.adapters.execution.harbor.process_runner import ProcessOutcome
 from eval_platform.application.ports.execution import (
@@ -194,3 +198,25 @@ def test_process_timeout_is_explicit_and_keeps_partial_logs(
     run_root = tmp_path / "evidence/timeout-test"
     assert (run_root / "harbor.stdout.log").read_text() == "partial stdout"
     assert (run_root / "harbor.stderr.log").read_text() == "timeout stderr"
+
+
+def test_retries_precise_cleanup_when_harbor_cleanup_failed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cleaned: list[Path] = []
+
+    def fake_run(command: list[str], **kwargs: Any) -> ProcessOutcome:
+        _write_successful_harbor_result(Path(command[3]))
+        compose_cleanup_failure_path(kwargs["evidence_root"]).touch()
+        return _outcome(kwargs["evidence_root"])
+
+    def fake_cleanup(job_dir: Path) -> tuple[str, ...]:
+        cleaned.append(job_dir)
+        return ()
+
+    monkeypatch.setattr(adapter_module, "run_bounded_process", fake_run)
+    monkeypatch.setattr(adapter_module, "cleanup_timed_out_projects", fake_cleanup)
+    result = _adapter(tmp_path).execute(_request())[0]
+
+    assert COMPOSE_CLEANUP_RETRY_WARNING in result.warnings
+    assert cleaned == [tmp_path / "evidence/adapter-test/jobs/adapter-test"]

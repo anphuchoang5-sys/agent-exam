@@ -37,7 +37,7 @@ apps/backend/src/eval_platform/
     harbor/process_evidence.py             # 进程证据归一化
     harbor/result_mapper.py                # Harbor 结果 → 平台 Trial 结果
     harbor/artifacts.py / result_values.py # Harbor 制品和值解析
-    harbor/lifecycle/                      # 启动、监控、超时和精确资源清理
+    harbor/lifecycle/                      # 启动、监控、超时；stop/down 有界等待与外层精确资源清理
     harbor_entry.py                        # Harbor 子进程 Composition Root；从生产预置核对 Codex 模型/档位
     codex/agent.py                         # 固定上游 Codex 的窄 Adapter
     codex/install.py                       # 固定离线 CLI 校验与安装
@@ -94,7 +94,7 @@ Worker 只从 owner 本机绝对路径读取固定 framework、数据集、Codex
 
 ## 5. 模式、依赖和深度
 
-`ExecutionBackend` 与 `PatchEvaluator` 是两个有真实替换价值的 seam：执行后端可以换 Adapter，而最终判卷仍独立；合成 Adapter 也能在不启动真实模型时测试应用流程。Harbor 和固定 Fork 的复杂配置、子进程、网络、超时与清理被隐藏在各自 Adapter 内。
+`ExecutionBackend` 与 `PatchEvaluator` 是两个有真实替换价值的 seam：执行后端可以换 Adapter，而最终判卷仍独立；合成 Adapter 也能在不启动真实模型时测试应用流程。Harbor 和固定 Fork 的复杂配置、子进程、网络、超时与清理被隐藏在各自 Adapter 内。`harbor/lifecycle/cleanup.py` 使用装饰器模式在固定 Harbor Composition Root 中深化上游 Docker 接缝：只给未显式设限的 Compose `stop/down` 注入 120 秒上限，其他 Compose 命令及调用方显式超时不变；Harbor 整体进程异常后仍由同一模块按本 Job 的 project label 精确复核资源。
 
 Composition Root 在 `delivery/worker/runtime.py`，不是应用用例内部临时创建外部依赖。执行 Module 从 Job Control 接受冻结输入，向 Evidence/Reporting 交付受校验的结果和制品引用；它不依赖 Web。
 
@@ -102,4 +102,4 @@ Composition Root 在 `delivery/worker/runtime.py`，不是应用用例内部临�
 
 M0 第四场真实结果见[M0 行动](../../../actions/2026-09-05-m0-codex-harbor-implementation.md)；M1 正式持久化链见[本机真实验收行动](../../../actions/2026-09-13-m1-local-real-acceptance.md)。这些是历史证据；任务 05 的服务合同与生命周期测试、T1 历史拓扑证据不能替代 T2 或完整真实链路。T2 曾在负责人机器尝试，但 Harbor 侧车退出 127，七条断言未测得。
 
-现存限制包括：完整故障/强杀/刷新生命周期未全验收；当前真实提供方只有 owner ChatGPT 登录；DeepSeek/Kimi 的策略和代理服务尚未接入正式链，没有真实身份或调用；owner 电脑离线不执行。新提供方应继续深化现有 Execution Adapter 内部实现，不新增第二套 Job 队列或判卷器；详情见[认证 Interface](../../../interfaces/CODEX_AUTHENTICATION.md)。
+现存限制包括：完整故障/强杀/刷新生命周期未全验收；当前真实提供方只有 owner ChatGPT 登录；DeepSeek/Kimi 的策略和代理服务尚未接入正式链，没有真实身份或调用；owner 电脑离线不执行。2026-09-23 的九 Run 真实批次在第五个 Trial 写入异常后卡在 Harbor 环境清理，暴露了上游 Compose `stop/down` 未设单步超时；当前装饰器已封闭无限等待，但磁盘不足仍会形成明确基础设施失败，不能靠超时包装伪装成可信结果。诊断与验证见[本次行动](../../../actions/runtime/2026-09-23-harbor-trial-cleanup-timeout.md)。新提供方应继续深化现有 Execution Adapter 内部实现，不新增第二套 Job 队列或判卷器；详情见[认证 Interface](../../../interfaces/CODEX_AUTHENTICATION.md)。

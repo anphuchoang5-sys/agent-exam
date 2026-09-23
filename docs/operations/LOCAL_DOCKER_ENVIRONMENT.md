@@ -224,6 +224,12 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 完整零模型预检最终记录 `storage=ready`、`http=ready`、`jobs_created=0`、`model_called=false`、`auth_read=false`、`cleanup=verified`。回环 Python HTTP 客户端必须 `trust_env=False`，否则本机代理偶发返回 502；这只让 `127.0.0.1` 直连，不修改机器代理。首次真实 Run 在判卷前因平台本地证据 reader 漏配失败；第二次 Run 的平台 Job/Run 与固定 Fork 完成，但后置验收器误读 Harbor 配置并在页面前退出。上述实现/验收器修复后，`m1-task13-20260914-04` 用新隔离 scope 完成一次且零重试的真实 Job/Run、固定 Fork、PostgreSQL/MinIO 和浏览器闭环；最终摘要核对四个随机回环端口关闭，随后独立按专属标签查询容器、网络和卷均为空。全过程未更改 Docker/WSL/代理/防火墙；证据见[任务 13 行动](../actions/2026-09-13-m1-local-real-acceptance.md)。
 
+### 7.3 九 Run 批次卡死时的容量快照（2026-09-23）
+
+第五个 Trial 出现宿主写入异常并卡在 Harbor 清理后，只读快照显示 E 盘可用 `529,211,392` bytes（约 505 MiB）。项目 `runtime/` 可读取文件的逻辑长度约 15.33 GB，其中 `prototype/` 约 3.83 GB、`tools/` 约 2.83 GB、`lly-dev-verify/` 约 2.39 GB、`acceptance/` 约 2.17 GB、`worker/` 约 1.68 GB、`cache/` 约 1.42 GB；逻辑长度不是磁盘实际分配量，也不等于可删除量。Docker `system df` 同时报告镜像 15.26 GB（7.722 GB reclaimable）和 build cache 2.463 GB（全部 reclaimable）；该输出不证明所有可回收字节都位于 E 盘。
+
+本轮只停止已卡死的 Harbor 子进程并保留失败证据，没有删除 runtime、缓存、镜像、卷或正式数据，也没有执行全局 prune。恢复真实批次前必须先按 owner 规则选择精确对象并复核用途；空间清理不能由“reclaimable”或目录大小自动推出授权。Trial 卡死的执行根因和有界清理修复见[Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#九-run-批次的第五个-trial-收尾卡死2026-09-23)。
+
 ## 8. 尚未验证
 
 - 第四场授权真实 Codex 单题已完成补丁并由固定 Fork 独立判卷通过；本环境文档不维护逐场结果，最新证据见 [执行接口](../interfaces/HARBOR_EXECUTION.md#第四次授权运行真实补丁与独立判卷通过2026-09-08)。该轮未改变 Docker/WSL/代理设置。

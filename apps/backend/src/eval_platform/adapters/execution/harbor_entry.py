@@ -19,6 +19,7 @@ from eval_platform.adapters.execution.harbor.config_mapper import (
     HARBOR_REVISION,
     map_codex_agent,
 )
+from eval_platform.adapters.execution.harbor.lifecycle import cleanup
 from eval_platform.adapters.execution.harbor.lifecycle.control import (
     configure_controlled_runner,
 )
@@ -183,7 +184,9 @@ def main() -> None:
     ):
         raise ValueError("HARBOR_IMPORT_SOURCE_MISMATCH")
     docker = importlib.import_module("harbor.environments.docker.docker")
-    docker.DockerEnvironment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH = context
+    docker_environment = docker.DockerEnvironment
+    cleanup.install_compose_cleanup_timeout(docker_environment, args.config.parent)
+    docker_environment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH = context
     if mode == "codex":
         assert runtime is not None
         register_guarded_codex(*runtime)
