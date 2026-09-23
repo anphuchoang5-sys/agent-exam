@@ -2,11 +2,11 @@
 
 ## 状态与情况说明
 
-状态：In Progress。
+状态：Completed。
 
 来源请求：S11 开工前必须确认 `agent+api` 与 `lly/dev` 已合并；预检证明 `origin/agent+api`、`origin/main` 与 `origin/lly/dev` 三条线均有独立提交。用户确认先完成合并，再开始 S11。
 
-当前事实：`origin/agent+api=b425b65`、`origin/main=c0a34fd`、`origin/lly/dev=81a83eb`。`agent+api...main` 为 7/18 个独立提交，`agent+api...lly/dev` 为 7/38 个独立提交。本地 `lly/dev` 比远端落后 1 个文档提交。
+起始事实：`origin/agent+api=b425b65`、`origin/main=c0a34fd`、`origin/lly/dev=81a83eb`。`agent+api...main` 为 7/18 个独立提交，`agent+api...lly/dev` 为 7/38 个独立提交，本地 `lly/dev` 比远端落后 1 个文档提交。最终 `agent+api` 与 `main` 指向 `6e7690f`，`lly/dev` 的合并提交为 `f6926df`。
 
 显式排除：本行动不运行 S11、不创建 Docker 资源、不读取真实凭据、不调用真实供应商。三个现有 worktree 的既有未跟踪文件均保留，不纳入提交。
 
@@ -60,4 +60,6 @@ docs/interfaces/CODEX_AUTHENTICATION.md                           # 保留较新
 - 合入文件带来的两处 EOF 空行使 `git diff --cached --check` 报错；仅删除多余空行，未改正文或断言。
 - `origin/main` 合入 `lly/dev` 时上述后五个路径发生冲突；人工合并后 `git ls-files -u` 为空。Ruff/format 通过（363 文件），Mypy 通过（193 个源文件）。后端组合回归先得到 `276 passed, 6 skipped, 2 failed`，两项失败都因 worktree 缺固定 Harbor 路径；把主工作区干净的固定提交 `6af8d6e...` 以目录联接提供给当前 worktree 后，两项原失败 `2 passed`。目录联接不复制、不修改或重建 Harbor。
 
-尚待：完成 `lly/dev` merge commit、推送并复核祖先关系；本行动还不能标为 Completed。
+最终 Git 证据：`origin/agent+api` 是 `origin/main` 与 `origin/lly/dev` 的祖先，`origin/main` 是 `origin/lly/dev` 的祖先，三项 `merge-base --is-ancestor` 退出码均为 0；本地 `lly/dev...origin/lly/dev` 为 `0 0`。三个 worktree 的既有未跟踪文件未纳入提交。
+
+推送后的 Git 自动整理因 E 盘耗尽生成约 58 MiB 的失败临时 pack；同时仓库内误落有约 444 MiB 的可重建 npm cache。精确校验目标均在 `E:\9.1agent_exam` 后，只删除上述临时 pack 与 npm cache，未删除源码、证据、镜像、卷或用户文档；E 盘恢复约 505 MiB。磁盘余量仍偏低，是后续 S11 必须持续监控的基础设施风险。
