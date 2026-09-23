@@ -230,6 +230,12 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 本轮只停止已卡死的 Harbor 子进程并保留失败证据，没有删除 runtime、缓存、镜像、卷或正式数据，也没有执行全局 prune。恢复真实批次前必须先按 owner 规则选择精确对象并复核用途；空间清理不能由“reclaimable”或目录大小自动推出授权。Trial 卡死的执行根因和有界清理修复见[Harbor 执行接口](../interfaces/HARBOR_EXECUTION.md#九-run-批次的第五个-trial-收尾卡死2026-09-23)。
 
+### 7.4 Docker Desktop 数据盘迁回 D 盘（2026-09-23）
+
+当前本机 Docker Desktop WSL 数据根为 `D:\dockerdata\DockerDesktopData`。迁移在 Docker 与全部 WSL 实例停止时执行：完整复制 E 盘源目录，比较两个 VHDX 的长度与 SHA-256 一致后，才原子替换 `%APPDATA%\Docker\settings-store.json` 的 `CustomWslDistroDir`；迁移前设置备份保留在同一 Docker 配置目录。Docker 27.5.1 已从 D 盘启动，六道题镜像、Harbor 侧车、22 个容器与 16 个卷仍可见；项目 PostgreSQL、MinIO、Web、后端和 Worker 已恢复，数据库活动 Job 为 0。完整复制与验证证据见[迁移行动](../actions/runtime/2026-09-23-docker-data-migration.md)。
+
+旧 `E:\dockerdata\DockerDesktopWSL\DockerDesktopWSL` 当前只是未再写入的回退副本，仍约占 26.76 GiB；Codex 遵守 owner 的删除边界没有移除它。owner 确认当前 D 盘运行结果后可手动删除该**精确目录**，不得删除其父目录 `E:\dockerdata\DockerDesktopWSL`，也不得触碰 D 盘既有 `D:\dockerdata\DockerDesktopWSL\oslab-ubuntu-noble.tar`。迁移后、删除旧副本前，D/E 盘空闲分别约 19.24/4.46 GiB。
+
 ## 8. 尚未验证
 
 - 第四场授权真实 Codex 单题已完成补丁并由固定 Fork 独立判卷通过；本环境文档不维护逐场结果，最新证据见 [执行接口](../interfaces/HARBOR_EXECUTION.md#第四次授权运行真实补丁与独立判卷通过2026-09-08)。该轮未改变 Docker/WSL/代理设置。
