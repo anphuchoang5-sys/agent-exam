@@ -27,7 +27,13 @@ docs/actions/2026-09-23-merge-agent-api-into-main.md  # 本轮合并、验证与
 <origin/main 与 agent+api 的既有提交路径>             # 仅通过 Git 合并进入目标分支，不在本轮重写历史
 ```
 
-若发生冲突，实际人工修改路径将在本节补充并说明取值依据。
+实际冲突路径：
+
+```text
+docs/LLY/README.md  # 两侧均复制了已过期的任务状态；改为只指向权威架构、进度、计划和回执入口
+```
+
+冲突取值依据：两侧的具体 T2/S9/S10 状态和历史测试数字都已被后续 `lly/dev` 事实覆盖，因此不任选旧侧；保留双方新增的计划与回执链接，并恢复该导航原有的“动态事实只在权威来源维护”职责。
 
 ## 自验证方式
 
@@ -38,4 +44,14 @@ docs/actions/2026-09-23-merge-agent-api-into-main.md  # 本轮合并、验证与
 
 ## 自验证情况
 
-Pending。
+进行中：`origin/main` 合入 `agent+api` 时仅 `docs/LLY/README.md` 发生内容冲突；已按上述依据人工合并，`git ls-files -u` 为空。
+
+合并提交前检查：
+
+- 后端 `ruff check --no-cache src tests` 通过；Mypy `Success: no issues found in 187 source files`。
+- Agent 目录与提供方定向回归 `174 passed, 2 skipped`；两项跳过分别是 Windows 目录 symlink 与 POSIX owner/权限位能力，不计为通过。
+- Web 在排除既有未跟踪 `.next-codex-run/` 生成目录后 lint 通过，`npm run typecheck` 通过；目录/比较解析/可访问性/刷新失败/排行榜入口 7 个浏览器文件共 17 项通过。
+- 首次 Ruff/Mypy/Pytest 因缓存或临时目录权限中止，改用无缓存参数和授权环境后取得上述结果。`npm ci` 因运行中的 Next 进程锁住 SWC 二进制失败；未停止既有服务，改为不改锁文件、不运行脚本地补齐锁文件指定的 `@axe-core/playwright@4.13.0` 后完成 Web 检查。
+- 合入文件带来的两处 EOF 空行使 `git diff --cached --check` 报错；仅删除多余空行，未改正文或断言。
+
+尚待：完成 merge commit、推送三条分支并复核祖先关系；本行动还不能标为 Completed。

@@ -33,12 +33,10 @@
 
 ## 当前状态
 
-- 当前生产能力和任务 05 的未完成边界以[执行与判卷 Module](../architecture/modules/execution-and-evaluation/ARCHITECTURE.md)及[当前交接](../../HANDOFF.md)为准；本目录计划、回执和进度日志记录各自时点。
-- 代理服务实施：[`01-plan/STAGE1_PROXY_SERVICE_PLAN.md`](01-plan/STAGE1_PROXY_SERVICE_PLAN.md)（S6a–S6e 已落地；正式 Harbor 集成仍未完成）。阶段 1 总方案见[`01-plan/STAGE1_IMPLEMENTATION_PLAN.md`](01-plan/STAGE1_IMPLEMENTATION_PLAN.md)，个人计划见[`01-plan/PLAN.md`](01-plan/PLAN.md)。
-- 测试归属：[`01-plan/STAGE1_PROXY_TEST_DESIGN.md`](01-plan/STAGE1_PROXY_TEST_DESIGN.md) 是开工前设计；策略、合同和生命周期用例已落入 `tests/providers/`。历史实测数字见[进度日志](03-progress/PROGRESS_LOG.md)和[本机实施行动](../actions/2026-09-21-task05-local-implementation.md)。
-- 设计冻结底稿：[`01-plan/STAGE1_PROXY_DESIGN_FREEZE.md`](01-plan/STAGE1_PROXY_DESIGN_FREEZE.md)。T1 在本机及负责人机器通过；T2 曾在负责人机器启动，但固定 Harbor 侧车退出 127，七组断言未测得，见[负责人 T2 记录](../actions/2026-09-22-task05-owner-t2.md)与[侧车诊断](../actions/2026-09-22-task05-sidecar-127-diagnosis.md)。
-- 负责人交付要求、首次核对与后续回执：[`TASK05_OWNER_DELIVERY.md`](01-plan/TASK05_OWNER_DELIVERY.md)、[`TASK05_OWNER_DELIVERY_FILLED.md`](01-plan/TASK05_OWNER_DELIVERY_FILLED.md)、[`TASK05_OWNER_ACTION_REQUIRED.md`](01-plan/TASK05_OWNER_ACTION_REQUIRED.md)。其中“本轮无窗口”等措辞只指各自回执时点。
-- 扩展任务当前状态见[交接](../../HANDOFF.md)与[扩展计划](../../.scratch/ui-catalog-providers/plan.md)。E 模块主责 05、06、07，配合 04 与 08，分工见[团队分工文档](../architecture/modules/TEAM_WORK_ALLOCATION.md)。
+- 当前生产能力和任务 05 的未完成边界以[执行与判卷 Module](../architecture/modules/execution-and-evaluation/ARCHITECTURE.md)、[当前交接](../../HANDOFF.md)及[进度日志](03-progress/PROGRESS_LOG.md)为准；本目录计划、回执和行动记录保留各自时点，不在本导航复制动态状态或历史测试数字。
+- 阶段 1 计划入口：[`STAGE1_IMPLEMENTATION_PLAN.md`](01-plan/STAGE1_IMPLEMENTATION_PLAN.md)、[`STAGE1_PROXY_SERVICE_PLAN.md`](01-plan/STAGE1_PROXY_SERVICE_PLAN.md)、[`STAGE1_T2_S9_S10_S11_PLAN.md`](01-plan/STAGE1_T2_S9_S10_S11_PLAN.md)、[`STAGE1_PROXY_TEST_DESIGN.md`](01-plan/STAGE1_PROXY_TEST_DESIGN.md)及[`PLAN.md`](01-plan/PLAN.md)。
+- 设计与负责人回执入口：[`STAGE1_PROXY_DESIGN_FREEZE.md`](01-plan/STAGE1_PROXY_DESIGN_FREEZE.md)、[`TASK05_OWNER_DELIVERY.md`](01-plan/TASK05_OWNER_DELIVERY.md)、[`TASK05_OWNER_DELIVERY_FILLED.md`](01-plan/TASK05_OWNER_DELIVERY_FILLED.md)和[`TASK05_OWNER_ACTION_REQUIRED.md`](01-plan/TASK05_OWNER_ACTION_REQUIRED.md)；其中状态描述只代表文档记录时点。
+- 扩展任务当前状态见[扩展计划](../../.scratch/ui-catalog-providers/plan.md)及对应任务单；E 模块主责 05、06、07，配合 04 与 08，分工见[团队分工文档](../architecture/modules/TEAM_WORK_ALLOCATION.md)。
 - 任务 05 本机实施进度与证据：[本机实施行动](../actions/2026-09-21-task05-local-implementation.md) 第"自验证情况"节（含 T1 探针 run 02 的原始记录；探针本体在 `.gitignore` 排除的 `runtime/prototype/t05-topology-20260921-02/`）
 - 本地环境：阶段 0 已完成；数据库实时运行状态只在 [`02-environment/LOCAL_SETUP.md`](02-environment/LOCAL_SETUP.md) 维护
 - 未决问题：见 [`04-issues/KNOWN_ISSUES.md`](04-issues/KNOWN_ISSUES.md)
