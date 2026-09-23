@@ -67,11 +67,11 @@
 
 ### 当前停点
 
-- **任务 05 本机侧已实施完毕**（S2–S8、T1 与 `service.py` 的 S6a–S6e），**并已合并 `origin/main` 的加固改造、`server/` 适配完毕、全套重跑通过**（合并提交 `b8bbc0b`，见本日第一条）。剩余全部等 T2：**S9（worker 按 Run 选绑定）、S10（`net/` 与网络接线）、S11（集成层）**。
-- **T2 的最新状态（2026-09-22，本条取代此前“侧车 127 / 断言未测得 / `status=failed`”的历史）**：用显式适配启动固定 Harbor 后，做题侧断言实际执行并通过——**13 PASS / 0 FAIL / `status=verified`**；其中“做题侧→其他 Trial 网络”用**活的独立 Compose 目标**取证（目标自测 `PONG`、Harbor `main` 对其 IP 得 `CLOSED`），不是不存在的 DNS 名称。证据与边界见[活体对照行动](../../actions/2026-09-22-task05-t2-live-other-trial.md)：**由 Harbor 管理的两个并发 Trial 之间的隔离未验证**，产品入口接线与 S10/S11 仍未做。S9 已按计划顺序启动并完成选择片（见下方条目）。
-- **当时的推送状态（历史）**：合并提交 `b8bbc0b` 与后续适配提交在该窗口准备推送；此句不代表本轮实时远端状态，最新状态以本轮 Git 核对为准。
-- **与 B 的往来状态（2026-09-22 更新两次）**：B 已完成两处契约对齐（§10.2 五个受控码、§4.2 受控集合与 `internal_test_fake`），**"仍等 B"的旧说法作废**。**第二轮更新**：本日再次合并 `origin/main` 的 `858d30a`→`4c31c66`，带入 B 的夹具控制端点与两项呈现验证——**②那一项因此关闭**（B 的记录明确"E 说明其前置不成立"这一判断已被采纳，见 `docs/architecture/modules/web-and-http/actions/05-necessary-error-presentation.md` 第 54 行与 `delivery/14-fixture-failure-injection-and-presentation-verifications.md`）。当前挂在 B 侧只剩：① 可选——在 §4.2 补一句超集合记录的状态码（503 `DEPENDENCY_UNAVAILABLE`）；② **`PROVIDER_UPSTREAM_FAILED` 仍未列入 §10.2**（该节只有 5 个受控码），而 `server/` 已按 502 使用它，属本分支的候选码待列入。
-- **交给 S11 的两条**：① 用真实上游复核 `Accept-Encoding` 转发后的流压缩与用量结算（见本日第一条遗留）；② `provider_config.py` 的裸 `ValueError("PROVIDER_CONFIG_*")` 在接线时一并收口为受控失败（合并前已记的旧待办）。
+- **任务 05 进度（2026-09-23 核对）**：S2–S8、T1 与 `service.py` 的 S6a–S6e 早已完成，并已合并 `origin/main` 的加固改造（`b8bbc0b`）。**T2 已验证**（最小 Harbor + 活体对照：13 PASS / 0 FAIL / `status=verified`）；**S9 已完成**（选择片 `009e7cf`；本机 PG 全量 676/51/2、负责人机器默认全量 624/105）；**S10 已完成**（`d96fad9`：一次正式合成 Run，Job/Run 均 `COMPLETED`、假上游自身记录 peer 等于 proxy egress IP、三重标签残留 0、56 项 SHA-256 复算 0 不符、相关无 PG 回归 276 passed；已推送并更新 PR #41）。
+- **下一步是 S11（任务 05 的最后一片）**，含五组正反对照与下列挂账项：① `provider_config.py` 的裸 `ValueError("PROVIDER_CONFIG_*")` 收口为受控失败（本轮核对：**仍未做**）；② 真实上游下 `Accept-Encoding` 压缩与用量结算复核；③ Windows Harbor 的 trajectory 转换 `FileNotFoundError`（S10 遗留，影响验收第 5 项的“轨迹”部分）；④ 真实固定 Fork 独立判卷与报告（S10 用的是内存替身，验收第 5 项）；⑤ 旧 ChatGPT 合成链回归 + 隔离 PG/MinIO（验收第 9 项）；⑥ 两个并发 Harbor Trial 的隔离（T2 残留边界）。
+- **新增协调项（2026-09-23 核对发现）**：远端分支 `agent+api`（7 提交，A 机）新增三个 ChatGPT 型号预设、把固定 Codex 配置改为多预设，并重写了 `harbor_entry.py`——与 S10 改动的同一文件**必然冲突**；合并顺序需先定，否则 S11 的证据要在合并后重跑。该分支**未触及** `CONTROLLED_IDENTITIES`（三个预设仍是 `openai_chatgpt` / `chatgpt_auth_json` / `owner-codex`），故不破坏受控身份约束，但它改变了“固定单一 Codex agent”的假设。
+- **B 侧仅剩一件**：`PROVIDER_UPSTREAM_FAILED` 未列入 `HTTP_API.md` §10.2（本轮核对：仍缺）；§4.2 的超集合 503 已由 B 记录并注明随 `lly/dev` 合入 `main`，该项已关闭。
+- **当时的推送状态（历史）**：合并提交 `b8bbc0b` 与后续适配提交在该窗口准备推送；此句不代表实时远端状态，最新状态以本轮 Git 核对为准。
 
 ### 核心诊断修复后对账（来自 `origin/main` 的加固分支，合并时保留）
 
