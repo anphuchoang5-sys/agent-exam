@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: ready-for-human
 
 # 05：假提供方安全执行链
 
@@ -12,15 +12,15 @@ Status: ready-for-agent
 
 **Spec stories:** 19、21、22、23。
 
-- [ ] 冻结安全合同：代理拓扑、私有文件格式与权限拒绝条件、可允许请求字段白名单、计量与令牌上界策略。三项尚未验证的未知（Token 上界、请求字段白名单、账本具体格式）显式标注为待冻结，不写成已确认。
-- [ ] 最小拓扑实证（**T1 本机已证成 / T2 负责人机器**；原写"组长机器"，拆分经负责人 2026-09-21 同意）：做题容器仅可达专属代理；真实上游网络仅在代理侧；做题侧与代理隔离 PID、文件系统与秘密；无主机发布端口、无 Docker 套接字、无可写宿主挂载。直连拒绝、宿主隔离与正常模型请求三组正反对照齐全。
-- [ ] 以 `internal_test` 的受控 API 配置走正式 Registry → 提交 → 批准 → Worker → Harbor 全链；假 Key 只进代理私有内存；做题侧固定 `config.toml` 只含代理地址、模型与短命令牌来源；生产目录不得登记假服务。
-- [ ] 出站前拒绝逐条可证：未批准、错误 profile、缺密钥、宽权限或链接形式的私有文件、任意 URL、重定向、其他模型、路径越界、远程工具、跨 Run 令牌、过期重放、未知字段、超限请求。代理剥离客户端认证头后由可信侧添加凭据；"出站计数为 0"以假上游服务的请求记录为证，不以日志文本推断。
-- [ ] 假服务返回 Responses 流与本地工具调用，完成一次完整工具循环、补丁收集、固定 Fork 独立判卷与报告，使**正式链路的合成 Run 可完成**、可端到端跑通。
-- [ ] 故障与中断不扩大授权：401/429/5xx、断流、超时、未知 usage、超限均不自动重试、不切换模型；并发额度预留原子；流中断不退款为零；未知用量保守占用而非记零。
-- [ ] 生命周期接入既有终态、协作取消、强制超时与崩溃恢复：回收代理、令牌与任务专属资源；崩溃后只按已持久化证据收束、不自动续跑；新 Job 重试需重新批准；计量状态遗失时拒绝再用旧额度、不重置为满额。
-- [ ] 秘密外表面零命中：真值与假值均不进入 argv、共享环境变量、inspect 可见配置、日志、数据库、制品或 UI；做题侧能取得的 Run 令牌仍受限且会过期，不宣称完全不可窃取。
-- [ ] 回归与收口：隔离 PostgreSQL/MinIO、假网络/浏览器及旧 ChatGPT 合成链回归通过；记录网络图、威胁与限制、配置摘要、失败与精确清理；无新增数据库表、无第二执行接口；全程未读取真实 Key、未发起真实供应商调用、未充值。
+- [x] 冻结安全合同：代理拓扑、私有文件格式与权限拒绝条件、可允许请求字段白名单、计量与令牌上界策略。三项尚未验证的未知（Token 上界、请求字段白名单、账本具体格式）显式标注为待冻结，不写成已确认。
+- [x] 最小拓扑实证（**T1 本机已证成 / T2 负责人机器**；原写"组长机器"，拆分经负责人 2026-09-21 同意）：做题容器仅可达专属代理；真实上游网络仅在代理侧；做题侧与代理隔离 PID、文件系统与秘密；无主机发布端口、无 Docker 套接字、无可写宿主挂载。直连拒绝、宿主隔离与正常模型请求三组正反对照齐全。
+- [x] 以 `internal_test` 的受控 API 配置走正式 Registry → 提交 → 批准 → Worker → Harbor 全链；假 Key 只进代理私有内存；做题侧固定 `config.toml` 只含代理地址、模型与短命令牌来源；生产目录不得登记假服务。
+- [x] 出站前拒绝逐条可证：未批准、错误 profile、缺密钥、宽权限或链接形式的私有文件、任意 URL、重定向、其他模型、路径越界、远程工具、跨 Run 令牌、过期重放、未知字段、超限请求。代理剥离客户端认证头后由可信侧添加凭据；"出站计数为 0"以假上游服务的请求记录为证，不以日志文本推断。
+- [x] 假服务返回 Responses 流与本地工具调用，完成一次完整工具循环、补丁收集、固定 Fork 独立判卷与报告，使**正式链路的合成 Run 可完成**、可端到端跑通。
+- [x] 故障与中断不扩大授权：401/429/5xx、断流、超时、未知 usage、超限均不自动重试、不切换模型；并发额度预留原子；流中断不退款为零；未知用量保守占用而非记零。
+- [x] 生命周期接入既有终态、协作取消、强制超时与崩溃恢复：回收代理、令牌与任务专属资源；崩溃后只按已持久化证据收束、不自动续跑；新 Job 重试需重新批准；计量状态遗失时拒绝再用旧额度、不重置为满额。
+- [x] 秘密外表面零命中：真值与假值均不进入 argv、共享环境变量、inspect 可见配置、日志、数据库、制品或 UI；做题侧能取得的 Run 令牌仍受限且会过期，不宣称完全不可窃取。
+- [x] 回归与收口：隔离 PostgreSQL/MinIO、假网络/浏览器及旧 ChatGPT 合成链回归通过；记录网络图、威胁与限制、配置摘要、失败与精确清理；无新增数据库表、无第二执行接口；全程未读取真实 Key、未发起真实供应商调用、未充值。
 
 **停止（阻断真实 Key）：** 拓扑无法落实、固定 CLI 无法闭卷执行、预算缺失时仍可出站——任一项不通过即停在本任务，不得进入 06/07 真实调用。不降级为真 Key 进做题容器、不放宽到公网、不静默更换 CLI、不实现协议桥接。
 
@@ -265,3 +265,21 @@ E 侧已有准备产物：[阶段 1 代理测试设计](../../../docs/LLY/01-pla
 2026-09-23 S10 最终回执（覆盖上面两条进行中状态；实现提交 `d96fad9`）：正式 Worker 已供应受控 provider 工厂，固定 Harbor 入口只在单内部测试 Run、精确 runtime manifest 与精确 Compose 覆盖同时匹配时注册受守卫 Codex。第 07 轮隔离 Registry→提交→批准→Worker→真实 Harbor Adapter 合成链 exit 0，Job/Run 均 `COMPLETED` 且失败码为空；假上游自己的 `/responses` 记录 peer `172.22.0.2`，与 proxy egress IP 对上。main 只接 internal，proxy 接 internal+egress，假上游/侧车只接 egress；无宿主发布端口，辅助容器无挂载，main 仅三个本 Trial 的 Harbor 日志/制品绑定。清理后 task+scope 容器/网络/卷为 0，稳定镜像/卷清单前后无差异；56 项证据 SHA-256 复算一致。短令牌、私有 profile/config 不进 argv/env/宿主制品；缺令牌、覆盖/控制字段篡改均有失败关闭用例。无 PG 回归 `276 passed / 2 skipped`，Ruff/format/mypy 全绿。限制：本轮仓储/判卷是隔离替身，不跑负责人机器 PG；Harbor trajectory 转换有 Windows 文件暂不可见警告；S11 五组对照、第二个真实 Harbor Trial、真实 Key/供应商均未跑。详见[S10 行动](../../../docs/actions/2026-09-22-task05-s10-network-wiring.md)。**S10 已满足进入 S11 的顺序前置，但本轮没有启动 S11。**
 
 2026-09-23 S11 最终回执（覆盖本任务此前“S11 未跑”的状态）：统一入口在两个并发固定 Harbor Trial 上完成五组正反对照，最终 `status=verified`；两个 Run 分别为 `33d2bb5a-edf8-43b3-a4bd-cd44b5866088`、`27c37df8-c75f-46f5-a5e8-b15986e24cbb`，均 `completed`、trajectory=true、warnings=[]。每个 main 仅接 internal，只能到本 Trial proxy；直连假上游/公网/宿主/metadata/另一 Trial 实际 proxy IP 都 CLOSED；假上游自己的日志记录请求 peer 为各自 proxy egress IP。无宿主发布端口或 Docker socket；main 仅保留本 Trial 三个 Harbor 日志/制品绑定，辅助容器无挂载。代理私有假值正对照命中 1，main 文件/env/argv 和公开证据均 0；两 scope 清理容器/网络/卷残留 0，镜像/卷前后稳定身份无差异。provider config 裸 ValueError、gzip SSE 解码/usage、Windows trajectory 长路径、固定 Fork 独立判卷、旧 ChatGPT Worker 替身回归、隔离 PG/MinIO（随机回环端口，未碰 55432）及双 Trial 隔离六项均有证据。固定 Fork `wrong` 场景 1 passed / 4 deselected，隔离存储 1 passed，统一入口定向 75 passed，139 个普通证据文件已有 SHA-256；提交前全量 696 passed / 102 skipped，覆盖率 86.79%，Ruff/format/Mypy 全绿。真实 Key、真实 DeepSeek/Kimi/ChatGPT 请求和账单仍未运行；固定 Fork 使用其既有 evaluator 两标签所有权模型，容器 `--rm` 后 remaining 为空，并非任务 05 三重标签清理。完整命令、失败轮次与解决方案、inspect、原始日志及未验证项见[S11 行动](../../../docs/actions/2026-09-23-task05-s11-integration.md)。
+
+2026-09-23 验收对账（E 侧，本机核对）：**九项验收逐条勾选，状态转 `ready-for-human`**
+
+对账依据：S11 完成轮（[行动记录](../../../docs/actions/2026-09-23-task05-s11-integration.md)）+ S10 第 07 轮合成链 + T1/T2 实测 + 本机本轮实测。本机复算（2026-09-23）：`ruff check` 通过、`ruff format --check` **375 文件**、`mypy` **195 源文件**无问题；默认回归 **690 passed / 106 skipped / 2 failed**；显式 PG 全量 **745 passed / 51 skipped / 2 failed（0 error）**——两处失败均为本机缺 `.gitignore` 排除的 `framework/harbor`（ISSUE-04，在负责人机器上通过）。指标复核：无源文件超 200 行；`provider_access/` 顶层 8、`server/` 8、`net/` 4、`tests/providers/runtime/s11/` 8，均在每层上限内。
+
+| # | 验收项 | 证据 | 判定 |
+|---|---|---|---|
+| 1 | 冻结安全合同 | 数值由负责人 2026-09-21 拍板并写入[设计冻结](../../../docs/LLY/01-plan/STAGE1_PROXY_DESIGN_FREEZE.md)；请求字段白名单在 S10/S11 收敛为"固定 CLI 控制字段的固定形态"（变体一律 `REQUEST_CONTROL_FIELD_INVALID`）；私有文件条件在 `secrets.py` + `private_file.py`；受控码词表有防漂移门禁 | 通过 |
+| 2 | 最小拓扑实证（T1/T2） | T1：本机与负责人机器各一轮，28 项判定全 PASS + 反向对照；T2：最小 Harbor **13 PASS / 0 FAIL / `status=verified`**（活体其他 Trial 对照）；**T2 残留的"两个并发 Trial"边界由 S11 补测**（两 Trial 各自独立 internal/egress，互不可达） | 通过 |
+| 3 | 受控预设走正式全链 | S10 第 07 轮：正式 `AgentRegistry → 提交 → 批准 → Worker → 真实 Harbor Adapter`，Job/Run 均 `COMPLETED`；生产目录不含假服务有专门用例钉住；`config.toml` 不含凭据、令牌经 stdin→tmpfs | 通过 |
+| 4 | 出站前拒绝逐条可证 | 策略/生命周期用例 + S11 直连拒绝组（`own_proxy=OPEN`，`upstream/public/host_gateway/metadata/other_trial=CLOSED`，`proxy_upstream=RECORDED`）；"零出站"以假上游自身请求记录为证 | 通过 |
+| 5 | 假服务流 + 工具循环 + 固定 Fork 判卷与报告 | 合成 Run 可完成（S10/S11 各轮）；S11 第 4 条：**固定 Fork 独立判卷**（wrong 场景补丁成功应用、`resolved=false`、记录 FAIL_TO_PASS），容器 `NetworkMode=none`、无挂载、cleanup verified | 通过 |
+| 6 | 故障与中断不扩大授权 | 账本/流用例（结算恰好一次、未知用量按整笔预留全额计费、流中断不退款、并发预留原子、未知编码失败关闭）；固定 CLI 探针实测受控 502 仅 1 次请求 | 通过 |
+| 7 | 生命周期接入既有终态 | `closure`/`runner` 用例（撤销令牌、首个原因不被改写、重启继承已花费额度）；Job 侧取消/新 Job 重试需重新批准沿用既有用例 | 通过 |
+| 8 | 秘密外表面零命中 | S10/S11 复扫：两个 main 的 文件/env/argv 命中 **0**、公开证据 **0**、代理私有正对照 **1**；令牌只经 stdin 与 tmpfs，Run 后占位文件已删除 | 通过 |
+| 9 | 回归与收口 | 隔离 PostgreSQL/MinIO 旧 ChatGPT 合成链（16 passed + Registry→批准→Worker→结果/审计/保留 1 passed，PG 用随机回环端口、不使用 55432）；无新增数据库表、无第二执行接口；全程未读取真实 Key、未发起真实供应商调用、未充值 | 通过 |
+
+**如实记录的边界（不因此项而扣分，但不得外推）**：① 真实 DeepSeek/Kimi 与真实 ChatGPT 模型**未调用**（06/07 范围，需单独授权）；因此第 5 项的"真实压缩响应/账单"与第 9 项的"真实模型回归"未验证；② `PROVIDER_UPSTREAM_FAILED` 已是公开受控码，但**仍未列入 `HTTP_API.md` §10.2**（B 侧待办，已三处记录）；③ 存储网络为让宿主 pytest 访问而使用专属 bridge 并关闭 IP masquerade（已测选择，与 Trial 边界不同）；④ 固定 Fork 沿用其既有两标签所有权模型。

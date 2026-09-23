@@ -71,10 +71,9 @@
 
 ### 当前停点
 
-- **任务 05 进度（2026-09-23 核对）**：S2–S8、T1 与 `service.py` 的 S6a–S6e 早已完成，并已合并 `origin/main` 的加固改造（`b8bbc0b`）。**T2 已验证**（最小 Harbor + 活体对照：13 PASS / 0 FAIL / `status=verified`）；**S9 已完成**（选择片 `009e7cf`；本机 PG 全量 676/51/2、负责人机器默认全量 624/105）；**S10 已完成**（`d96fad9`：一次正式合成 Run，Job/Run 均 `COMPLETED`、假上游自身记录 peer 等于 proxy egress IP、三重标签残留 0、56 项 SHA-256 复算 0 不符、相关无 PG 回归 276 passed；已推送并更新 PR #41）。
-- **下一步是 S11（任务 05 的最后一片）**，含五组正反对照与下列挂账项：① `provider_config.py` 的裸 `ValueError("PROVIDER_CONFIG_*")` 收口为受控失败（本轮核对：**仍未做**）；② 真实上游下 `Accept-Encoding` 压缩与用量结算复核；③ Windows Harbor 的 trajectory 转换 `FileNotFoundError`（S10 遗留，影响验收第 5 项的“轨迹”部分）；④ 真实固定 Fork 独立判卷与报告（S10 用的是内存替身，验收第 5 项）；⑤ 旧 ChatGPT 合成链回归 + 隔离 PG/MinIO（验收第 9 项）；⑥ 两个并发 Harbor Trial 的隔离（T2 残留边界）。
-- **新增协调项（2026-09-23 核对发现）**：远端分支 `agent+api`（7 提交，A 机）新增三个 ChatGPT 型号预设、把固定 Codex 配置改为多预设，并重写了 `harbor_entry.py`——与 S10 改动的同一文件**必然冲突**；合并顺序需先定，否则 S11 的证据要在合并后重跑。该分支**未触及** `CONTROLLED_IDENTITIES`（三个预设仍是 `openai_chatgpt` / `chatgpt_auth_json` / `owner-codex`），故不破坏受控身份约束，但它改变了“固定单一 Codex agent”的假设。
-- **B 侧仅剩一件**：`PROVIDER_UPSTREAM_FAILED` 未列入 `HTTP_API.md` §10.2（本轮核对：仍缺）；§4.2 的超集合 503 已由 B 记录并注明随 `lly/dev` 合入 `main`，该项已关闭。
+- **任务 05：T2、S9、S10、S11 全部完成，九项验收已逐条对账并勾选**（任务单状态转 `ready-for-human`）。S11 在同一轮完成五组正反对照 + 六条挂账项：两个**并发** Harbor Trial 各自独立 internal/egress 且互不可达（补上 T2 的残留边界）；固定 Fork 独立判卷（wrong 场景：补丁应用成功、`resolved=false`、记录 FAIL_TO_PASS）；`provider_config.py` 的五个裸 `ValueError` 收口为受控码；gzip SSE 在真实 HTTP 栈中解码并按上游 usage 结算、未知/损坏编码失败关闭；Windows trajectory 竞态修复（两个 Run 均 trajectory=true）；旧 ChatGPT 合成链 + 隔离 PG/MinIO 回归。统一入口 `verify.ps1` 最终 `status=verified`，五组残留均为空。实现提交 `18797b0`。
+- **本机验收侧复核（2026-09-23）**：`ruff check` 通过、`ruff format --check` **375 文件**、`mypy` **195 源文件**无问题；默认回归 **690 passed / 106 skipped / 2 failed**；显式 PG 全量 **745 passed / 51 skipped / 2 failed（0 error）**——失败项均为本机缺 `framework/harbor` 的 ISSUE-04。**一处环境事实**：本轮首跑 PG 全量出现 63 个 `ConnectionTimeout` error，根因是本机便携 PostgreSQL 已停止（符合“不注册服务、重启后不自启”），按环境文档启动后 0 error；未改动任何数据库配置。
+- **下一步（任务 05 之外）**：① 把 `lly/dev` 合入 `main`（S10/S11 尚未进 main）；② 06（DeepSeek）/ 07（Kimi）需**真实 Key 与单独的真实调用授权**，且各自要重新核验官方型号/地区/额度/价格；③ 08 需要 03、04、06、07 验收；④ B 侧一件小事：`PROVIDER_UPSTREAM_FAILED` 已是公开受控码但未列入 `HTTP_API.md` §10.2。
 - **当时的推送状态（历史）**：合并提交 `b8bbc0b` 与后续适配提交在该窗口准备推送；此句不代表实时远端状态，最新状态以本轮 Git 核对为准。
 
 ### 核心诊断修复后对账（来自 `origin/main` 的加固分支，合并时保留）
