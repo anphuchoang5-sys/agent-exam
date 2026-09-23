@@ -1,6 +1,6 @@
 # AgentExam 当前接续交接
 
-> 更新：2026-09-23；工作区：`E:\9.1agent_exam`；当前分支：`agent+api`；Agent 配置扩展已本地提交为 `877b7b1`。远端 `agent+api` 在提交前核对为 `2381480`，本次推送被自动审批因远端归属未确认而拒绝，待用户确认具体目的地。本地 `main` 由另一 worktree 使用；Git 现状以现场命令为准。
+> 更新：2026-09-23；工作区：`E:\9.1agent_exam`；当前分支：`agent+api`；Agent 配置扩展代码与验证记录已本地提交至 `aaf5248`。远端 `agent+api` 在提交前核对为 `2381480`，本次推送被自动审批因远端归属未确认而拒绝，待用户确认具体目的地。本地 `main` 由另一 worktree 使用；Git 现状以现场命令为准。
 >
 > 本文是新窗口的恢复入口，不替代架构、接口、运维、任务和行动文档。若本文与当前代码或专题权威文档冲突，先核对 Git 与现实实现并同步当前状态型文档；`docs/actions/` 中已结束的记录是历史档案，不反向改写。
 >
@@ -15,7 +15,7 @@
 - P1–P4 最小本地持久化已完成；备份恢复已明确移出课设范围。
 - 任务 01–02 已完成；任务 03 的跨批次对比 Web 已实现并验证，任务单保持 `ready-for-human` 等待最终人工确认。
 - 任务 04 的六题受控目录、五道新题三补丁门禁、`continuous(1–20)`、六题向导与暴露面检查已经落地；2026-09-22 当前 owner 运行目录也已登记全部六题并完成网页选择核对，证据见[本机登记行动](docs/actions/2026-09-22-register-five-verified-tasks.md)。任务单保持 `ready-for-human` 等待最终人工确认。
-- 生产代码已有 Terra/medium、Luna/low、Sol/medium 三种固定 Codex/ChatGPT 配置，Web 可选择，Harbor 入口按同一预置精确校验。两项新配置各自在隔离原型中完成六题固定 CLI/Fork 试跑：Luna/low 解出 3/6，Sol/medium 解出 6/6；它们尚未登记到当前 owner 目录，也未作为正式 Job 提交。证据与轨迹缺失限制见[本次 Agent 配置行动](docs/actions/2026-09-22-expand-codex-agent-configurations.md)。
+- 生产代码已有 Terra/medium、Luna/low、Sol/medium 三种固定 Codex/ChatGPT 配置，Web 可选择，Harbor 入口按同一预置精确校验。两项新配置各自在隔离原型中完成六题固定 CLI/Fork 试跑：Luna/low 解出 3/6，Sol/medium 解出 6/6；当前 owner 目录已登记两项新配置并按 UUID 回查，PostgreSQL 三项配置均启用。真实网页自动核对仍在 `browser_verify` 阶段失败，不能记为通过；没有提交正式 Job。证据与轨迹缺失限制见[本次 Agent 配置行动](docs/actions/2026-09-22-expand-codex-agent-configurations.md)。
 - 任务 05 的 9 项负责人决定已确认并进入主线。`provider_access/` 已有私有配置读取、Run 令牌绑定、预算、请求、受控失败及 S6 代理服务；S2 固定配置渲染和仅供 `internal_test` 使用的假提供方身份与目录切片已实现，T1 拓扑探针有 7 条断言证据。S8 真实提供方预设、S9–S11、Worker/Harbor 装配和正式全链仍未完成；T2 曾尝试但七条断言未测得。
 - 任务 06–08 未实施；不得因 04 完成、Worker 曾在线或 05 决策已确认而自动开始真实供应商调用、充值或冻结矩阵。
 
@@ -40,7 +40,7 @@
 | 任务 04 | 六道题、连续规模与相关回归已落地；当前 owner 目录已登记六题且网页可选择 | 等最终人工确认，不再按旧计划重复拉镜像、跑门禁或改白名单 |
 | 任务 05 | 策略、S2 配置渲染、S6 代理服务、`internal_test` 身份切片与 T1 已有代码/验证；真实提供方预设、S9–S11 和正式全链未完成，T2 未测得断言 | 不得把测试假提供方当真实上游；不得读取真实 Key、调用供应商或把未完成链路写成已验收 |
 | 任务 06–08 | 未实施 | 真实调用、账户设置、费用与矩阵必须重新取得当轮授权 |
-| 正式运行态 | 2026-09-23 00:09 +08:00 核对：专属 PostgreSQL/MinIO、更新版 Web 3000、Backend 8000 与持续 Worker 运行；Web/Backend 200，经转发的匿名 Agent API 401；正式活动 Job 为 0。私有 HTTPS 本轮未复查 | 两种新配置的六题隔离原型试跑已完成，E 盘约余 3.10 GiB；原型结果不等于正式 Job 提交；owner 目录登记和真实网页向导选择仍待本人登录 |
+| 正式运行态 | 2026-09-23 复查：专属 PostgreSQL/MinIO 运行，Web 3000 返回 200；当前 owner 数据库中的 Terra/medium、Luna/low、Sol/medium 均启用。Backend/Worker 的进程存活和正式活动 Job 数仍以使用前现场复查为准 | 两种新配置的六题隔离原型试跑已完成，E 盘此前约余 3.10 GiB；原型结果不等于正式 Job 提交；owner 登记已完成，真实网页选择因浏览器核对失败仍待本人再次运行诊断脚本 |
 | 团队数据库接入 | B 侧已定位为不在同一 tailnet；当前不需要数据库，暂不重试 | 不写入私有 tailnet 名/IP；由 owner 分享设备或邀请账号后才重验 |
 
 通用边界：不把规划或文档回执当作产品实现；不自动批准 Job、不自动重试真实模型、不自动充值；不读取或输出 `auth.json`、Key、Cookie、密码等正文；不使用全局 Docker prune；不把历史 passed/skipped 数字冒充本轮刚跑结果。

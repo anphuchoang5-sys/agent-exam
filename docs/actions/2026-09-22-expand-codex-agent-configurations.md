@@ -55,7 +55,7 @@ runtime/prototype/agent-presets-20260922/                             # 忽略�
 
 ## 自验证情况
 
-进行中。已确认远端 `agent+api` 与本地 `2381480` 一致；本行动开始时工作区只剩三个未跟踪临时产物，均须保留且不提交。用户确认的两个准确模型 ID 已在 OpenAI 官方文档核对；本机实际 CLI/账号可用性尚未测试。
+进行中。本行动开始时已确认远端 `agent+api` 与本地 `2381480` 一致，工作区只剩三个未跟踪临时产物，均须保留且不提交。用户确认的两个准确模型 ID 已在 OpenAI 官方文档核对；后续真实 CLI、目录登记与网页核对结果按时间顺序记录如下。
 
 - 已增加两项生产预置、Web 选择与独立的生产预置→owner 登记→Harbor 映射测试。首次 Pytest 因默认 `.coverage` 被系统拒绝而未收集；第二次改覆盖率路径仍因本机临时目录拒绝访问在 setup 阶段报错。改用已核对为空的工作区专用 `--basetemp` 并在获准权限下运行，新增测试 **3 passed**。前两次是测试运行环境问题，不是断言失败；完整门禁仍待执行。
 - 深查发现 `harbor_entry.py` 曾只允许 Terra/medium，新增目录预置不能启动真实 Trial；已改为从同一 `AGENT_PRESETS` 生成运行白名单。三项生产预置、既有 Harbor 映射、Codex guard 和网络合同的定向回归 **43 passed**，包含未知模型/档位、重复配置与混合 NOP 拒绝。
@@ -81,3 +81,4 @@ runtime/prototype/agent-presets-20260922/                             # 忽略�
 - 切换运行服务前确认正式活动 Job 为 0。更新版后端先在备用端口 8001 返回 HTTP 200，再替换 8000 的旧进程并再次取得 HTTP 200，备用实例已关闭；旧 Worker 的两个 Python 进程被定向停止，新 Worker 的两个 Python 进程运行且 stderr 文件为空。Web 旧版为 `next start`，更新版生产构建先在备用端口 3001 返回 HTTP 200，再替换 3000 的旧进程；新版主页 200、经 Web 转发的未登录 Agent API 401，备用实例已关闭。2026-09-23 00:09 +08:00 复查：后端 200、Web 200、新 Worker Python 进程两个，专属 PostgreSQL/MinIO 运行，正式活动 Job 0。实际 owner 登录、两个新配置登记及网页向导选择仍待执行，不把无登录 HTTP 检查充作该验收。已准备本机交互式 owner 登记与浏览器核对脚本并通过 PowerShell/Node 语法检查；脚本尚未输入凭据或运行登记。
 - Git：15 个明确文件以 `877b7b1` 本地提交，提交前 `git diff --cached --check` 通过；原有三个未跟踪临时产物仍保留。提交前已核对远端 `agent+api` 为 `2381480`，推送该新提交时自动审批以「远端归属未确认」拒绝创建进程，没有发生远端写入；已向用户请求对具体 GitHub 目的地的确认，不经其他入口绕过。
 - 2026-09-23 续查当前 owner 目录仍只有启用的 Terra/medium；交互脚本尚未运行。准备投入使用前发现脚本把 POST 响应的 `agent_configuration_id` 误当成预置 ID 比较，而 `AgentRegistry.register` 实际生成 UUID；这会在首项成功登记后误报失败并停止第二项。已改为检查响应 UUID、模型、版本、提供方、推理档位及启用状态，按 UUID 核对 GET 列表中两条不同记录。PowerShell 语法解析、独立 UUID 查找表达式和浏览器脚本 Node 语法检查通过；生产预置 HTTP 回归新增响应 UUID 与目录列表同 ID 断言后 **5 passed**，Ruff 全量检查和 348 文件格式门禁通过。尚未用 owner 凭据实跑，不能把这些检查当作真实登记通过。
+- 2026-09-23 owner 通过现有登录和登记 API 实跑交互脚本：Luna/low 与 Sol/medium 均返回 201，响应身份检查及按返回 UUID 的目录回查通过。随后只读查询当前 PostgreSQL，确认 Terra/medium、Luna/low、Sol/medium 三条记录均启用且模型、推理档位正确。浏览器自动核对在 `browser_verify` 阶段失败，因此当前只把后端 owner 目录登记记为通过，不能把真实网页选择记为通过；未提交正式 Job。临时浏览器脚本已增加不含凭据的步骤名和 API 状态诊断，待 owner 再次在本人终端运行后定位并完成最后验收。
