@@ -47,7 +47,8 @@ SENTINELS = (
 )
 
 # Not internal codes: HTTP verbs the policy compares against, platform file-open flag
-# names, public constant names a package `__all__` re-exports, and the published codes
+# names, the non-secret proxy process environment field, public constant names a
+# package `__all__` re-exports, and the published codes
 # themselves -- a module that maps an internal code to its user-facing pair necessarily
 # mentions the pair.
 _NON_CODES = (
@@ -55,6 +56,7 @@ _NON_CODES = (
         {"POST", "GET", "PUT", "DELETE", "HEAD", "PATCH", "OPTIONS", "MAX_BODY_BYTES"}
     )
     | {"O_BINARY", "O_NOFOLLOW"}
+    | {"AGENTEXAM_RUN_ID"}
     | {code for code, _ in failures.MAPPED_CODES.values()}
     | {failures.GENERIC_FAILURE[0]}
 )

@@ -29,7 +29,7 @@
 | [身份与成员](identity-and-membership/ARCHITECTURE.md) | 登录会话、邀请兑换、成员管理；应用内只有 `owner` / `collaborator` | 已实现；长期 PostgreSQL 已部署 |
 | [目录与配置](catalog-and-configuration/ARCHITECTURE.md) | 可信预设登记、任务/配置查询、不可变来源校验 | 已实现六道固定题目和一个生产 Codex 配置；测试假身份只在显式 `internal_test` 装配中可用，真实新提供方未实现 |
 | [Job 控制](job-control/ARCHITECTURE.md) | 提交、批准、领取、状态推进、取消、恢复 | 已实现；continuous 1–20 已落地，单重型 Job、零自动重试约束保留 |
-| [执行与判卷](execution-and-evaluation/ARCHITECTURE.md) | `ExecutionBackend`、`PatchEvaluator`、Worker claim | 固定 Codex → Harbor → Fork 已跑通；provider 纯策略切片与 T1 已验证，但代理服务、T2 和正式接线未完成 |
+| [执行与判卷](execution-and-evaluation/ARCHITECTURE.md) | `ExecutionBackend`、`PatchEvaluator`、Worker claim | 固定 Codex → Harbor → Fork 已跑通；T2 最小 Harbor 形态含活体网络替身已实测，S9 Worker 选择已接入并对未就绪代理失败关闭；S10/S11 与双 Harbor Trial 未验证 |
 | [证据与报告](evidence-and-reporting/ARCHITECTURE.md) | `ArtifactStore`、报告、轨迹、保留、跨批次比较和排行榜 | 长期 PostgreSQL/AIStor 已部署；比较后端与 Web 页面均已实现 |
 | [Web 与 HTTP](web-and-http/ARCHITECTURE.md) | Next.js 页面、同源 `/api/v1`、FastAPI 路由 | 32 个端点已注册；比较页、六题向导、安全头/安全 500 已落地，provider 端到端呈现与远程双机验收未完成 |
 | [所有者单机运行](owner-host-runtime/ARCHITECTURE.md) | 进程拓扑、信任区、持久化、手动生命周期、私有远程入口 | P1–P4 已部署验收；备份恢复已明确移出课设范围 |

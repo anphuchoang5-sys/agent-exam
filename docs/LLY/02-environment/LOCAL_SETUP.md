@@ -4,7 +4,7 @@
 >
 > 状态：**阶段 0 已完成**（2026-09-19）。基础安装、两库隔离、开发 schema、工具链、PostgreSQL 集成测试和启停读回均有本轮证据；默认回归仍保留 2 个因缺少 `framework/harbor` 的已知环境失败。
 >
-> **当前运行状态的唯一来源：** 2026-09-22 更新：本轮开工时实测 PostgreSQL **又是已停止**（`netstat` 在 `55432` 无监听）——与"便携版不注册服务、重启电脑后不会自启"一致；已按第 2 节的既有命令再次手动启动，现为 `accepting connections`（`127.0.0.1:55432`），开启 PG 的全量回归实际跑通（**664 passed / 52 skipped / 2 failed**）。数据库以后停止或重启时只更新本段，其他文档保留带日期的历史证据或指向这里。（2026-09-21 实测：当时亦为已停止，按同一命令启动过。）
+> **当前运行状态的唯一来源：** 2026-09-22 更新：本轮开工时实测 PostgreSQL **又是已停止**（`netstat` 在 `55432` 无监听）——与"便携版不注册服务、重启电脑后不会自启"一致；已按第 2 节的既有命令再次手动启动，现为 `accepting connections`（`127.0.0.1:55432`），开启 PG 的全量回归实际跑通（**676 passed / 51 skipped / 2 failed**，2026-09-22 含 S9 用例的实测；此前一次为 664/52/2）。数据库以后停止或重启时只更新本段，其他文档保留带日期的历史证据或指向这里。（2026-09-21 实测：当时亦为已停止，按同一命令启动过。）
 
 ## 1. 为什么是这样一套环境
 
@@ -102,6 +102,10 @@ npm ci --ignore-scripts
 | `AGENTEXAM_MINIO_*` | 对象存储测试 | 本机未配置，相关用例保持跳过 |
 
 注意：本机库使用回环信任认证，连接串里不需要密码；所以本机不存在任何需要保管的数据库密码。
+
+> 2026-09-22 复核（**按机器区分，本条取代此前的"本机 DSN 不再可用"说法**）：上面第 104 行的无密码说法**在本机（E 的开发机 `D:\agent-exam`）成立**。同日实测以表中的测试 DSN 直连成功（回环 trust，无需密码，`current_user/current_database` 均为 `agentexam_identity_test`），显式 PG 全量跑通 **676 passed / 51 skipped / 2 failed**（2 项失败仍为缺 `framework/harbor` 的 ISSUE-04）。此前记录的一次 `fe_sendauth: no password supplied` 发生在**另一台机器**（负责人机器的 `runtime/lly-dev-verify` worktree），那里的 `55432` 是既有 Docker 服务而非本机便携实例，见下条。**本机不需要任何数据库密码**；也不得把本机的测试 DSN 用到那台机器的既有服务上。过程与证据见[本机补测行动](../../actions/2026-09-22-task05-s9-pg-acceptance-local.md)。
+
+> 2026-09-22 负责人机器的较新现场：上面的“仅认证方式变化”还不足以解释失败。当前 `E:/9.1agent_exam/runtime/lly-dev-verify` 所在机器的 `127.0.0.1:55432` 实为既有 Docker Compose 项目 `agentexam-local` 的 PostgreSQL 发布端口；文档中的 `D:/pgsql` 专属便携实例不在这台机器上。**不可将表中的测试 DSN 在此机器直接用于显式 PG 全量**（测试会创建/删除随机临时数据库）；应另备隔离专属实例或在原有专属环境执行。现场证据与解决方案见[ISSUE-05](../04-issues/KNOWN_ISSUES.md)。
 
 两个连接串不得互换：`AGENTEXAM_TEST_DATABASE_URL` 只指向测试控制库，`AGENTEXAM_DATABASE_URL` 只指向开发库。变量只设置在当前 PowerShell 进程，不持久写入系统或仓库。
 

@@ -1,6 +1,6 @@
 # 执行与判卷 Module
 
-> 当前状态：固定 Codex → Harbor → patch → 固定 SWE-Bench-Fork 的真实单题核心闭环已通过；M1 任务 13 又把正式 Job/Run、持久化与 Worker 接到该链路。任务 05 的提供方策略、固定配置渲染和假上游代理服务已实现，但未接入 Worker/Harbor；完整安全/生命周期和真实新提供方仍未完成。
+> 当前状态：固定 Codex → Harbor → patch → 固定 SWE-Bench-Fork 的真实单题核心闭环已通过；M1 任务 13 又把正式 Job/Run、持久化与 Worker 接到该链路。任务 05 的 T2 最小 Harbor 拓扑含活体独立网络替身已实测；S9 在 Worker 中按冻结 Run 选择受控身份与非秘密凭据引用。S10 已把受控假提供方的单 Run 双网络、代理生命周期、无凭据 config 与短令牌注入接到正式 Worker/Harbor 路径，并用隔离 Registry→批准→Worker→Harbor 合成链验收。S11 五组完整对照、第二个真实 Harbor Trial 和真实新提供方仍未完成。
 > 权威范围：Worker 如何把冻结 Run 交给执行后端和独立判卷器；外部框架和认证细节仍由专题 Interface 维护。
 
 ## 1. 职责与非职责
@@ -43,13 +43,14 @@ apps/backend/src/eval_platform/
     codex/install.py                       # 固定离线 CLI 校验与安装
     codex/policy.py                        # 非 root、命令和运行策略
     codex/uploads.py                       # 受限私有认证输入传递
-    codex/provider_config.py               # 固定 TOML 与模型目录渲染；尚未由正式链调用
-    provider_access/                       # 任务 05 内部实现，不是独立业务 Module
+    codex/provider_config.py / provider.py # 固定代理入口 TOML、文件式短令牌与受守卫 provider Codex
+    provider_access/                       # 任务 05 内部策略切片，不是独立业务 Module
       binding.py                           # Run 短令牌、固定身份和撤销
       budget.py                            # 并发预留、保守结算和超额失败关闭
       failures.py                          # 单一受控提供方失败码/异常
       private_file.py / secrets.py         # 私有配置 schema、权限和竞态防护
       request_policy.py / transport.py     # 最小路径/模型/header 允许集合与固定出站请求
+      net/topology.py / gate.py / runtime.py # S10 固定双网络、精确覆盖门禁与 Run 私有输入生命周期
       server/                               # 假上游代理服务；下列文件只服务内部执行 Adapter
         contracts.py / service.py           # 请求合同和受控处理入口
         http.py / egress.py                 # HTTP 应答与唯一出站连接
@@ -63,7 +64,8 @@ apps/backend/src/eval_platform/
     process.py / fork_entry.py             # 有界独立判卷进程和入口
     result_mapper.py / result_validation.py # Fork report 校验 → DeterministicResult
   delivery/worker/
-    runtime.py                             # 正式 owner 本机 Worker Composition Root
+    bindings.py                            # 冻结 Run 身份/profile → ChatGPT 或需显式工厂的单 Run 代理路由；错配失败关闭
+    runtime.py                             # 正式 owner 本机 Worker Composition Root；按固定本机输入构造 ChatGPT/provider 后端
     main.py                                # 一次 claim 后委托 JobExecutor 的薄 shell
   delivery/agent_presets.py               # 目录与隔离 Harbor 运行入口共用的三项轻量生产配置
 framework/
@@ -88,9 +90,9 @@ PostgreSQL claim 冻结 Job
 
 Worker 只从 owner 本机绝对路径读取固定 framework、数据集、Codex 归档和认证引用；这些秘密路径不进入 Job、HTTP、PostgreSQL 或 MinIO。
 
-`harbor_entry.py` 在导入 Harbor 前，以生产 `AGENT_PRESETS` 映射出的完整配置为白名单：允许 Terra/medium、Luna/low、Sol/medium 的非空且不重复组合，同时要求现有私有认证绑定；未知模型、档位、额外参数与混合 NOP 均拒绝。模型和档位的唯一生产配置源是轻量的 `delivery/agent_presets.py`，目录装配和 `config_mapper.py` 复用它，避免 Harbor 的独立 Python 环境导入后端存储依赖。新型号在固定 CLI 和 owner 账号上的真实可用性仍要按[本次配置行动](../../../actions/2026-09-22-expand-codex-agent-configurations.md)的实测结论判断。
+`harbor_entry.py` 在导入 Harbor 前，以生产 `AGENT_PRESETS` 映射出的完整配置为白名单：允许 Terra/medium、Luna/low、Sol/medium 的非空且不重复组合，同时要求现有私有认证绑定；未知模型、档位、额外参数与混合 NOP 均拒绝。模型和档位的唯一生产配置源是轻量的 `delivery/agent_presets.py`，目录装配和 `config_mapper.py` 复用它。新型号在固定 CLI 和 owner 账号上的真实可用性仍以[配置行动](../../../actions/2026-09-22-expand-codex-agent-configurations.md)的实测结论为准。
 
-当前生产数据流尚不经过 `provider_access`。该目录已有拒绝越权 header/path/model、绑定和撤销 Run 令牌、保守处理并发预算、读取受限本机配置、受控失败码及 HTTP/流式代理服务；`codex/provider_config.py` 已能渲染固定测试配置，仍待固定 CLI 字段和事件对账。固定测试上游使用 `.invalid` 保留域。双网络生命周期、Worker/Harbor Composition Root 接线及 T2 七条断言未完成，因此任何真实 DeepSeek/Kimi 请求都不在当前能力内。
+当前 Worker 会逐 Run 检查冻结的身份对与 `credential_configuration_id`：ChatGPT 路由按需校验 owner 的 Codex 归档/认证；恰好一个受控代理 Run 且本机同时配置固定 Codex 包与已核验 provider 镜像 ID 时，构造 provider Harbor Adapter。缺工厂、缺固定输入或混合 Job 在 Harbor 前报 `PROVIDER_RUNTIME_NOT_READY`，不读取 ChatGPT 认证、不回退到 ChatGPT。身份对与非秘密 profile ID 以 `domain/agent.py` 为准，目录预设引用同一常量。provider Adapter 为该 Run 生成精确 Compose 覆盖和无密钥清单，入口重新验证后才注册受守卫 provider Codex；短令牌从代理私有 tmpfs 经 Compose stdout/Worker 内存取得，再经 stdin 写入做题侧 tmpfs，结束删除私有占位并由 Harbor 删除 Trial 项目。固定测试上游仍用 `.invalid` 保留域；这条能力只注册内部测试身份，真实 DeepSeek/Kimi 请求仍不在当前能力内。S10 的隔离正式合成链证据见[行动记录](../../../actions/2026-09-22-task05-s10-network-wiring.md)。
 
 ## 5. 模式、依赖和深度
 
@@ -100,6 +102,6 @@ Composition Root 在 `delivery/worker/runtime.py`，不是应用用例内部临�
 
 ## 6. 当前验证、风险和规划
 
-M0 第四场真实结果见[M0 行动](../../../actions/2026-09-05-m0-codex-harbor-implementation.md)；M1 正式持久化链见[本机真实验收行动](../../../actions/2026-09-13-m1-local-real-acceptance.md)。这些是历史证据；任务 05 的服务合同与生命周期测试、T1 历史拓扑证据不能替代 T2 或完整真实链路。T2 曾在负责人机器尝试，但 Harbor 侧车退出 127，七条断言未测得。
+M0 第四场真实结果见[M0 行动](../../../actions/2026-09-05-m0-codex-harbor-implementation.md)；M1 正式持久化链见[本机真实验收行动](../../../actions/2026-09-13-m1-local-real-acceptance.md)。T2 的固定 Harbor 现场读数及“另一个目标只是独立 Compose 项目”的界限见[T2 行动](../../../actions/2026-09-22-task05-t2-live-other-trial.md)；S9 的装配/拒绝回归见[S9 行动](../../../actions/2026-09-22-task05-s9-run-bindings.md)，S10 产品接线与受控合成链见[S10 行动](../../../actions/2026-09-22-task05-s10-network-wiring.md)。这些证据都不能替代 S11 的五组完整对照、第二个真实 Harbor Trial 或真实新提供方验证。
 
-现存限制包括：完整故障/强杀/刷新生命周期未全验收；当前真实提供方只有 owner ChatGPT 登录；DeepSeek/Kimi 的策略和代理服务尚未接入正式链，没有真实身份或调用；owner 电脑离线不执行。新提供方应继续深化现有 Execution Adapter 内部实现，不新增第二套 Job 队列或判卷器；详情见[认证 Interface](../../../interfaces/CODEX_AUTHENTICATION.md)。
+现存限制包括：完整故障/强杀/刷新生命周期未全验收；当前真实提供方只有 owner ChatGPT 登录；DeepSeek/Kimi 只有内部测试身份接线，没有真实身份或调用；owner 电脑离线不执行。新提供方应继续深化现有 Execution Adapter 内部实现，不新增第二套 Job 队列或判卷器；详情见[认证 Interface](../../../interfaces/CODEX_AUTHENTICATION.md)。
