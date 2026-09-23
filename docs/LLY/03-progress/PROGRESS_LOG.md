@@ -3,6 +3,10 @@
 > 只记录事实与实际结果：做了什么、实际输出是什么、遇到什么。计划见 [`01-plan/PLAN.md`](../01-plan/PLAN.md)。
 > 格式：按日期倒序追加，最新在最上面。
 
+## 2026-09-23
+
+- **任务 05 S11 受控集成验收完成。** 最终统一入口在两个同时存活的固定 Harbor Trial 上返回 `status=verified`：五组拓扑/直连拒绝/宿主隔离/假 Key/精确清理均无失败；两个 Run 均 `completed`、trajectory=true、warnings=[]，做题侧只能连接本 Trial proxy，不能连接假上游、公网、宿主网关、metadata 或另一 Trial 的真实 proxy IP；两个假上游分别记录 `/responses` 来自各自 proxy egress IP。8 个容器均无发布端口，辅助容器无挂载，main 只有本 Trial evidence root 的三个 Harbor 日志/制品绑定；代理私有哨兵正对照命中，main 文件/env/argv 和公开证据均零命中；两 scope 清理残留为 0，镜像/卷稳定身份前后无差异。六条挂账同时收口：provider config 改受控失败；gzip SSE 受控传输/usage 结算通过；Windows trajectory 的生成脚本转义与 260 字符路径问题修复；固定 Fork `wrong` 场景独立判卷 `1 passed / 4 deselected`；旧 ChatGPT Worker 替身回归 `16 passed`，隔离 PostgreSQL/MinIO（随机回环端口，非 55432）`1 passed`；双 Trial 隔离成立。统一入口定向 `75 passed`，139 项普通证据 SHA-256 清单完成；提交前全量 `696 passed / 102 skipped`、覆盖率 `86.79%`，Ruff/format/Mypy 全绿。未读真 Key、未调用真实供应商；真实 DeepSeek/Kimi 压缩/usage/账单和真实 ChatGPT 模型仍未验证。完整失败轮次、解决方案、inspect 与边界见[S11 行动](../../actions/2026-09-23-task05-s11-integration.md)。
+
 ## 2026-09-22
 
 ### S10 历史进行中记录（已由下方完成状态覆盖）

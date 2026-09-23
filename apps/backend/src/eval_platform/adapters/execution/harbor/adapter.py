@@ -20,6 +20,9 @@ from eval_platform.adapters.execution.harbor.lifecycle.monitor import (
     HarborProgressMonitor,
 )
 from eval_platform.adapters.execution.harbor.process_runner import run_bounded_process
+from eval_platform.adapters.execution.harbor.recovery.trajectory import (
+    recover_missing_codex_trajectories,
+)
 from eval_platform.adapters.execution.harbor.result_mapper import map_job_results
 from eval_platform.adapters.execution.harbor.result_values import process_start_failure
 from eval_platform.adapters.execution.harbor_entry import (
@@ -172,6 +175,10 @@ class HarborExecutionAdapter:
         process_warnings = outcome.warnings
         if outcome.timed_out:
             process_warnings += cleanup_timed_out_projects(job_dir)
+        elif outcome.returncode == 0:
+            process_warnings += recover_missing_codex_trajectories(
+                self.harbor_executable, job_dir
+            )
         results = map_job_results(
             plan,
             job_dir,

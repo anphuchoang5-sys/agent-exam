@@ -17,6 +17,10 @@ from eval_platform.adapters.execution.codex.provider_config import (
     RETRY_VALUE,
     render_provider_config,
 )
+from eval_platform.adapters.execution.provider_access.failures import (
+    ProviderAccessError,
+    controlled_failure,
+)
 from eval_platform.adapters.execution.provider_access.secrets import (
     REGISTERED_UPSTREAMS,
 )
@@ -95,19 +99,19 @@ def test_no_host_path_or_real_upstream_appears():
     ],
 )
 def test_entries_that_are_not_the_isolated_proxy_are_refused(base_url):
-    with pytest.raises(ValueError, match="PROVIDER_CONFIG_ENTRY"):
+    with pytest.raises(ProviderAccessError, match="PROVIDER_CONFIG_ENTRY"):
         render(base_url=base_url)
 
 
 @pytest.mark.parametrize("provider", ["deepseek; rm", "DeepSeek", "", "unregistered"])
 def test_unknown_or_malformed_providers_are_refused(provider):
-    with pytest.raises(ValueError, match="PROVIDER_CONFIG_PROVIDER"):
+    with pytest.raises(ProviderAccessError, match="PROVIDER_CONFIG_PROVIDER"):
         render(provider=provider)
 
 
 @pytest.mark.parametrize("env_key", ["token", "1TOKEN", "AGENTEXAM-RUN", ""])
 def test_malformed_environment_variable_names_are_refused(env_key):
-    with pytest.raises(ValueError, match="PROVIDER_CONFIG_ENV_KEY_INVALID"):
+    with pytest.raises(ProviderAccessError, match="PROVIDER_CONFIG_ENV_KEY_INVALID"):
         render(env_key=env_key)
 
 
@@ -137,15 +141,38 @@ def test_fixed_cli_can_read_run_token_from_private_file_without_env():
     ["/tmp/codex-secrets/auth.json", "/tmp/codex-secrets/../run-token", "token"],
 )
 def test_token_source_cannot_be_redirected(token_source):
-    with pytest.raises(ValueError, match="PROVIDER_CONFIG_TOKEN_SOURCE_INVALID"):
+    with pytest.raises(
+        ProviderAccessError, match="PROVIDER_CONFIG_TOKEN_SOURCE_INVALID"
+    ):
         render_provider_config(provider=FAKE, base_url=ENTRY, token_source=token_source)
 
 
 def test_token_file_and_environment_modes_cannot_be_combined():
-    with pytest.raises(ValueError, match="PROVIDER_CONFIG_TOKEN_SOURCE_INVALID"):
+    with pytest.raises(
+        ProviderAccessError, match="PROVIDER_CONFIG_TOKEN_SOURCE_INVALID"
+    ):
         render_provider_config(
             provider=FAKE,
             base_url=ENTRY,
             env_key=ENV_KEY,
             token_source="/tmp/codex-secrets/run-token",
         )
+
+
+@pytest.mark.parametrize(
+    "options,internal_code",
+    [
+        ({"provider": "unregistered"}, "PROVIDER_CONFIG_PROVIDER_NOT_REGISTERED"),
+        ({"base_url": "http://localhost:8080"}, "PROVIDER_CONFIG_ENTRY_INVALID"),
+        ({"base_url": "https://api.deepseek.com"}, "PROVIDER_CONFIG_ENTRY_IS_UPSTREAM"),
+        ({"env_key": "invalid"}, "PROVIDER_CONFIG_ENV_KEY_INVALID"),
+    ],
+)
+def test_configuration_errors_have_a_controlled_public_failure(options, internal_code):
+    with pytest.raises(ProviderAccessError) as raised:
+        render(**options)
+    assert raised.value.code == internal_code
+    assert controlled_failure(raised.value.code) == (
+        "PROVIDER_ACCESS_FAILED",
+        "模型访问未完成。",
+    )

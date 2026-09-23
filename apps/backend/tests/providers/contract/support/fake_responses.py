@@ -1,22 +1,12 @@
-"""A fake Responses upstream that records what reached it.
+"""Record fake Responses traffic and reproduce upstream failures.
 
-Two jobs, both about evidence rather than convenience:
-
-1. Prove egress happened, or did not. The acceptance rule is that "zero outbound
-requests" is shown by this service's own request log, never inferred from log text. So
-every request is recorded with method, path, header *names* (plus the credential
-separately) and body. 2. Make failures reproducible: 401/429/5xx, a stream cut mid-
-answer, a timeout, and a completion carrying no usage are all scripted outcomes here,
-not accidents.
-
-Plain HTTP on purpose: the CLI was observed to send to a plain-HTTP custom provider,
-so the workload-to-proxy leg needs no TLS. The proxy-to-upstream leg does (transport
-refuses non-HTTPS upstreams), so pointing the real proxy at this fake needs a TLS
-wrapper -- that belongs to the integration slice and is recorded as a known gap, not
-hidden here."""
+Plain HTTP models the CLI-to-proxy leg. The proxy-to-upstream integration fixture
+adds the TLS wrapper required by the real transport.
+"""
 
 from __future__ import annotations
 
+import gzip
 import json
 import ssl
 import sys
@@ -47,6 +37,8 @@ class Script:
     end_early_at: int | None = None
     hang: bool = False
     incomplete_reason: str | None = None
+    content_encoding: str | None = None
+    malformed_gzip: bool = False
 
 
 @dataclass
@@ -143,6 +135,18 @@ class FakeUpstream:
                 events = self._events(script, body)
                 self.send_response(200)
                 self.send_header("Content-Type", STREAM_CONTENT_TYPE)
+                if script.content_encoding is not None:
+                    self.send_header("Content-Encoding", script.content_encoding)
+                if script.content_encoding == "gzip":
+                    payload = (
+                        b"not-a-gzip-stream"
+                        if script.malformed_gzip
+                        else gzip.compress(b"".join(events))
+                    )
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
                 self.send_header("Transfer-Encoding", "chunked")
                 self.end_headers()
                 for index, event in enumerate(events):

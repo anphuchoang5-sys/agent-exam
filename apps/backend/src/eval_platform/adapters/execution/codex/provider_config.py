@@ -24,6 +24,9 @@ import hashlib
 import re
 from dataclasses import dataclass
 
+from eval_platform.adapters.execution.provider_access.failures import (
+    ProviderAccessError,
+)
 from eval_platform.adapters.execution.provider_access.secrets import (
     REGISTERED_UPSTREAMS,
 )
@@ -69,23 +72,23 @@ def render_provider_config(
 ) -> ProviderConfig:
     """Return the fixed config text plus its digest, or raise a fixed code."""
     if not _LOGICAL_ID.fullmatch(provider) or provider not in REGISTERED_UPSTREAMS:
-        raise ValueError("PROVIDER_CONFIG_PROVIDER_NOT_REGISTERED")
+        raise ProviderAccessError("PROVIDER_CONFIG_PROVIDER_NOT_REGISTERED")
     if (env_key is None) == (token_source is None):
-        raise ValueError("PROVIDER_CONFIG_TOKEN_SOURCE_INVALID")
+        raise ProviderAccessError("PROVIDER_CONFIG_TOKEN_SOURCE_INVALID")
     if token_source is not None and token_source != TOKEN_SOURCE:
-        raise ValueError("PROVIDER_CONFIG_TOKEN_SOURCE_INVALID")
+        raise ProviderAccessError("PROVIDER_CONFIG_TOKEN_SOURCE_INVALID")
     if env_key is not None and not _ENV_NAME.fullmatch(env_key):
-        raise ValueError("PROVIDER_CONFIG_ENV_KEY_INVALID")
+        raise ProviderAccessError("PROVIDER_CONFIG_ENV_KEY_INVALID")
     match = _BASE_URL.fullmatch(base_url)
     if match is None or match.group("host") in {"localhost", "127.0.0.1", "::1"}:
         # The entry must be a host the isolated trial network resolves, never loopback:
         # loopback inside the task container would mean the CLI talking to itself.
-        raise ValueError("PROVIDER_CONFIG_ENTRY_INVALID")
+        raise ProviderAccessError("PROVIDER_CONFIG_ENTRY_INVALID")
     if base_url in set(REGISTERED_UPSTREAMS.values()) or (
         match.group("host") in REAL_PROVIDER_HOSTS
     ):
         # A provider-side endpoint belongs on the trusted proxy side only.
-        raise ValueError("PROVIDER_CONFIG_ENTRY_IS_UPSTREAM")
+        raise ProviderAccessError("PROVIDER_CONFIG_ENTRY_IS_UPSTREAM")
     lines = [
         "# Rendered for this Run. The token value is never written here.",
         f'model_provider = "{provider}"',

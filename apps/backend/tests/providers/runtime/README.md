@@ -59,3 +59,19 @@ bash t2-assertions.sh        # 期望 status=verified，退出码 0
 `T05_OTHER_TRIAL_HOST` 若没有对应的**活体**目标，`CLOSED` 只能表示该名称不可达，不能证明两个 Trial 实体之间的网络隔离；完整验收须另做带活体目标的对照并记录其身份与网络。
 
 固定 Harbor 上已经实际执行过 T2；最新结果、活体对照与仍未验证项以[进度日志](../../../../../docs/LLY/03-progress/PROGRESS_LOG.md)指向的行动记录为准，不因 T1 或独立诊断成功而外推完整 T2/S11 结论。没有固定 Harbor 或 Docker 的机器只能做语法/离线区分力检查，不能把它写成运行验收。
+
+## S11：统一集成入口（`verify.ps1`）
+
+S11 在具备固定 Harbor、固定 Fork、任务 parquet、固定 Codex 归档和已缓存测试镜像的 Windows 执行机上运行。入口参数全部显式传入，不拉取镜像、不读真实 Key，也不调用真实供应商：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\backend\tests\providers\runtime\verify.ps1 `
+  -Python <backend-python> -ProjectRoot <repo> -Parquet <fixed-parquet> `
+  -CodexArchive <fixed-codex-tgz> -ProviderImage <proxy-image-id> `
+  -PostgresImage <postgres-image-id> -MinioImage <minio-image-id> `
+  -EvidenceRoot <new-.tmp-evidence-directory>
+```
+
+入口依次执行定向回归、两个并发 Harbor Trial、固定 Fork 错误补丁判卷及隔离 PostgreSQL/MinIO 回归。双 Trial 必须同时满足五组断言无失败、终态 `completed`、trajectory 存在、warnings 为空；否则不会输出 `status=verified`。容器内 Bash 脚本通过原始 UTF-8 字节 stdin 发送，避免 Windows 文本管道把 LF 改成 CRLF。Windows 超长 session 路径只在 trajectory 恢复子进程与文件检查处使用 `\\?\` 前缀，不修改系统长路径配置。
+
+证据目录内的 `SHA256SUMS.txt` 覆盖所有普通文件；固定 Fork 留下的重解析点单列于 `REPARSE_POINTS.txt`，不把断开的链接伪装成可哈希文件。仅在所有测试已完成、最后清单步骤中断时，才可对同一目录加 `-FinalizeOnly` 补做清单；该开关不会启动容器或重跑断言。最新实测状态和未验证边界见[S11 行动记录](../../../../../docs/actions/2026-09-23-task05-s11-integration.md)。
