@@ -35,7 +35,8 @@
 
 - `missing` 不等于 `unresolved`，也不写成 0；它不计入 `decided`，而 `total = decided + missing` 保持完整矩阵分母。
 - 界面把 `missing` 分列成“无运行 / 报告缺失”时，唯一判据是 `run_id` 是否为空，不新增字段、不改响应形状。
-- 中文映射唯一落在 `matrix_markdown.py` 的 `_CELL_LABELS`；改文案只改这一处，界面与报告同时生效。
+- 后端 Markdown 的单元格和汇总表头共用 `matrix_markdown.py` 中的 `_CELL_LABELS`；Web 的矩阵和批次报告共用 `src/lib/reporting/comparison-shape.ts` 中的 `COMPARISON_OUTCOME_NAMES`。两种运行时仍各有一份映射；改文案时须逐项核对两处，后端修改不会自动改变 Web。
+- Web 对 `GET /reports/comparisons` 的运行时形状校验只由 `src/lib/reporting/comparison-shape.ts` 的 `parseComparison` 执行；`comparison-client.ts` 与 `job-client.ts` 的请求入口均复用它。校验要求结果档位与 `resolved` 一致，非缺失单元格必须有 Run 和报告引用，缺失报告可以保留 Run 身份；列数、行宽和汇总分母也必须一致。
 
 **批次报告在批次未完成时仍返回 `200`**：`stage_message` 说明当前阶段，`completed_runs`/`failed_runs`/`pending_runs` 按 Run 状态计数，尚未形成确定性结果的 Run 记 `outcome=incomplete`、`resolved=null`，不进 `resolved_runs`/`unresolved_runs`。未完成不是 `404`（那表示不存在或无权，含 `internal_test`），也不是 `409`；前端进度区正是消费这些计数。`report_path` 是通往单 Run 报告的链接，不代表结果已可用。取消与取消请求态同样给出明确阶段文案——2026-09-22 曾因这两个状态缺文案让该端点 500，现由 `tests/jobs/reporting/test_batch_status_messages.py` 逐个钉住每个 Job 状态与执行 stage 都有文案。契约回归见 `tests/jobs/reporting/test_job_report_states.py`。
 

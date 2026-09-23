@@ -1,6 +1,6 @@
 # 目录与配置 Module
 
-> 当前状态：目录已有六道受控 SWE-Gym 题和一个生产 Codex/ChatGPT 配置；测试专用假提供方配置只在显式 `internal_test` 装配中可用。真实 DeepSeek/Kimi 配置仍未登记。
+> 当前状态：目录已有六道受控 SWE-Gym 题；生产代码提供 Terra/medium、Luna/low 和 Sol/medium 三种固定 Codex/ChatGPT 配置，实际 owner 目录登记状态须现场核对。测试专用假提供方配置只在显式 `internal_test` 装配中可用。真实 DeepSeek/Kimi 配置仍未登记。
 > 权威范围：任务目录、不可变来源快照和固定 Agent Configuration 的当前代码组成。
 
 ## 1. 职责与非职责
@@ -45,14 +45,15 @@ apps/backend/src/eval_platform/
     tasks/catalog.py                     # 六题 instance → 固定含摘要镜像身份
     artifacts/minio.py                   # MinIO ArtifactStore Adapter
   delivery/
-    catalog_presets.py                   # 六题、生产配置及隔离测试配置；生产 Root 只取正式预设
+    agent_presets.py                     # 不加载存储依赖的三项生产配置；目录和独立 Harbor 运行时共用
+    catalog_presets.py                   # 六题和隔离测试配置；生产 Root 导入正式预设
     catalog.py                           # 显式 init-db / upgrade-api-constraints 本机入口
     http/routes/catalog.py               # 目录查询和 owner 管理的 HTTP 翻译
     http/catalog_schemas.py              # 目录请求/响应 DTO
 apps/web/src/
   features/catalog/tasks.tsx             # 任务目录与登记 UI
-  features/catalog/agents.tsx            # 配置目录与禁用 UI
-  lib/catalog-client.ts                  # 目录 HTTP 客户端与响应校验
+  features/catalog/agents.tsx            # 固定配置选择、目录与禁用 UI
+  lib/catalog-client.ts                  # 固定预置 ID、目录 HTTP 客户端与响应校验
 ```
 
 ## 4. 关键数据流
@@ -77,4 +78,4 @@ TaskSource、Repository 和 ArtifactStore 是三个不同 seam；SWE-Gym、Postg
 
 历史目录验证见[任务 03 行动](../../../actions/2026-09-12-m1-task-agent-catalog.md)与[任务 04 行动](../../../actions/2026-09-19-task-04-catalog-candidates-and-scale.md)。本轮核心修复没有重跑 MinIO，但在隔离真实 PostgreSQL 中验证了身份对约束及旧约束显式迁移；最终命令结果记录在当前[修复行动](../../../actions/2026-09-21-core-diagnostic-remediation.md)。
 
-当前状态（2026-09-22）：**受控题目目录已有 6 道题**——旧题 `python__mypy-15413` 与五道新题（`15131`/`15139`/`15184`/`15208`/`15876`）。五道新题已在隔离容器中逐题跑过三补丁门禁（参考通过、空补丁不通过、可应用但错误的补丁不通过，15/15 场景），白名单实现位于 `adapters/tasks/catalog.py` 的 `FIXED_TASK_IMAGES`（instance → 含 digest 的固定镜像身份），未登记的 instance 一律拒绝。生产配置目录仍只有 `codex-0153-terra-medium`；`INTERNAL_TEST_AGENT_PRESETS` 只能由显式测试装配使用，不会被 `create_catalog` 注册。领域和数据库允许的两对身份为 `openai_chatgpt/chatgpt_auth_json` 与 `internal_test_fake/provider_run_token`，旧库由 `python -m eval_platform.delivery.catalog upgrade-api-constraints` 显式升级；未知约束形状失败关闭。真实 DeepSeek/Kimi 仍是后续任务，不能用测试身份替代。长期 MinIO 风险由[所有者单机运行](../owner-host-runtime/ARCHITECTURE.md)处理，不改变本 Module 的 ArtifactStore Interface。
+当前状态（2026-09-22）：**受控题目目录已有 6 道题**——旧题 `python__mypy-15413` 与五道新题（`15131`/`15139`/`15184`/`15208`/`15876`）。五道新题已在隔离容器中逐题跑过三补丁门禁（参考通过、空补丁不通过、可应用但错误的补丁不通过，15/15 场景），白名单实现位于 `adapters/tasks/catalog.py` 的 `FIXED_TASK_IMAGES`（instance → 含 digest 的固定镜像身份），未登记的 instance 一律拒绝。生产 `AGENT_PRESETS` 提供 `codex-0153-terra-medium`、`codex-0153-luna-low` 和 `codex-0153-sol-medium`；它们复用固定 Codex 0.153.0 与 owner ChatGPT 登录身份，实际 owner 目录需逐项登记。`INTERNAL_TEST_AGENT_PRESETS` 只能由显式测试装配使用，不会被 `create_catalog` 注册。领域和数据库允许的两对身份为 `openai_chatgpt/chatgpt_auth_json` 与 `internal_test_fake/provider_run_token`，旧库由 `python -m eval_platform.delivery.catalog upgrade-api-constraints` 显式升级；未知约束形状失败关闭。真实 DeepSeek/Kimi 仍是后续任务，不能用测试身份替代。长期 MinIO 风险由[所有者单机运行](../owner-host-runtime/ARCHITECTURE.md)处理，不改变本 Module 的 ArtifactStore Interface。新增型号的 CLI/账号真实可用性与六题评测结果见[本次行动](../../../actions/2026-09-22-expand-codex-agent-configurations.md)。

@@ -91,10 +91,10 @@ DeepSeek/Kimi 真实 Key 只由评测机所有者在本机可信秘密配置中�
 
 1. **内部测试身份的运行装配已实现。** S9 在 Worker 按冻结 Run 选择绑定；S10 只为恰好一个 `internal_test_fake/provider_run_token` Run 构造固定 provider 后端，并要求本机固定 Codex 包与已核验镜像 ID。Adapter 生成并由入口重新验证精确双网络覆盖，启动 Trial 专属代理/TLS 假上游，使用已有 uploads 目标注入无凭据 config.toml 与短令牌；缺输入、覆盖篡改、代理未就绪或令牌缺失均失败关闭。提交/批准 HTTP 不读 Key。隔离 Registry→批准→Worker→真实 Harbor Adapter 合成链已完成，状态与限制见[S10 行动](../actions/2026-09-22-task05-s10-network-wiring.md)。真实 DeepSeek/Kimi 身份仍未注册。
 2. **策略已实现：私有配置。** `provider_access/private_file.py` 与 `secrets.py` 校验固定 schema、绝对路径、文件类型、大小和平台权限，并在打开后通过文件描述符元数据再次核对以降低路径替换竞态；拒绝原因使用安全错误，不输出路径或内容。真实文件的最终 owner/ACL 部署仍须在所有者机器验收。
-3. **策略已实现：Run 令牌。** `binding.py` 生成、哈希并绑定固定 Run、提供方、模型、截止时间和预算；验证与撤销不把原始令牌写入持久层或日志。固定 CLI 仍可能用 `-c` 覆盖客户端配置，因此真正安全性必须由代理和网络执行，不能只信任 TOML。
+3. **策略与服务已实现：Run 令牌。** `binding.py` 生成随机令牌，并在进程内以原始令牌为键保存固定 Run、提供方、模型、截止时间和预算的绑定；当前没有令牌哈希或持久化账本。服务层可验证与撤销令牌，不向日志输出令牌；跨重启正式生命周期仍未接线。固定 CLI 仍可能用 `-c` 覆盖客户端配置，因此真正安全性必须由代理和网络执行，不能只信任 TOML。
 4. **策略已实现：请求与出站边界。** `request_policy.py`/`transport.py` 只接受固定 Responses 路径、模型和最小 header 集合；客户端认证、`Host`、`Forwarded`、`X-Forwarded-*` 等路由/代理头在任何网络 I/O 前失败关闭。固定测试上游使用不可解析的 `.invalid` 保留域；没有真实 DeepSeek/Kimi endpoint 或协议兼容结论。
 5. **策略已实现：预算。** `budget.py` 在并发请求前原子预留请求/token/金额预算，按可信用量保守结算；用量缺失或超过预留视为不可信并阻止继续新增调用。它当前是进程内策略对象，不是跨重启持久账本或真实账单事实源。
-6. **部分验证：拓扑与生命周期。** T1 的纯 Docker 探针已证；T2 固定 Harbor 最小 Trial 的双网络与活体独立 Compose 目标直连拒绝已实测；“另一目标”不是第二个 Harbor Trial。S10 又实测内部测试身份的产品代理启动/停止、短令牌路径、main 仅 internal、proxy 双网、假上游记录来源为 proxy egress IP，以及按 task+scope 清理残留 0。S11 的崩溃对照、完整五组安全复扫、第二个真实 Harbor Trial、完整工具循环及真实供应商兼容仍未验证。代理故障时必须停止该 Run 的模型访问，不得回退直连或自动续跑。
+6. **部分验证：拓扑与生命周期。** T1 的纯 Docker 探针、服务层流终止/结算/收束/秘密外表面定向测试已完成；T2 固定 Harbor 最小 Trial 的双网络与活体独立 Compose 目标直连拒绝已实测，但“另一目标”不是第二个 Harbor Trial。S10 又实测内部测试身份的产品代理启动/停止、短令牌路径、main 仅 internal、proxy 双网、假上游记录来源为 proxy egress IP，以及按 task+scope 清理残留 0。S11 的崩溃对照、完整五组安全复扫、第二个真实 Harbor Trial、完整工具循环及真实供应商兼容仍未验证。代理故障时必须停止该 Run 的模型访问，不得回退直连或自动续跑。
 
 领域和 PostgreSQL 目前只允许 `openai_chatgpt/chatgpt_auth_json` 与测试专用 `internal_test_fake/provider_run_token` 两个成对身份；生产目录不注册后者。真实 DeepSeek/Kimi 身份留到任务 06/07，在官方事实和安全门禁完成前不得借测试身份提前放行。provider 的受控失败码及公开文案边界见[HTTP 契约第 10.2 节](./HTTP_API.md#102-run-报告)。
 
@@ -197,7 +197,9 @@ DeepSeek/Kimi 真实 Key 只由评测机所有者在本机可信秘密配置中�
 
 当前代码状态已晚于上面的历史假值取证：既有 `HarborExecutionAdapter` 可以由可信本机构造器显式接收固定 Codex 归档和所有者登录文件引用，逐次把完整校验后的离线 bundle 放入该次 0700 原型目录；这两个引用只进入受控 Harbor 子进程环境，不进入 `ExecutionJobRequest`、Harbor Job JSON、公开任务或 Adapter 的 `repr`。`harbor_environment()` 仍不复制同名或其他宿主认证环境变量，缺少任一显式绑定都会失败关闭。
 
-`harbor_entry.py` 现在只接受原 NOP 或唯一固定 Codex 配置 `0.153.0` / `openai/gpt-5.6-terra` / `medium` / Web 关闭；固定配置缺少私有绑定时报 `CODEX_CREDENTIAL_BINDING_NOT_READY`，配置不一致在导入 Harbor/创建容器前拒绝。入口重新核验 bundle manifest 及 8 个文件 SHA-256，再把由闭包绑定的 `GuardedCodex` 注册到固定 `AgentFactory`；路径不写入 Agent kwargs。兼容类只返回显式绑定的普通非符号链接文件，不再读取 ambient API Key/Base URL；未绑定类继续保持原拒绝行为。
+2026-09-07 接线时，`harbor_entry.py` 只接受原 NOP 或唯一固定 Codex 配置 `0.153.0` / `openai/gpt-5.6-terra` / `medium` / Web 关闭；固定配置缺少私有绑定时报 `CODEX_CREDENTIAL_BINDING_NOT_READY`，配置不一致在导入 Harbor/创建容器前拒绝。入口重新核验 bundle manifest 及 8 个文件 SHA-256，再把由闭包绑定的 `GuardedCodex` 注册到固定 `AgentFactory`；路径不写入 Agent kwargs。兼容类只返回显式绑定的普通非符号链接文件，不再读取 ambient API Key/Base URL；未绑定类继续保持原拒绝行为。
+
+2026-09-22 当前运行入口从轻量的 `delivery/agent_presets.py` 精确生成受控配置集合，允许 Terra/medium、Luna/low、Sol/medium 的非空且不重复组合，仍要求相同固定版本、Web 关闭与私有绑定；任意模型或参数依旧在启动前拒绝。两项新配置的实际试跑证据见[本次行动](../actions/2026-09-22-expand-codex-agent-configurations.md)。
 
 生产安装上传到 `/opt/agentexam-codex`，固定 PATH 指向其 `bin` 与 `codex-path`；版本不等于 `0.153.0` 即失败，不调用上游 curl/npm 安装分支。正式任务渲染现在把 Agent 和 collect 都固定为 `65534:65534`，镜像构建时把 `/testbed` 交给同一 UID:GID。一次固定镜像、`network none`、假认证的生产安装契约已验证真实 CLI 版本/帮助、无 curl/npm 回退、非 root 和精确容器清理；另一次完整禁网假认证 success Trial 验证新的生产 UID/PATH 与合成补丁/自然清理协作。后者第一次因测试替身覆盖后才检查版本而失败，调整为覆盖前检查后通过；两次都没有调用模型，不能证明账号、真实 Token 刷新或真实工具链。
 

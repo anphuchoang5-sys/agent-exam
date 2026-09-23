@@ -73,7 +73,7 @@
 | C-16 | Harbor 是带验收退出条件的正式 Execution Backend | 版本由依赖事实源固定；隐藏在 Adapter 后；原型失败时替换为轻量 Process Adapter，不改上层业务 |
 | C-17 | 一个平台评测 Job 映射一个 Harbor Job，一条评测运行映射一个 Harbor Trial | 平台负责业务排队和长期事实；Harbor 负责 Job 内 Trial 执行 |
 | C-18 | 单机同时只执行一个重型平台 Job，Harbor `n_concurrent_trials=1` | Job 中 Trial 顺序执行；不以增加并发换取演示速度 |
-| C-19 | 一个 Job 可选择多个 Agent 和多个任务，首版每组合尝试一次 | 创建前展示 Trial 总数；当前实现仍为演示 1–3 题、快速 5 题、标准 10–20 题及最多 3 个配置；已批准的新提交规模规划见第 3.2 节，尚未实现 |
+| C-19 | 一个 Job 可选择多个 Agent 和多个任务，首版每组合尝试一次 | 提交前展示 Trial 总数；当前服务端提供 `demo` 1–3 题、`quick` 5 题、`standard` 10–20 题及 `continuous` 1–20 题，最多 3 个配置、60 个 Run；旧预设语义保持不变 |
 | C-20 | 正式展示、报告和排行只接受真实执行证据 | Mock 结果必须隔离为 `internal_test`，不能冒充真实 Agent 或进入正式统计 |
 | C-21 | 首个真实端到端原型使用 `SWE-Gym/SWE-Gym-Lite` 的 1～3 道真实任务 | 先验证小而真的闭环；不下载完整 2.4K 任务，也不把 Lite 冒充为最终正式题库范围 |
 | C-22 | 首个真实原型 Agent 使用 Codex，并先由本地脚本运行 | 优先复用 Harbor 内置 Codex Adapter；先证明真实 patch 与判卷闭环，再接 Web/数据库/批准流程，随后扩展 Aider 与 Claude Code |
@@ -311,7 +311,7 @@ runtime/acceptance/m1-task13-20260914-04/              # 与 -03 源码等价的
 
 用户当前优先要求角色化 UI/HTML 原型、至少五道新题，以及 Codex 接入 DeepSeek/Kimi API 的详细计划；业务正文见[扩展规格](../../.scratch/ui-catalog-providers/spec.md)，阶段与停点见[执行计划](../../.scratch/ui-catalog-providers/plan.md)，确认历史见[独立规划行动](../actions/2026-09-17-ui-catalog-provider-planning.md#已确认的产品决定)。用户随后已确认将长期持久化和端口隔离前移为 HTML 原型之后、正式组内使用和真实模型 API 之前的独立 P 阶段，备份恢复后来明确移出课设范围；范围见[持久化规格](../../.scratch/persistence-deferred/spec.md)，当前准备度见[所有者单机模块第 10 节](modules/owner-host-runtime/ARCHITECTURE.md#10-当前代码准备度2026-09-18-实际核对)。任务 14 未完项仍按原行动验收，不能由本次持久化进展视为通过。
 
-展示层调整已复用现有 Web、Job 列表/报告 HTTP 与两角色权限，没有新增 Worker 健康接口。六题目录、`continuous(1–20)` 和跨批次对比已经落地。提供方部分已在现有 Execution Adapter 内形成 S3–S8 纯策略切片：私有配置读取、Run 令牌绑定、预算账本、请求白名单、受控出站构造、失败归一和测试专用假上游；它不新增业务队列、公开 Interface 或数据库表。S2 `provider_config`、`service.py`、S9–S11、T2 及 Worker/Harbor 正式接线仍未实现，秘密生命周期与未完成边界由[认证文档第 4.1 节](../interfaces/CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)维护。
+展示层调整已复用现有 Web、Job 列表/报告 HTTP 与两角色权限，没有新增 Worker 健康接口。六题目录、`continuous(1–20)` 和跨批次对比已经落地。提供方部分已在现有 Execution Adapter 内形成独立策略组件、S2 固定配置渲染及 S6a–S6e 代理服务：私有配置读取、Run 令牌绑定、预算账本、请求白名单、受控出站、流结算和失败归一；S8 的隔离目录切片只允许 `internal_test` 假身份。它不新增业务队列、公开 Interface 或数据库表。S8 真实提供方预设、S9–S11 及 Worker/Harbor 正式接线仍未实现；T2 曾尝试但未测得七条断言。秘密生命周期与未完成边界由[认证文档第 4.1 节](../interfaces/CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)维护。
 
 C-19 的新提交规模现已由 `continuous(1–20)` 实现；旧 Job 冻结内容和旧预设语义保持原值。本次 Codex + 第三方 API 与 C-25/C-28/C-31 的 P2 自研 Python Agent 是不同路径。当前领域和数据库只允许生产 `openai_chatgpt/chatgpt_auth_json` 与显式测试装配的 `internal_test_fake/provider_run_token`；DeepSeek/Kimi 仍属于后续任务 06/07，不能提前登记或真实调用。固定 Codex 的假接口配置请求已有[限定探针证据](../research/2026-09-17-codex-provider-config-and-budget.md#61-固定-cli-配置探针)，真实工具循环与完整代理生命周期仍未验证。
 
@@ -323,14 +323,15 @@ apps/web/src/features/jobs/                      # 已实现：向导、列表�
 apps/backend/src/eval_platform/adapters/tasks/   # 已深化：六题固定集合与公开/隐藏分离
 apps/backend/src/eval_platform/delivery/         # 已深化：受控目录、连续规模及显式迁移入口
 apps/backend/src/eval_platform/adapters/execution/
-├─ codex/                                       # 现有：固定 ChatGPT/Codex 运行保护
-├─ provider_access/                             # 已实现策略切片：私有配置、令牌、预算、请求与失败
+├─ codex/                                       # 现有运行保护；provider_config.py 已实现固定配置渲染
+├─ provider_access/                             # 已实现内部策略：私有配置、令牌、预算、请求与失败
+│  └─ server/                                   # 已实现假上游代理服务：HTTP、出站、流和生命周期
 └─ harbor/                                      # 深化：现有Adapter和生命周期，不新增第二后端
-apps/backend/tests/providers/                   # 已实现：纯策略与 T1 假上游/拓扑门禁
+apps/backend/tests/providers/                   # 已实现：策略、合同、服务生命周期与 T1 拓扑门禁
 apps/web/tests/                                 # 已实现：角色、向导、报告及浏览器回归
 ```
 
-模式仍为 Adapter：当前生产 Worker 组合根→既有 ExecutionBackend→Harbor Adapter→固定 Codex；PatchEvaluator 独立判卷。`provider_access` 是该 Adapter 内部未来代理的策略 Implementation，并未接入上述生产数据流。选择 B 是为了让长期 Key 不进入做题容器；协议桥和新执行链不在范围。未知计量、alias 漂移、瞬时令牌滥用、崩溃残留和 T2 网络隔离仍是必测风险，未验证时不放行真实矩阵。
+模式仍为 Adapter：当前生产 Worker 组合根→既有 ExecutionBackend→Harbor Adapter→固定 Codex；PatchEvaluator 独立判卷。`provider_access` 的策略和代理服务是该 Adapter 的内部 Implementation，尚未接入上述生产数据流。选择 B 是为了让长期 Key 不进入做题容器；协议桥和新执行链不在范围。未知计量、alias 漂移、瞬时令牌滥用、崩溃残留和 T2 网络隔离仍是必测风险，未验证时不放行真实矩阵。
 
 ## 4. 总体架构
 

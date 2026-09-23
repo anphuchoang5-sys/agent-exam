@@ -307,7 +307,7 @@ M0 用本机脚本编排，不实现 Web、PostgreSQL、MinIO、登录或审批�
 
 #### 正式 Codex 入口接线与两次模型前失败（2026-09-07）
 
-上述段落记录当时状态；当前增量已经在既有 Execution Adapter 内接入正式任务 UID/collect、固定离线 CLI/PATH、显式本机认证引用及 `AgentFactory` 注册。`harbor_entry.py` 不再无条件拒绝 Codex，而是只允许 NOP，或同时满足固定 `0.153.0`、`openai/gpt-5.6-terra`、`medium`、Web 关闭和完整私有运行绑定的 Codex；缺失绑定和任意配置漂移都在 Harbor/容器/模型前失败。认证路径与离线输入路径不写入 Job 配置；准确凭据边界以[认证接口的接线小节](./CODEX_AUTHENTICATION.md#正式运行入口接线2026-09-07接线完成时尚未真实调用)及其后的首次真实 Trial 记录为准。
+上述段落记录当时状态；2026-09-07 的增量在既有 Execution Adapter 内接入正式任务 UID/collect、固定离线 CLI/PATH、显式本机认证引用及 `AgentFactory` 注册。当时 `harbor_entry.py` 只允许 NOP，或同时满足固定 `0.153.0`、`openai/gpt-5.6-terra`、`medium`、Web 关闭和完整私有运行绑定的 Codex；缺失绑定和任意配置漂移都在 Harbor/容器/模型前失败。认证路径与离线输入路径不写入 Job 配置；准确凭据边界以[认证接口的接线小节](./CODEX_AUTHENTICATION.md#正式运行入口接线2026-09-07接线完成时尚未真实调用)及其后的首次真实 Trial 记录为准。2026-09-22 当前允许的完整固定配置已扩为 Terra/medium、Luna/low、Sol/medium，唯一配置源与实测状态见[本次行动](../actions/2026-09-22-expand-codex-agent-configurations.md)。
 
 生产 `GuardedCodex.install()` 已用固定摘要镜像、`network none` 和假认证执行：重新核验 bundle 后上传固定目录，以 UID 65534 执行真实 `codex --version` / `exec --help`，且没有 curl/npm 回退；专属容器清理复核为空。完整假认证 success Trial 也在新生产 UID/PATH 下得到合成 patch 并自然清理。默认轻量回归为 190 passed / 19 skipped；这些结果只证明接线和失败关闭，未读取真实登录、未调用模型，也不能替代真实端点、Token 刷新、模型工具链和本次真实 Trial 清理证据。
 
@@ -379,7 +379,7 @@ M1 接 Web、PostgreSQL 和 MinIO，最终验证协作者提交 → 所有者批
 
 2026-09-09 最新安排：用户允许按 Spec 分任务推进 M1 本机开发与内部测试；这不把第 13.1 节剩余项标为通过。进入真实执行或对外验收前仍须完成对应门槛与授权，不因开发许可而自动运行模型、Docker 探针或接受网络/刷新残余风险；恢复入口见 [HANDOFF](../../HANDOFF.md)。
 
-2026-09-13 任务 13 已增加生产 Worker Composition Root，并用正式目录 preset 验证 Harbor 配置：业务身份 `openai_chatgpt` 只在 Adapter 内映射成固定上游名 `openai`，最终仍由 `harbor_entry.validate_agent_mode` 精确接受 `openai/gpt-5.6-terra`、Codex 0.153.0、medium、web disabled。固定归档、认证文件元数据、Harbor/Fork 干净 revision 和任务快照均在领取前核验；没有新增 `ExecutionBackend` 或 `PatchEvaluator` Interface。
+2026-09-13 任务 13 已增加生产 Worker Composition Root，并用当时唯一的正式目录 preset 验证 Harbor 配置：业务身份 `openai_chatgpt` 只在 Adapter 内映射成固定上游名 `openai`，当时由 `harbor_entry.validate_agent_mode` 精确接受 `openai/gpt-5.6-terra`、Codex 0.153.0、medium、web disabled。固定归档、认证文件元数据、Harbor/Fork 干净 revision 和任务快照均在领取前核验；没有新增 `ExecutionBackend` 或 `PatchEvaluator` Interface。
 
 同日无模型证据为：固定 Codex 离线安装/Harbor 复用 `1 passed`，真实 45 秒外层超时及 Compose 精确清理 `1 passed`，专属 PG/MinIO 取消/恢复/制品回归 `135 passed`；一次性编排预检确认 storage/HTTP ready、零 Job、零认证读取、零模型调用和清理完成。首次真实 Run 完成提交/批准并产生 1302 字节 patch，但 composition root 漏传 `LocalArtifactReader`，在固定 Fork 前以 `EVIDENCE_UNAVAILABLE` 失败；`10f0c53`、`3d66230`、`1b8e9ba` 依次补回 reader、修复绝对/相对引用和集中安全校验。第二次获批 Run 在源码等价的 `m1-task13-20260913-02` 中只尝试一次：平台 Job/Run 均为 `COMPLETED`、固定 Fork `resolved=true`，但忽略态验收器误读 Trial 配置并在浏览器前退出。该验证器及浏览器前置门禁经红绿和双轴评审修复后，`m1-task13-20260914-04` 用一次模型尝试、零重试完成正式 Job/Run、固定 Fork、MinIO/PostgreSQL 读回与真实页面报告，最终 `status=passed/phase=complete/cleanup=verified`；patch SHA-256 为 `d5fefec345eb335c9b17d6305037ef47214c56d265f1ca11175c88c90d3ad09d`，submitted/resolved/error=`1/1/0`，独立 Docker 标签查询为空。详细限制见[任务 13 行动](../actions/2026-09-13-m1-local-real-acceptance.md)。
 

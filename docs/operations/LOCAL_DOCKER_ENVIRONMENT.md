@@ -1,9 +1,9 @@
 # 本机 Docker / WSL 运行环境
 
-> 状态：Docker/WSL 历史动态验证保留；2026-09-17 补充容量盘点和持久化准备的限定只读核对
+> 状态：Docker/WSL 历史动态验证保留；2026-09-22 补充五题运行镜像、镜像源和容量核对
 >
-> 最后核验：文件系统元数据、Docker Client/Server 与 Compose 版本 2026-09-17；其他 Docker/WSL 动态值沿用下文注明的历史日期
-> 文档同步：2026-09-17；只读检查不代表服务健康或持久化验收。任务 13 的 `-04` 历史验收不变
+> 最近现场核验：2026-09-22 19:52 +08:00 核对了代理、镜像源、五题固定镜像、专属服务和磁盘余量；Docker/WSL 版本与其他动态值沿用下文注明的历史日期
+> 文档同步：2026-09-22；任务 13 的 `-04` 历史验收不变，五题镜像准备见[本次行动](../actions/2026-09-22-prepare-five-task-runtime-images.md)
 > 权威范围：本机 Docker/WSL 的实际版本、数据位置、资源上限、磁盘余量和验证状态
 
 ## 1. 这份文档解决什么问题
@@ -21,8 +21,9 @@
 | Docker Engine | `27.5.1` | 真正创建和运行容器的后台引擎 |
 | WSL | `2.7.13.0`，WSL2 后端 | 2026-09-06 经用户授权及系统 UAC 确认，官方更新成功 |
 | Docker 容器所见内核 | `6.18.33.2-microsoft-standard-WSL2` | 重启 Docker 后实际生效；Harbor 内核配置前提已通过，非网络隔离验收 |
-| Windows 系统代理 | 已关闭；FlClash 进程仍监听 `127.0.0.1:7890` | 2026-09-06 `ProxyEnable=0`；需要联网的本轮命令仅使用进程级代理，不改变系统设置 |
-| Docker Desktop 代理 | `ProxyHTTPMode=system` | Desktop 读取 Windows 系统代理；Engine 内部显示 `http.docker.internal:3128` |
+| Windows 系统代理 | 2026-09-22 `ProxyEnable=1`；FlClash 监听 `127.0.0.1:7890` | 本次只读核对；此前关闭状态见下文历史验证 |
+| Docker Desktop 代理 | `ProxyHTTPMode=system`，HTTP/HTTPS 覆写均指向本机 `7890` | Desktop Engine 内部代理地址沿用 `http.docker.internal:3128` |
+| Docker Engine 镜像加速源 | 2026-09-22 无 `registry-mirrors` | 原阿里云镜像源在五题构建中返回 403；备份后仅移除该项，固定摘要镜像从原始仓库经现有代理加载 |
 | Docker CLI 容器代理 | `http://http.docker.internal:3128` | 新的 CLI 创建容器/构建自动注入 HTTP(S) 代理；Harbor 动态 Trial 仍须显式映射 |
 | WSL 内存上限 | `10GB` | 所有 WSL2 虚拟机可动态使用的上限，不会启动时立刻占满 |
 | Docker 实际可见内存 | `10,425,643,008` bytes，约 `9.710 GiB` | 2026-09-06 更新/重启后 Engine 动态值；WSL 配置仍为 10 GB |
@@ -32,7 +33,9 @@
 
 Docker Desktop 会在用户选择的 `E:\dockerdata\DockerDesktopWSL` 下再创建自己的 `DockerDesktopWSL` 子目录，所以实际路径多一层。这是 Docker Desktop 保存的真实设置，不是重复迁移。
 
-### 2.1 课设容量只读盘点（2026-09-17）
+### 2.1 课设容量盘点（2026-09-17；2026-09-22 更新）
+
+**2026-09-22 19:52 +08:00 新快照：**五题固定镜像和无模型构建准备后，C/D/E 可用空间分别约 55.18/44.02/4.22 GiB；Docker `system df` 报镜像逻辑占用约 15.25 GB、构建缓存约 2.46 GB。这些数值不等于可安全删除量，也不证明真实评测峰值空间充足；E 盘是当前 Docker 数据盘，后续大批次前需现场核对。镜像源变更和构建实测见[五题运行镜像行动](../actions/2026-09-22-prepare-five-task-runtime-images.md)。
 
 **持久化恢复时的更新快照（21:05 左右，新加坡时间）：** 只运行 `Get-PSDrive -Name D,E` 与目标目录存在性检查，未枚举私人目录或读取正文。D 可用 `37,905,600,512` bytes（约 35.30 GiB），E 可用 `8,254,152,704` bytes（约 7.69 GiB）；`D:\AgentExamData` 不存在。余量变化原因未调查，不推断是谁清理了什么，也不把余量当作增长预算已通过。下表与目录统计为当天较早快照，不作为最新余量。
 

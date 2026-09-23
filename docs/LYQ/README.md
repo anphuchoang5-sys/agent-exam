@@ -5,7 +5,7 @@
 
 本目录归集 **C 模块负责人的开发过程材料**：我负责模块的个人视图、计划、进度日志和问题记录，目的是让开发过程可追溯、便于交接与复盘。
 
-目录结构参照成员 E 已建立的 `docs/LLY/` 约定（该目录只存在于 E 的分支 `upstream/lly/dev`，**不在上游 `main` 上**，需要时用 `git show upstream/lly/dev:docs/LLY/...` 读取）。
+目录结构参照成员 E 已建立的 [`docs/LLY/`](../LLY/) 约定；该目录现已在本仓库 `main` 中，可直接阅读。早期仅能从成员分支读取的说明已过时。
 
 ## 这个目录不放什么（重要）
 
@@ -38,18 +38,16 @@
 ## 当前状态
 
 - 长期 Module：**目录与配置**（Task Catalog 题目目录 + Agent Registry 配置目录）
-- 当前任务 DRI：**任务 04 五道新题入库与 1–20 连续规模**
-- 环境：**本机开发环境已建立**（2026-09-20）——Python 3.13.15 + 便携 PostgreSQL 15.14（`127.0.0.1:55432`）；目录模块测试 37 passed、固定候选机制 5 passed，全量基线 **474 passed / 31 skipped / 0 failed**（本机首次零失败）；`framework/` 三个固定框架源码、Harbor 依赖环境与 SWE-Gym Lite 快照均已就位。见 [`06-environment/LOCAL_SETUP.md`](06-environment/LOCAL_SETUP.md)
-- 状态：**准备阶段，产品开发未开工**。任务 04 尚未发布独立 issue，按项目规则不提前修改后续任务代码
-- 本机可以验证的部分：目录侧一致性、规模侧拒绝边界的核对、目录→options→提交→冻结 Job 的打通。仍需组长机器的部分：五道候选题的三补丁门禁
+- 任务 04 的五道新题已进入六题受控目录，`continuous(1–20)` 已在服务端和向导落地；代码位置、实际验证和剩余边界分别见[目录与配置 Module](../architecture/modules/catalog-and-configuration/ARCHITECTURE.md)、[Job 控制 Module](../architecture/modules/job-control/ARCHITECTURE.md)与[当前交接](../../HANDOFF.md)。本目录原有“准备阶段”“未开工”和测试数量仅代表 2026-09-20 时点，不再作为当前结论。
+- LYQ 本机环境的时点记录见 [`06-environment/LOCAL_SETUP.md`](06-environment/LOCAL_SETUP.md)；运行态、端口与依赖是否仍相同须在那台机器现场核对。
 - 计划书：[`01-plan/PLAN.md`](01-plan/PLAN.md)
-- 未决问题：[`04-issues/KNOWN_ISSUES.md`](04-issues/KNOWN_ISSUES.md)（当前 6 条：ISSUE-02、04 已解决，ISSUE-05 的「重复项」冲突已于 2026-09-20 定案）
+- 问题记录：[`04-issues/KNOWN_ISSUES.md`](04-issues/KNOWN_ISSUES.md)（以记录内时点和状态为准）
 - 协作过程记录：[`05-sessions/2026-09-19_20-collaboration-record.md`](05-sessions/2026-09-19_20-collaboration-record.md)
 - 对应行动记录：[任务 04 行动文档](../actions/2026-09-19-task-04-catalog-candidates-and-scale.md)、[本机环境行动文档](../actions/2026-09-20-local-environment-setup.md)
 
-## 日常 git 操作
+## LYQ 个人 Git 流程记录（2026-09-20 时点）
 
-仓库有两个远端。**`origin` 是我自己的 fork（`Floraluke/agent-exam`），我的代码推到这里**；`upstream` 是团队仓库（`anphuchoang5-sys/agent-exam`），只用来同步别人的最新提交，**不直接往上推**。协作方式是：在 fork 上开发 → 从 fork 向上游提 PR。我个人的工作分支是 `lyq`。
+以下命令只记录 LYQ 当时 fork 工作区的做法，不描述当前 `E:\9.1agent_exam` 的远端或分支。当前工作区须先用 `git remote -v`、`git branch -vv` 和 `git status` 核对；不能把这里的 `origin`、`upstream` 或 `lyq` 直接套用。
 
 ```bash
 git branch                 # 看当前在哪个分支，应该是 lyq

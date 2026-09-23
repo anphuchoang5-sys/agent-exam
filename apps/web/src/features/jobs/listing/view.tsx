@@ -5,7 +5,7 @@ import { ApiError } from "../../../lib/api-client";
 import type { Actor, JobSummary, Page } from "../../../lib/contracts";
 import { JOB_STATUSES } from "../../../lib/contracts";
 import { jobs } from "../../../lib/job-client";
-import { COMPARISON_LIMIT } from "../../../lib/reporting/comparison-shapes";
+import { COMPARISON_LIMIT } from "../../../lib/reporting/comparison-shape";
 import { JOB_STATUS_NAMES } from "./labels";
 
 type Filters = { status: string; mine: boolean };

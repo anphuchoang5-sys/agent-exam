@@ -9,8 +9,8 @@ from eval_platform.adapters.persistence.catalog.tasks import PostgresTaskReposit
 from eval_platform.adapters.tasks.swe_gym import CANDIDATE_INSTANCE_ID, SWEGymTaskSource
 from eval_platform.application.agent_registry import AgentRegistry
 from eval_platform.application.task_catalog import TaskCatalog
+from eval_platform.delivery.agent_presets import AGENT_PRESETS
 from eval_platform.domain.agent import (
-    CHATGPT_CREDENTIAL_ID,
     INTERNAL_TEST_AUTHENTICATION,
     INTERNAL_TEST_CREDENTIAL_ID,
     INTERNAL_TEST_MODEL,
@@ -29,23 +29,6 @@ TASK_PRESETS = {
     "swe-gym-lite-mypy-15208": "python__mypy-15208",
     "swe-gym-lite-mypy-15876": "python__mypy-15876",
 }
-AGENT_PRESETS = {
-    "codex-0153-terra-medium": (
-        "Codex 0.153.0 / gpt-5.6-terra / medium",
-        AgentConfiguration(
-            "codex-0153-terra-medium",
-            "codex",
-            "0.153.0",
-            "openai_chatgpt",
-            "gpt-5.6-terra",
-            "chatgpt_auth_json",
-            CHATGPT_CREDENTIAL_ID,
-            {"reasoning_effort": "medium"},
-        ),
-    ),
-}
-
-
 # Only ever passed in by an internal_test deployment (owner machine runbook, or a test):
 # production wiring uses AGENT_PRESETS above, which must not contain a fake provider.
 INTERNAL_TEST_AGENT_PRESETS = {

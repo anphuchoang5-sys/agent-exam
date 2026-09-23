@@ -183,4 +183,3 @@ docker save harbor-prebuilt:harbor-docker-egress-control-sidecar--f57c86fb490650
 **第二步：跑最小 T2（走探针 + 上面的两行适配）**，形态、断言与回报要求仍以 附三 为准。改变有两处：① **适配必须由探针显式携带**（这是唯一可行路径——见上）；② 报告里写明"本轮经探针携带适配，未走产品入口，原因是产品入口按 `HARBOR_NETWORK_CONFIG_INVALID` 拒绝自定义 compose"。携带适配后侧车镜像的内容哈希会变、会重新构建一次（Harbor 的正常行为，不是重建 `framework/harbor`），拆除时 `--rmi local` 会清掉它——**前后镜像清单若出现这一处新增+移除，属预期，照实记录即可**。
 
 > 本轮改动只纠正路径与收敛诊断命令；未见任何断言或判定标准被改动。
-

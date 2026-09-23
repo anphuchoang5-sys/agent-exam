@@ -58,5 +58,4 @@ bash t2-assertions.sh        # 期望 status=verified，退出码 0
 
 `T05_OTHER_TRIAL_HOST` 若没有对应的**活体**目标，`CLOSED` 只能表示该名称不可达，不能证明两个 Trial 实体之间的网络隔离；完整验收须另做带活体目标的对照并记录其身份与网络。
 
-负责人机器已经在固定 Harbor 上实际执行过 T2，结果与未验证项以[行动记录](../../../../../docs/actions/2026-09-22-task05-t2-response-measurement.md)为准；不因 T1 或独立诊断成功而推断 T2 通过。
-
+固定 Harbor 上已经实际执行过 T2；最新结果、活体对照与仍未验证项以[进度日志](../../../../../docs/LLY/03-progress/PROGRESS_LOG.md)指向的行动记录为准，不因 T1 或独立诊断成功而外推完整 T2/S11 结论。没有固定 Harbor 或 Docker 的机器只能做语法/离线区分力检查，不能把它写成运行验收。

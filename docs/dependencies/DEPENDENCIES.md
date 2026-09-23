@@ -38,7 +38,7 @@
 | Aider CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | Claude Code CLI | Codex MVP 之后的已知 Agent | 待确认 | 否 | 已确认在 Codex 平台闭环后接入；尚未安装或固定版本，不阻塞 MVP |
 | 本地自研 Agent | P2 扩展 Agent | 待实现 | 是，由提交者固定 Git commit 提交，审核后登记 | 只保留扩展接缝；P2 首版只支持 Python 和固定进程 Interface，完整 manifest、Python 版本、依赖锁格式与 Harbor 包装不阻塞 MVP |
-| DeepSeek / Kimi 模型接口 | 新增 Codex API 规划；P2 自研 Agent 仍另行延期 | 候选 alias 见历史研究；不是当前生产配置或不可变版本 | 否 | S3–S8 的假上游策略切片与 T1 已验证；真实身份、endpoint、工具循环、代理服务、T2、计量和账号资格均未验收 |
+| DeepSeek / Kimi 模型接口 | 新增 Codex API 规划；P2 自研 Agent 仍另行延期 | 候选 alias 见历史研究；不是当前生产配置或不可变版本 | 否 | 策略、S2 配置渲染、S6 假上游代理服务、`internal_test` 身份与 T1 已有实现/验证；真实身份、endpoint、工具循环、正式服务装配、T2、真实计量和账号资格均未验收 |
 
 “待确认”不等于推荐使用最新版；在版本被确认并写入本文件前，不得把本机偶然安装的版本当成团队基线。
 

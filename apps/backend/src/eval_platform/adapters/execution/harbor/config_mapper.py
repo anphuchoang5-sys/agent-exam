@@ -52,7 +52,7 @@ def build_job_plan(
     combinations: dict[tuple[str, str], str] = {}
     for run in request.runs:
         fingerprint = run.agent.fingerprint
-        agents.setdefault(fingerprint, _map_agent(run.agent))
+        agents.setdefault(fingerprint, map_codex_agent(run.agent))
         task_dir = task_dirs.get(run.task.instance_id)
         if task_dir is None:
             raise ValueError(f"No rendered Harbor task for {run.task.instance_id}")
@@ -98,7 +98,7 @@ def build_job_plan(
     return HarborJobPlan(config=config, bindings=bindings)
 
 
-def _map_agent(agent: AgentConfiguration) -> dict[str, Any]:
+def map_codex_agent(agent: AgentConfiguration) -> dict[str, Any]:
     if agent.agent_name != "codex":
         raise ValueError("M0 only permits the registered Codex Agent")
     allowed = {"reasoning_effort"}

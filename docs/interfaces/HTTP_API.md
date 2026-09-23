@@ -266,7 +266,7 @@ M1 的 `review_status` 使用既有 `NOT_REQUIRED`，不产生虚假的待复核
 
 任务 03 已实现：任务与配置端点、生产存储组装、真实集成和 Web 目录流程已有验证。所有端点要求有效登录；沿用第 3 节同源写检查、no-store 与空 details 安全错误。ID/游标采用不透明 UUID 字符串，分页按 ID 稳定排序，不承诺跨页快照一致。无效格式为 422；未知预置为 400 INVALID_REQUEST；固定身份内容冲突为 409 CATALOG_CONFLICT；对象缺失/损坏或依赖故障为 503 DEPENDENCY_UNAVAILABLE，不回显对象键、连接、SDK 异常或原始数据。
 
-已批准的 `POST /api/v1/tasks/register` 仅 owner 可调用；正文仅 `{"preset_id":"swe-gym-lite-mypy-15413"}`，拒绝额外字段。成功或同内容重入均为 201 TaskDetail，重入保留原 task_id；普通用户不能上传任务 JSON、命令、镜像或来源路径。正式 preset 复用现有固定单题，不代表整个题库可执行。合成测试使用独立 preset 和数据，不能进入正式目录。
+`POST /api/v1/tasks/register` 仅 owner 可调用；正文只接受一个固定 `preset_id`，拒绝额外字段。当前受控生产集合为旧题 `swe-gym-lite-mypy-15413` 与五道经三补丁门禁的 `swe-gym-lite-mypy-15131`、`swe-gym-lite-mypy-15139`、`swe-gym-lite-mypy-15184`、`swe-gym-lite-mypy-15208`、`swe-gym-lite-mypy-15876`；实际身份和镜像以 `delivery/catalog_presets.py`、`adapters/tasks/catalog.py` 为准。成功或同内容重入均为 201 TaskDetail，重入保留原 task_id；普通用户不能上传任务 JSON、命令、镜像或来源路径。网页 owner 目录的单个“登记已核验题目”按钮目前仍只发送旧题 preset；新题可经同一 owner HTTP 端点登记，登记后由目录和提交向导读取。合成测试使用独立 preset 和数据，不能进入正式目录。
 
 ### 5.1 查询任务列表
 
@@ -322,7 +322,7 @@ M1 的 `review_status` 使用既有 `NOT_REQUIRED`，不产生虚假的待复核
 
 登记/修改 Agent 配置属于 `owner` 流程；协作者只能选择项目已经登记并启用的配置。
 
-任务 03 已落地的管理切片：`POST /api/v1/agent-configurations` 仅 owner 接受 `{"preset_id":"codex-0153-terra-medium"}`，不接受其他字段；201 返回配置详情，同指纹重入仍返回原记录。`POST /api/v1/agent-configurations/{configuration_id}/disable` 仅 owner，正文无或空对象，成功 204；重复禁用幂等、不删除历史、重新登记不恢复启用。详情的 public_options 当前仅 reasoning_effort，limit_profile_id 未绑定时为 null。未知预置、身份冲突、依赖失败沿用第 5 节目录错误，缺失配置为 404 AGENT_CONFIGURATION_NOT_FOUND。列表/详情不返回凭据逻辑引用，原始快照也没有下载端点。
+任务 03 已落地的管理切片：`POST /api/v1/agent-configurations` 仅 owner 接受一个 `preset_id` 字段；当前生产固定值由 `delivery/agent_presets.py` 的 `AGENT_PRESETS` 维护，分别为 `codex-0153-terra-medium`、`codex-0153-luna-low`、`codex-0153-sol-medium`。其他字段及未知预置拒绝；201 返回配置详情，同指纹重入仍返回原记录。`POST /api/v1/agent-configurations/{configuration_id}/disable` 仅 owner，正文无或空对象，成功 204；重复禁用幂等、不删除历史、重新登记不恢复启用。详情的 public_options 当前仅 reasoning_effort，limit_profile_id 未绑定时为 null。身份冲突、依赖失败沿用第 5 节目录错误，缺失配置为 404 AGENT_CONFIGURATION_NOT_FOUND。列表/详情不返回凭据逻辑引用，原始快照也没有下载端点。
 
 两类目录列表均拒绝未知或重复 query 字段（400 INVALID_REQUEST），字段/UUID 格式和数值边界错误为 422。配置列表 agent_type 仅 codex；未知类型拒绝，合法筛选无匹配返回空列表。`model_provider` 是第 4.2 节的受控集合，列表与详情都按记录如实呈现；受控 API 预设 `internal-test-provider-proxy` 只在 `internal_test` 装配下登记，出现时其 `model_provider` 为 `internal_test_fake`。
 
