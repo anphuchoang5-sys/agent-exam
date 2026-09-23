@@ -2,9 +2,9 @@
 
 ## 状态与情况说明
 
-状态：In progress（2026-09-22）。
+状态：Completed（2026-09-23）。
 
-来源请求：在已推送的 `agent+api` 分支上扩展 Agent 配置，新增 `gpt-5.6-luna / low` 与 Sol 中等推理配置，并允许消耗额度进行全量测试。用户已确认第二项的准确模型 ID 为 `gpt-5.6-sol / medium`，不使用不存在的 `gpt-5.5-sol`。OpenAI 官方 [Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)、[Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) 文档支持对应模型和推理档位；账号在固定 Codex CLI 及本机 ChatGPT 登录下的实际可用性仍待实测。
+来源请求：在已推送的 `agent+api` 分支上扩展 Agent 配置，新增 `gpt-5.6-luna / low` 与 Sol 中等推理配置，并允许消耗额度进行全量测试。用户已确认第二项的准确模型 ID 为 `gpt-5.6-sol / medium`，不使用不存在的 `gpt-5.5-sol`。OpenAI 官方 [Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)、[Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol) 文档支持对应模型和推理档位；本机固定 Codex CLI、owner 目录和网页选择的实际结果记录在下文。
 
 任务开始前事实：生产 `AGENT_PRESETS` 只有 Terra/medium；`AgentRegistry` 已支持受控预置登记，Job 会冻结配置并映射至固定 Harbor/Codex；Web 的登记按钮和客户端写死旧预置。正式执行使用 owner 的 `chatgpt_auth_json`，本任务不改认证身份、数据库结构、公开路由、提供方代理或资源上限。运行目录已有六题，磁盘余量和完整 Trial 能否承载须在实际运行前复查。已结束行动记录作为历史档案不反向修改。
 
@@ -83,4 +83,5 @@ runtime/prototype/agent-presets-20260922/                             # 忽略�
 - 2026-09-23 续查当前 owner 目录仍只有启用的 Terra/medium；交互脚本尚未运行。准备投入使用前发现脚本把 POST 响应的 `agent_configuration_id` 误当成预置 ID 比较，而 `AgentRegistry.register` 实际生成 UUID；这会在首项成功登记后误报失败并停止第二项。已改为检查响应 UUID、模型、版本、提供方、推理档位及启用状态，按 UUID 核对 GET 列表中两条不同记录。PowerShell 语法解析、独立 UUID 查找表达式和浏览器脚本 Node 语法检查通过；生产预置 HTTP 回归新增响应 UUID 与目录列表同 ID 断言后 **5 passed**，Ruff 全量检查和 348 文件格式门禁通过。尚未用 owner 凭据实跑，不能把这些检查当作真实登记通过。
 - 2026-09-23 owner 通过现有登录和登记 API 实跑交互脚本：Luna/low 与 Sol/medium 均返回 201，响应身份检查及按返回 UUID 的目录回查通过。随后只读查询当前 PostgreSQL，确认 Terra/medium、Luna/low、Sol/medium 三条记录均启用且模型、推理档位正确。浏览器自动核对在 `browser_verify` 阶段失败，因此当前只把后端 owner 目录登记记为通过，不能把真实网页选择记为通过；未提交正式 Job。临时浏览器脚本已增加不含凭据的步骤名和 API 状态诊断，待 owner 再次在本人终端运行后定位并完成最后验收。
 - 用户明确确认远端目的地为 `https://github.com/anphuchoang5-sys/agent-exam.git` 的 `agent+api` 分支。推送前 `git fetch` 核对远端仍为 `2381480` 且是本地 `f757d2e` 的祖先，随后快进推送 `2381480..f757d2e` 成功；三个原有未跟踪临时产物未提交。
-- 推送后按用户要求重启全部当前组件。停止前项目确实在运行，数据库 `QUEUED=0`、活动 Job=0；正式停止脚本先让旧 Worker 停领并退出，再停止专属 PostgreSQL/MinIO。已核实属于当前工作区的旧 Web/API 进程树按精确 PID 结束，旧 PID 复查均不存在，3000/8000/55432/59000 曾全部释放。随后正式启动脚本恢复 PostgreSQL/MinIO，并启动当前分支的 Backend、Web 与一棵 Worker 父子链。重启后 Web `/` 和 Backend `/openapi.json` 均为 200，经 Web 转发的匿名 `/api/v1/auth/me` 为预期 401；私有 HTTPS 为 200且仍代理 `127.0.0.1:3000`，数据库私有转发仍指向 `127.0.0.1:55432`。主库保持 4 个 Job、8 个 Run、3 个启用 Agent，排队和活动 Job 均为 0；Worker stderr 与 Web stderr 为空，Backend stderr 只有正常 Uvicorn 启动信息。浏览器 owner 选择验收仍须凭据脚本再次实跑，不能由本次无会话健康检查替代。
+- 推送后按用户要求重启全部当前组件。停止前项目确实在运行，数据库 `QUEUED=0`、活动 Job=0；正式停止脚本先让旧 Worker 停领并退出，再停止专属 PostgreSQL/MinIO。已核实属于当前工作区的旧 Web/API 进程树按精确 PID 结束，旧 PID 复查均不存在，3000/8000/55432/59000 曾全部释放。随后正式启动脚本恢复 PostgreSQL/MinIO，并启动当前分支的 Backend、Web 与一棵 Worker 父子链。重启后 Web `/` 和 Backend `/openapi.json` 均为 200，经 Web 转发的匿名 `/api/v1/auth/me` 为预期 401；私有 HTTPS 为 200且仍代理 `127.0.0.1:3000`，数据库私有转发仍指向 `127.0.0.1:55432`。主库保持 4 个 Job、8 个 Run、3 个启用 Agent，排队和活动 Job 均为 0；Worker stderr 与 Web stderr 为空，Backend stderr 只有正常 Uvicorn 启动信息。当时浏览器 owner 选择验收仍待凭据脚本实跑，不能由无会话健康检查替代。
+- 最终 owner 交互验收完成。诊断过程中，标准用户无头 Chrome 访问私有 HTTPS 曾在 API 请求前得到 `ERR_CONNECTION_CLOSED`；私有 HTTPS 的独立请求仍为 200。临时脚本改为加载本机真实 Web，并只在内存中把页面 API 请求转发到真实 Backend；随后发现向导仍停在第一步，补齐“选一道题→下一步”后再实际勾选两项配置。最终结果文件为 `state=completed`、`stage=done`、两项 `registered` 与 `verified`、`ui_verified=true`、`error=null`；终端输出 **`UI_OK: registered=2 selectable=2 selected=2 submitted=0`**。这证明 Luna/low 与 Sol/medium 已进入当前 owner 目录、在配置目录可选，并在新建评测第二步实际选中；没有进入提交步骤、没有创建正式 Job。临时脚本和结果均在 Git 忽略目录中，不含保存的凭据。
