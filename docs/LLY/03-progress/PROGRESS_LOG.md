@@ -73,7 +73,8 @@
 
 - **任务 05：T2、S9、S10、S11 全部完成，九项验收已逐条对账并勾选**（任务单状态转 `ready-for-human`）。S11 在同一轮完成五组正反对照 + 六条挂账项：两个**并发** Harbor Trial 各自独立 internal/egress 且互不可达（补上 T2 的残留边界）；固定 Fork 独立判卷（wrong 场景：补丁应用成功、`resolved=false`、记录 FAIL_TO_PASS）；`provider_config.py` 的五个裸 `ValueError` 收口为受控码；gzip SSE 在真实 HTTP 栈中解码并按上游 usage 结算、未知/损坏编码失败关闭；Windows trajectory 竞态修复（两个 Run 均 trajectory=true）；旧 ChatGPT 合成链 + 隔离 PG/MinIO 回归。统一入口 `verify.ps1` 最终 `status=verified`，五组残留均为空。实现提交 `18797b0`。
 - **本机验收侧复核（2026-09-23）**：`ruff check` 通过、`ruff format --check` **375 文件**、`mypy` **195 源文件**无问题；默认回归 **690 passed / 106 skipped / 2 failed**；显式 PG 全量 **745 passed / 51 skipped / 2 failed（0 error）**——失败项均为本机缺 `framework/harbor` 的 ISSUE-04。**一处环境事实**：本轮首跑 PG 全量出现 63 个 `ConnectionTimeout` error，根因是本机便携 PostgreSQL 已停止（符合“不注册服务、重启后不自启”），按环境文档启动后 0 error；未改动任何数据库配置。
-- **下一步（任务 05 之外）**：① 把 `lly/dev` 合入 `main`（S10/S11 尚未进 main）；② 06（DeepSeek）/ 07（Kimi）需**真实 Key 与单独的真实调用授权**，且各自要重新核验官方型号/地区/额度/价格；③ 08 需要 03、04、06、07 验收；④ B 侧一件小事：`PROVIDER_UPSTREAM_FAILED` 已是公开受控码但未列入 `HTTP_API.md` §10.2。
+- **已合入 `main`（2026-09-23）**：PR #41 合并为 `f1f97b5`，`main` 已含 S10/S11 与本次验收对账；本机 `lly/dev` 快进到同一提交，**树的哈希与合并前完全一致**（合并未带入其他改动，故本机此前的实测数字继续适用）；合并后复核：`ruff`/`format`(375 文件)/`mypy`(195 源文件) 全绿、默认回归 690 passed / 106 skipped / 2 failed（失败项仍是缺 `framework/harbor` 的 ISSUE-04）。
+- **下一步（任务 05 之外）**：① 06（DeepSeek）/ 07（Kimi）需**真实 Key 与单独的真实调用授权**，且各自要重新核验官方型号/地区/额度/价格；③ 08 需要 03、04、06、07 验收；④ B 侧一件小事：`PROVIDER_UPSTREAM_FAILED` 已是公开受控码但未列入 `HTTP_API.md` §10.2。
 - **当时的推送状态（历史）**：合并提交 `b8bbc0b` 与后续适配提交在该窗口准备推送；此句不代表实时远端状态，最新状态以本轮 Git 核对为准。
 
 ### 核心诊断修复后对账（来自 `origin/main` 的加固分支，合并时保留）
