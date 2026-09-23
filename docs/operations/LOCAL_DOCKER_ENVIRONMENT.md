@@ -232,9 +232,9 @@ docker run --rm --network none busybox:latest sh -c 'test -x /bin/sh && echo doc
 
 ### 7.4 Docker Desktop 数据盘迁回 D 盘（2026-09-23）
 
-当前本机 Docker Desktop WSL 数据根为 `D:\dockerdata\DockerDesktopData`。迁移在 Docker 与全部 WSL 实例停止时执行：完整复制 E 盘源目录，比较两个 VHDX 的长度与 SHA-256 一致后，才原子替换 `%APPDATA%\Docker\settings-store.json` 的 `CustomWslDistroDir`；迁移前设置备份保留在同一 Docker 配置目录。Docker 27.5.1 已从 D 盘启动，六道题镜像、Harbor 侧车、22 个容器与 16 个卷仍可见；项目 PostgreSQL、MinIO、Web、后端和 Worker 已恢复，数据库活动 Job 为 0。完整复制与验证证据见[迁移行动](../actions/runtime/2026-09-23-docker-data-migration.md)。
+当前本机 Docker Desktop WSL 数据根为 `D:\dockerdata\DockerDesktopData`。第一阶段在 Docker 与全部 WSL 实例停止时完整复制 E 盘源目录，比较两个 VHDX 的长度与 SHA-256 一致后，原子替换 `%APPDATA%\Docker\settings-store.json` 的 `CustomWslDistroDir`；迁移前设置备份保留在同一 Docker 配置目录。该阶段完成了 `disk\docker_data.vhdx` 数据盘切换，但后续删除检查发现 `docker-desktop` 的 WSL 注册路径仍指向 E 盘 `main\ext4.vhdx`。完整复制和首次验证证据见[第一阶段迁移行动](../actions/runtime/2026-09-23-docker-data-migration.md)。
 
-旧 `E:\dockerdata\DockerDesktopWSL\DockerDesktopWSL` 当前只是未再写入的回退副本，仍约占 26.76 GiB；Codex 遵守 owner 的删除边界没有移除它。owner 确认当前 D 盘运行结果后可手动删除该**精确目录**，不得删除其父目录 `E:\dockerdata\DockerDesktopWSL`，也不得触碰 D 盘既有 `D:\dockerdata\DockerDesktopWSL\oslab-ubuntu-noble.tar`。迁移后、删除旧副本前，D/E 盘空闲分别约 19.24/4.46 GiB。
+第二阶段在 Docker、`docker-desktop` 与项目均停止、活动 Job 为 0 时，使用 WSL 2.7.13 官方 `wsl --manage docker-desktop --move` 把启动盘迁到 `D:\dockerdata\DockerDesktopData\main`。迁移后 WSL `BasePath` 指向该 D 盘目录；Docker Engine 27.5.1 可见原 107 个镜像、22 个容器，AgentExam PostgreSQL、MinIO、Web、后端和 Worker 已恢复。旧 `E:\dockerdata\DockerDesktopWSL` 目录树现在不含文件，owner 可手动删除该**精确目录**；不得删除整个 `E:\dockerdata`，也不得触碰 `D:\dockerdata\DockerDesktopWSL\oslab-ubuntu-noble.tar`。D 盘另保留迁移前的 114 MiB 快照 `D:\dockerdata\DockerDesktopData\main-before-official-wsl-move-20260923`，确认稳定后可由 owner 手动删除。补充迁移和验证证据见[第二阶段行动](../actions/runtime/2026-09-23-docker-wsl-runtime-move.md)。
 
 ## 8. 尚未验证
 
