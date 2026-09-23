@@ -13,6 +13,7 @@ from eval_platform.domain.agent import (
     CHATGPT_CREDENTIAL_ID,
     INTERNAL_TEST_AUTHENTICATION,
     INTERNAL_TEST_CREDENTIAL_ID,
+    INTERNAL_TEST_MODEL,
     INTERNAL_TEST_PROVIDER,
     AgentConfiguration,
 )
@@ -55,7 +56,7 @@ INTERNAL_TEST_AGENT_PRESETS = {
             "codex",
             "0.153.0",
             INTERNAL_TEST_PROVIDER,
-            "deepseek-flash",
+            INTERNAL_TEST_MODEL,
             INTERNAL_TEST_AUTHENTICATION,
             INTERNAL_TEST_CREDENTIAL_ID,
             {"reasoning_effort": "medium"},

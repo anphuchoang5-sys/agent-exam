@@ -1,6 +1,6 @@
 # 执行与判卷 Module
 
-> 当前状态：固定 Codex → Harbor → patch → 固定 SWE-Bench-Fork 的真实单题核心闭环已通过；M1 任务 13 又把正式 Job/Run、持久化与 Worker 接到该链路。任务 05 的 T2 最小 Harbor 拓扑含活体独立网络替身已实测；S9 在 Worker 中按冻结 Run 选择受控身份与非秘密凭据引用，代理路由在 S10 接线前明确失败关闭。双 Harbor Trial、完整安全/生命周期和真实新提供方仍未完成。
+> 当前状态：固定 Codex → Harbor → patch → 固定 SWE-Bench-Fork 的真实单题核心闭环已通过；M1 任务 13 又把正式 Job/Run、持久化与 Worker 接到该链路。任务 05 的 T2 最小 Harbor 拓扑含活体独立网络替身已实测；S9 在 Worker 中按冻结 Run 选择受控身份与非秘密凭据引用。S10 已把受控假提供方的单 Run 双网络、代理生命周期、无凭据 config 与短令牌注入接到正式 Worker/Harbor 路径，并用隔离 Registry→批准→Worker→Harbor 合成链验收。S11 五组完整对照、第二个真实 Harbor Trial 和真实新提供方仍未完成。
 > 权威范围：Worker 如何把冻结 Run 交给执行后端和独立判卷器；外部框架和认证细节仍由专题 Interface 维护。
 
 ## 1. 职责与非职责
@@ -43,12 +43,14 @@ apps/backend/src/eval_platform/
     codex/install.py                       # 固定离线 CLI 校验与安装
     codex/policy.py                        # 非 root、命令和运行策略
     codex/uploads.py                       # 受限私有认证输入传递
+    codex/provider_config.py / provider.py # 固定代理入口 TOML、文件式短令牌与受守卫 provider Codex
     provider_access/                       # 任务 05 内部策略切片，不是独立业务 Module
       binding.py                           # Run 短令牌、固定身份和撤销
       budget.py                            # 并发预留、保守结算和超额失败关闭
       failures.py                          # 单一受控提供方失败码/异常
       private_file.py / secrets.py         # 私有配置 schema、权限和竞态防护
       request_policy.py / transport.py     # 最小路径/模型/header 允许集合与固定出站请求
+      net/topology.py / gate.py / runtime.py # S10 固定双网络、精确覆盖门禁与 Run 私有输入生命周期
     network.py                             # 固定 Harbor 侧车网络策略副本适配
     preflight.py                           # 外部输入身份与运行前门禁
     redaction.py                           # 执行诊断的受限错误归一化
@@ -57,8 +59,8 @@ apps/backend/src/eval_platform/
     process.py / fork_entry.py             # 有界独立判卷进程和入口
     result_mapper.py / result_validation.py # Fork report 校验 → DeterministicResult
   delivery/worker/
-    bindings.py                            # 冻结 Run 身份/profile → ChatGPT 或待接线代理路由；错配失败关闭
-    runtime.py                             # 正式 owner 本机 Worker Composition Root；ChatGPT 绑定按需校验
+    bindings.py                            # 冻结 Run 身份/profile → ChatGPT 或需显式工厂的单 Run 代理路由；错配失败关闭
+    runtime.py                             # 正式 owner 本机 Worker Composition Root；按固定本机输入构造 ChatGPT/provider 后端
     main.py                                # 一次 claim 后委托 JobExecutor 的薄 shell
 framework/
   harbor/                                  # 固定 revision 的外部执行框架源码/环境
@@ -82,7 +84,7 @@ PostgreSQL claim 冻结 Job
 
 Worker 只从 owner 本机绝对路径读取固定 framework、数据集、Codex 归档和认证引用；这些秘密路径不进入 Job、HTTP、PostgreSQL 或 MinIO。
 
-当前 Worker 会逐 Run 检查冻结的身份对与 `credential_configuration_id`，只在所有 Run 都选中 ChatGPT 时才校验 owner 的 Codex 归档/认证并构造原 Harbor Adapter；任一 Run 选中受控代理路由，就在启动 Harbor 前报 `PROVIDER_RUNTIME_NOT_READY`，不读取 ChatGPT 认证、不回退到 ChatGPT。身份对与非秘密 profile ID 以 `domain/agent.py` 为准，目录预设引用同一常量。`provider_access` 策略内部已有越权 header/path/model 拒绝、Run 令牌与保守预算等实现，固定测试上游仍用 `.invalid` 保留域；S10 的代理执行、双网络生命周期与令牌接线尚未实现。T2 只证明固定 Harbor 最小探针形态，不等于生产路径已接通；真实 DeepSeek/Kimi 请求仍不在当前能力内。
+当前 Worker 会逐 Run 检查冻结的身份对与 `credential_configuration_id`：ChatGPT 路由按需校验 owner 的 Codex 归档/认证；恰好一个受控代理 Run 且本机同时配置固定 Codex 包与已核验 provider 镜像 ID 时，构造 provider Harbor Adapter。缺工厂、缺固定输入或混合 Job 在 Harbor 前报 `PROVIDER_RUNTIME_NOT_READY`，不读取 ChatGPT 认证、不回退到 ChatGPT。身份对与非秘密 profile ID 以 `domain/agent.py` 为准，目录预设引用同一常量。provider Adapter 为该 Run 生成精确 Compose 覆盖和无密钥清单，入口重新验证后才注册受守卫 provider Codex；短令牌从代理私有 tmpfs 经 Compose stdout/Worker 内存取得，再经 stdin 写入做题侧 tmpfs，结束删除私有占位并由 Harbor 删除 Trial 项目。固定测试上游仍用 `.invalid` 保留域；这条能力只注册内部测试身份，真实 DeepSeek/Kimi 请求仍不在当前能力内。S10 的隔离正式合成链证据见[行动记录](../../../actions/2026-09-22-task05-s10-network-wiring.md)。
 
 ## 5. 模式、依赖和深度
 

@@ -27,6 +27,9 @@ from eval_platform.adapters.execution.harbor_entry import (
     harbor_environment,
 )
 from eval_platform.adapters.execution.network import validate_hosts
+from eval_platform.adapters.execution.provider_access.net.runtime import (
+    ProviderRuntimePlan,
+)
 from eval_platform.adapters.tasks.swe_gym import render_harbor_task
 from eval_platform.application.ports.execution import (
     ExecutionJobRequest,
@@ -48,10 +51,14 @@ class HarborExecutionAdapter:
     network_hosts: tuple[str, ...] = ()
     codex_archive: Path | None = field(default=None, repr=False)
     codex_auth_path: Path | None = field(default=None, repr=False)
+    provider_image_id: str | None = None
 
     def __post_init__(self) -> None:
         validate_hosts(self.network_hosts)
-        if (self.codex_archive is None) != (self.codex_auth_path is None):
+        if self.provider_image_id is not None:
+            if self.codex_archive is None or self.codex_auth_path is not None:
+                raise ValueError("PROVIDER_RUNTIME_BINDING_INCOMPLETE")
+        elif (self.codex_archive is None) != (self.codex_auth_path is None):
             raise ValueError("CODEX_RUNTIME_BINDING_INCOMPLETE")
         if not self.harbor_executable.is_file() or self.harbor_executable.is_symlink():
             raise FileNotFoundError("The fixed Harbor executable is unavailable")
@@ -70,30 +77,49 @@ class HarborExecutionAdapter:
                 f"Refusing to overwrite execution evidence: {run_root}"
             )
         run_root.mkdir(parents=True, mode=0o700)
-        bundle_root = None
-        if self.codex_archive is not None:
-            bundle_root = run_root / "codex-input"
-            prepare_codex_bundle(self.codex_archive, bundle_root)
-        task_dirs = self._render_tasks(request, run_root / "tasks")
-        plan = build_job_plan(
-            request,
-            jobs_dir=run_root / "jobs",
-            task_dirs=task_dirs,
-            network_hosts=self.network_hosts,
-        )
-        config_path = run_root / "harbor-config.json"
-        config_path.write_text(
-            json.dumps(plan.config, indent=2, sort_keys=True),
-            encoding="utf-8",
-            newline="\n",
-        )
-        control = None
-        if progress is not None:
-            control = run_root / "trial-control"
-            control.mkdir(mode=0o700)
-        return self._run(
-            plan, request, run_root, config_path, bundle_root, progress, control
-        )
+        provider = None
+        try:
+            bundle_root = None
+            if self.codex_archive is not None:
+                bundle_root = run_root / "codex-input"
+                prepare_codex_bundle(self.codex_archive, bundle_root)
+            if self.provider_image_id is not None:
+                provider = ProviderRuntimePlan.create(
+                    request, run_root, self.provider_image_id
+                )
+            task_dirs = self._render_tasks(request, run_root / "tasks")
+            plan = build_job_plan(
+                request,
+                jobs_dir=run_root / "jobs",
+                task_dirs=task_dirs,
+                network_hosts=self.network_hosts,
+            )
+            if provider is not None:
+                provider.apply(plan.config)
+            config_path = run_root / "harbor-config.json"
+            config_path.write_text(
+                json.dumps(plan.config, indent=2, sort_keys=True),
+                encoding="utf-8",
+                newline="\n",
+            )
+            control = None
+            if progress is not None:
+                control = run_root / "trial-control"
+                control.mkdir(mode=0o700)
+            auth = provider.auth_placeholder if provider else self.codex_auth_path
+            return self._run(
+                plan,
+                request,
+                run_root,
+                config_path,
+                bundle_root,
+                auth,
+                progress,
+                control,
+            )
+        finally:
+            if provider is not None:
+                provider.cleanup_private_inputs()
 
     def _render_tasks(
         self,
@@ -120,12 +146,11 @@ class HarborExecutionAdapter:
         run_root: Path,
         config_path: Path,
         bundle_root: Path | None,
+        auth_path: Path | None,
         progress: ExecutionProgressObserver | None,
         control_dir: Path | None,
     ) -> tuple[ExecutionTrialResult, ...]:
-        env = harbor_environment(
-            auth_path=self.codex_auth_path, bundle_root=bundle_root
-        )
+        env = harbor_environment(auth_path=auth_path, bundle_root=bundle_root)
         command = harbor_command(self.harbor_executable, config_path, control_dir)
         job_dir = _job_dir(plan, request.job_id)
         monitor = HarborProgressMonitor(plan, job_dir, progress, control_dir)

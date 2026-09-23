@@ -7,7 +7,6 @@ import importlib
 import json
 import os
 import sys
-import tomllib
 from collections.abc import MutableMapping
 from pathlib import Path
 from typing import Any
@@ -17,17 +16,22 @@ from eval_platform.adapters.execution.codex.install import (
     VERSION,
     validate_codex_bundle,
 )
+from eval_platform.adapters.execution.codex.provider import (
+    FIXED_PROVIDER_CODEX,
+    guarded_provider_codex_class,
+)
 from eval_platform.adapters.execution.codex.uploads import validate_auth_file
 from eval_platform.adapters.execution.harbor.config_mapper import HARBOR_REVISION
 from eval_platform.adapters.execution.harbor.lifecycle.control import (
     configure_controlled_runner,
 )
-from eval_platform.adapters.execution.network import (
-    compose_profile,
-    export_sidecar,
-    validate_hosts,
+from eval_platform.adapters.execution.network import export_sidecar
+from eval_platform.adapters.execution.provider_access.net.gate import (
+    validate_network_config,
 )
-from eval_platform.application.ports.execution import RunLimits
+from eval_platform.adapters.execution.provider_access.net.runtime import (
+    load_provider_runtime,
+)
 
 _AUTH_ENV = "AGENTEXAM_PRIVATE_CODEX_AUTH_PATH"
 _BUNDLE_ENV = "AGENTEXAM_PRIVATE_CODEX_BUNDLE_ROOT"
@@ -94,17 +98,24 @@ def harbor_environment(
     return result
 
 
-def validate_agent_mode(config: dict[str, Any], *, runtime_bound: bool) -> str:
+def validate_agent_mode(
+    config: dict[str, Any], *, runtime_bound: bool, provider_bound: bool = False
+) -> str:
     agents = config.get("agents")
     if agents == [{"name": "nop", "n_concurrent": 1}]:
-        if runtime_bound:
+        if runtime_bound or provider_bound:
             raise ValueError("CODEX_RUNTIME_BINDING_UNUSED")
         return "nop"
-    if agents != [_FIXED_CODEX]:
+    if agents == [_FIXED_CODEX] and not provider_bound:
+        if not runtime_bound:
+            raise RuntimeError("CODEX_CREDENTIAL_BINDING_NOT_READY")
+        return "codex"
+    if agents == [FIXED_PROVIDER_CODEX] and provider_bound:
+        if not runtime_bound:
+            raise RuntimeError("CODEX_CREDENTIAL_BINDING_NOT_READY")
+        return "provider_codex"
+    else:
         raise ValueError("REAL_CODEX_CONFIG_INVALID")
-    if not runtime_bound:
-        raise RuntimeError("CODEX_CREDENTIAL_BINDING_NOT_READY")
-    return "codex"
 
 
 def pop_runtime_inputs(
@@ -121,46 +132,19 @@ def pop_runtime_inputs(
     return validate_auth_file(auth), root.resolve()
 
 
-def register_guarded_codex(auth_path: Path, bundle_root: Path) -> None:
+def register_guarded_codex(
+    auth_path: Path, bundle_root: Path, *, provider: bool = False
+) -> None:
     factory = importlib.import_module("harbor.agents.factory").AgentFactory
     name = importlib.import_module("harbor.models.agent.name").AgentName
-    guarded = guarded_codex_class(auth_path=auth_path, bundle_root=bundle_root)
+    builder = guarded_provider_codex_class if provider else guarded_codex_class
+    guarded = builder(auth_path=auth_path, bundle_root=bundle_root)
     original = factory.get_agent_class
     factory.get_agent_class = classmethod(
         lambda _cls, requested: (
             guarded if requested == name.CODEX else original(requested)
         )
     )
-
-
-def validate_network_config(config: dict[str, Any]) -> None:
-    environment = config["environment"]
-    hosts = tuple(environment.get("extra_allowed_hosts", []))
-    if hosts != validate_hosts(hosts) or any(
-        environment.get(key)
-        for key in ("kwargs", "extra_docker_compose", "import_path", "env", "mounts")
-    ):
-        raise ValueError("HARBOR_NETWORK_CONFIG_INVALID")
-    limits = RunLimits(
-        1,
-        environment["override_cpus"],
-        environment["override_memory_mb"],
-        environment["override_storage_mb"],
-    )
-    for reference in config["tasks"]:
-        task = Path(reference["path"])
-        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
-        if (
-            document["environment"].get("network_mode") != "allowlist"
-            or document["environment"].get("allowed_hosts") != []
-        ):
-            raise ValueError("HARBOR_NETWORK_BASELINE_INVALID")
-        for phase in ("agent", "verifier"):
-            if {"network_mode", "allowed_hosts"}.intersection(document[phase]):
-                raise ValueError("HARBOR_NETWORK_PHASE_OVERRIDE")
-        profile = json.loads((task / "environment/docker-compose.yaml").read_text())
-        if profile != compose_profile(limits):
-            raise ValueError("HARBOR_NETWORK_COMPOSE_INVALID")
 
 
 def main() -> None:
@@ -170,9 +154,23 @@ def main() -> None:
     parser.add_argument("--control-dir", type=Path)
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding="utf-8"))
+    provider = load_provider_runtime(args.config)
     runtime = pop_runtime_inputs(os.environ)
-    mode = validate_agent_mode(config, runtime_bound=runtime is not None)
-    validate_network_config(config)
+    mode = validate_agent_mode(
+        config,
+        runtime_bound=runtime is not None,
+        provider_bound=provider is not None,
+    )
+    if provider is None:
+        validate_network_config(config)
+    else:
+        validate_network_config(
+            config,
+            provider_compose=provider.compose_path,
+            provider_scope=provider.scope,
+            proxy_image=provider.image_id,
+            upstream_image=provider.image_id,
+        )
     context = args.config.parent / "sidecar-source"
     export_sidecar(args.harbor_root, context, HARBOR_REVISION)
     harbor = importlib.import_module("harbor")
@@ -184,9 +182,9 @@ def main() -> None:
         raise ValueError("HARBOR_IMPORT_SOURCE_MISMATCH")
     docker = importlib.import_module("harbor.environments.docker.docker")
     docker.DockerEnvironment._EGRESS_CONTROL_SIDECAR_CONTEXT_PATH = context
-    if mode == "codex":
+    if mode in {"codex", "provider_codex"}:
         assert runtime is not None
-        register_guarded_codex(*runtime)
+        register_guarded_codex(*runtime, provider=mode == "provider_codex")
     configure_controlled_runner(args.control_dir, args.config.parent)
     cli = importlib.import_module("harbor.cli.main")
     sys.argv = ["harbor", "run", "--config", str(args.config), "--yes"]

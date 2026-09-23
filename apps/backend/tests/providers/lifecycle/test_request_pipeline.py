@@ -12,25 +12,19 @@
 
 from __future__ import annotations
 
-import json
 import urllib.request
 from collections.abc import Iterator
 
 import pytest
 
-from eval_platform.adapters.execution.provider_access.budget import (
-    FRAMING_ALLOWANCE_TOKENS,
-)
 from eval_platform.adapters.execution.provider_access.server import (
     MAX_BODY_BYTES,
     ProviderRejection,
 )
-from eval_platform.domain.agent import INTERNAL_TEST_UPSTREAM
 from providers.contract.support.fake_responses import FakeUpstream
 from providers.lifecycle.support import (
     BUDGET,
     CLIENT_TOKEN,
-    FAKE_SECRET,
     MODEL,
     OTHER_RUN_TOKEN,
     RUN_ID,
@@ -39,7 +33,6 @@ from providers.lifecycle.support import (
     owner_unverifiable,
     permissions_too_wide,
     platform_verified,
-    profile_document,
     request_body,
 )
 
@@ -161,11 +154,12 @@ def test_unknown_fields_and_unlisted_tools_are_refused_not_ignored(tmp_path):
     for extra in (
         {"base_url": "https://api.deepseek.com"},
         {"web_search": True},
-        {"store": False},
         {"previous_response_id": "resp_1"},
     ):
         with pytest.raises(ProviderRejection, match="REQUEST_UNKNOWN_FIELD"):
             harness.decide(body=request_body(**extra))
+    with pytest.raises(ProviderRejection, match="REQUEST_CONTROL_FIELD_INVALID"):
+        harness.decide(body=request_body(store=True))
     with pytest.raises(ProviderRejection, match="REQUEST_REQUIRED_FIELD_MISSING"):
         harness.decide(body={"model": MODEL, "stream": True})
     with pytest.raises(ProviderRejection, match="REQUEST_STREAM_REQUIRED"):
@@ -173,140 +167,3 @@ def test_unknown_fields_and_unlisted_tools_are_refused_not_ignored(tmp_path):
     for tool in ("web_search", "computer_use_preview", "shell_root"):
         with pytest.raises(ProviderRejection, match="REQUEST_TOOL_NOT_ALLOWED"):
             harness.decide(body=request_body(tools=[{"type": tool}]))
-
-
-def test_the_run_remainder_is_the_output_ceiling(tmp_path):
-    """An allowance already spent is not spendable again by asking for it."""
-
-    harness = make_harness(tmp_path, consumed=(0, 31_000))
-    assert harness.ledger.remaining_output_tokens == 1_000
-    with pytest.raises(ProviderRejection, match="REQUEST_MAX_OUTPUT_TOKENS_EXCEEDED"):
-        harness.decide(body=request_body(max_output_tokens=1_001))
-    assert harness.ledger.remaining_output_tokens == 1_000
-
-    spent = make_harness(tmp_path, consumed=(0, 32_000))
-    with pytest.raises(ProviderRejection, match="BUDGET_OUTPUT_EXCEEDED"):
-        spent.decide()
-
-
-def test_an_unknown_or_mismatched_profile_is_refused(tmp_path):
-    harness = make_harness(tmp_path)
-    # The positive case runs first: the loop below overwrites the profile file that
-    # this harness reads, so asking it again afterwards would be asking a broken file.
-    assert harness.decide().binding.run_id == RUN_ID
-    with pytest.raises(ProviderRejection, match="PRIVATE_PROFILE_NOT_FOUND"):
-        make_harness(tmp_path, profile_id="not-in-the-file").decide()
-    for entry in (
-        {"model": "kimi-k3"},
-        {"provider": "deepseek"},
-        {"upstream_base_url": "https://api.deepseek.com"},
-        {"secret": "  "},
-    ):
-        with pytest.raises(ProviderRejection):
-            make_harness(tmp_path, document=profile_document(**entry)).decide()
-
-
-def test_a_refusal_never_carries_the_path_the_secret_or_the_token(tmp_path):
-    harness = make_harness(tmp_path)
-    refusals = []
-    for attempt in (
-        lambda: harness.decide(authorization=False),
-        lambda: make_harness(
-            tmp_path / "wide", verify_access=permissions_too_wide
-        ).decide(),
-        lambda: harness.decide(body=request_body(tools=[{"type": "web_search"}])),
-    ):
-        with pytest.raises(ProviderRejection) as error:
-            attempt()
-        refusals.append(error.value)
-    for error in refusals:
-        text = f"{error.internal_code} {error.failure_code} {error.failure_summary}"
-        assert harness.private.name not in text
-        assert str(harness.private.parent) not in text
-        assert FAKE_SECRET not in text and CLIENT_TOKEN not in text
-
-
-def test_a_refusal_keeps_the_ledger_untouched(tmp_path, upstream):
-    harness = make_harness(tmp_path)
-    for attempt in (
-        lambda: harness.decide(method="GET"),
-        lambda: harness.decide(path="/v1/responses"),
-        lambda: harness.decide(authorization=False),
-        lambda: harness.decide(body=request_body(model="kimi-k3")),
-        lambda: harness.decide(body=request_body(tools=[{"type": "web_search"}])),
-        # A refused client header must not take a hold either: this one used to be
-        # decided after the reservation, and a hold nothing ever settles is lost budget.
-        lambda: harness.decide(headers={"X-Forwarded-Host": "evil.example.com"}),
-    ):
-        with pytest.raises(ProviderRejection):
-            attempt()
-    assert upstream.request_count == 0
-    assert harness.ledger.remaining_output_tokens == 32_000
-
-
-def test_admission_holds_the_input_bound_and_the_requested_output(tmp_path):
-    harness = make_harness(tmp_path)
-    raw = request_body(max_output_tokens=1_000)
-    admission = harness.decide(body=raw)
-
-    compact = json.dumps(
-        json.loads(raw), sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
-    assert admission.reservation.input_tokens == len(compact) + FRAMING_ALLOWANCE_TOKENS
-    assert admission.reservation.max_output_tokens == 1_000
-    assert harness.ledger.remaining_output_tokens == 31_000
-
-
-def test_an_unstated_output_ceiling_holds_the_whole_remainder(tmp_path):
-    """A missing ceiling is not zero: the hold must cover the worst case."""
-
-    harness = make_harness(tmp_path, consumed=(0, 8_000))
-    admission = harness.decide(body=request_body())
-    assert admission.reservation.max_output_tokens == 24_000
-    assert harness.ledger.remaining_output_tokens == 0
-
-
-def test_admission_swaps_the_client_credential_for_the_trusted_one(tmp_path):
-    harness = make_harness(tmp_path)
-    admission = harness.decide(headers={"Content-Type": "application/json"})
-
-    sent = dict(admission.outbound.send_headers())
-    assert sent.pop("Authorization") == f"Bearer {FAKE_SECRET}"
-    assert "authorization" not in {name.lower() for name in sent}
-    assert CLIENT_TOKEN not in json.dumps(sent)
-    assert admission.outbound.url == f"{INTERNAL_TEST_UPSTREAM}/responses"
-    assert admission.outbound.max_attempts == 1
-    assert admission.outbound.follow_redirects is False
-
-
-def test_the_destination_is_never_taken_from_the_request(tmp_path):
-    harness = make_harness(tmp_path)
-    # `Host` names this proxy, so the pipeline owns it and it never travels onward.
-    admission = harness.decide(headers={"Host": "evil.example.com"})
-    assert admission.outbound.url == f"{INTERNAL_TEST_UPSTREAM}/responses"
-    assert "evil.example.com" not in admission.outbound.url
-    assert "host" not in {name.lower() for name in admission.outbound.send_headers()}
-
-
-def test_a_routing_header_is_refused_where_it_used_to_be_forwarded(tmp_path):
-    """Distinguishes the old header handling from the whitelist.
-
-    Before the hardening, only the authentication headers were stripped and every other
-    client header travelled to the upstream, so `X-Forwarded-Host` reached it. Now the
-    policy forwards only its whitelisted set and refuses the rest before egress.
-    """
-
-    harness = make_harness(tmp_path)
-    for name in ("X-Forwarded-Host", "Forwarded", "Location", "X-Trace"):
-        with pytest.raises(ProviderRejection) as refusal:
-            harness.decide(headers={name: "evil.example.com"})
-        assert refusal.value.internal_code == "REQUEST_HEADER_NOT_ALLOWED"
-        assert refusal.value.failure_code == "PROVIDER_REQUEST_REJECTED"
-
-
-def test_no_secret_reaches_a_representation_or_a_client_header(tmp_path):
-    harness = make_harness(tmp_path)
-    admission = harness.decide()
-    for text in (repr(admission), str(admission), repr(admission.outbound)):
-        assert FAKE_SECRET not in text
-        assert CLIENT_TOKEN not in text

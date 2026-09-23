@@ -1,9 +1,8 @@
 """Render the fixed provider entry the task container's Codex CLI reads.
 
 The container may reach only the proxy, so the rendered file points the CLI at the
-proxy entry and names the environment variable that will hold this Run's token. It
-never holds a credential: the function takes the variable's *name*, and only the name
-is written.
+proxy entry and names either a legacy environment variable or the fixed private
+token file read by Codex's command-backed auth. It never holds a credential value.
 
 RETRY CAPS ARE WRITTEN IN BOTH PLACEMENTS ON PURPOSE. The design freeze requires
 `request_max_retries = 0` and `stream_max_retries = 0` to be explicit, because the
@@ -43,6 +42,7 @@ RETRY_VALUE = 0
 # no longer answer "is this a real vendor?"; the real hosts are named here until
 # tasks 06/07 register them.
 REAL_PROVIDER_HOSTS = frozenset({"api.deepseek.com", "api.moonshot.cn"})
+TOKEN_SOURCE = "/tmp/codex-secrets/run-token"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +51,7 @@ class ProviderConfig:
     digest: str
     provider: str
     base_url: str
-    env_key: str
+    env_key: str | None
 
     def __repr__(self) -> str:
         return (
@@ -61,12 +61,20 @@ class ProviderConfig:
 
 
 def render_provider_config(
-    *, provider: str, base_url: str, env_key: str
+    *,
+    provider: str,
+    base_url: str,
+    env_key: str | None = None,
+    token_source: str | None = None,
 ) -> ProviderConfig:
     """Return the fixed config text plus its digest, or raise a fixed code."""
     if not _LOGICAL_ID.fullmatch(provider) or provider not in REGISTERED_UPSTREAMS:
         raise ValueError("PROVIDER_CONFIG_PROVIDER_NOT_REGISTERED")
-    if not _ENV_NAME.fullmatch(env_key):
+    if (env_key is None) == (token_source is None):
+        raise ValueError("PROVIDER_CONFIG_TOKEN_SOURCE_INVALID")
+    if token_source is not None and token_source != TOKEN_SOURCE:
+        raise ValueError("PROVIDER_CONFIG_TOKEN_SOURCE_INVALID")
+    if env_key is not None and not _ENV_NAME.fullmatch(env_key):
         raise ValueError("PROVIDER_CONFIG_ENV_KEY_INVALID")
     match = _BASE_URL.fullmatch(base_url)
     if match is None or match.group("host") in {"localhost", "127.0.0.1", "::1"}:
@@ -86,10 +94,21 @@ def render_provider_config(
         f"[model_providers.{provider}]",
         f'name = "{provider}"',
         f'base_url = "{base_url}"',
-        f'env_key = "{env_key}"',
+        *([f'env_key = "{env_key}"'] if env_key is not None else []),
         f'wire_api = "{WIRE_API}"',
         *[f"{key} = {RETRY_VALUE}" for key in RETRY_KEYS],
     ]
+    if token_source is not None:
+        lines.extend(
+            [
+                "",
+                f"[model_providers.{provider}.auth]",
+                'command = "/bin/cat"',
+                f'args = ["{TOKEN_SOURCE}"]',
+                "timeout_ms = 5000",
+                "refresh_interval_ms = 0",
+            ]
+        )
     text = "\n".join(lines) + "\n"
     return ProviderConfig(
         text,

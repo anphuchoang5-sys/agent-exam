@@ -55,6 +55,7 @@ _REQUEST_REJECTED = (
     "REQUEST_BODY_MALFORMED",
     "REQUEST_BODY_NOT_OBJECT",
     "REQUEST_BODY_TOO_LARGE",
+    "REQUEST_CONTROL_FIELD_INVALID",
     "REQUEST_HEADER_NOT_ALLOWED",
     "REQUEST_INPUT_EMPTY",
     "REQUEST_INPUT_INVALID",
@@ -92,6 +93,11 @@ _BUDGET_EXHAUSTED = (
     "BUDGET_RESERVATION_UNKNOWN",
     "BUDGET_RUN_CLOSED",
 )
+_RUNTIME_FAILED = (
+    "PROVIDER_TOPOLOGY_INVALID",
+    "PROVIDER_PROXY_NOT_READY",
+    "PROVIDER_TOKEN_UNAVAILABLE",
+)
 # Raised only while configuring the proxy itself: a Run cannot trigger them, so they are
 # deliberately absent from the published mapping.
 CONFIGURATION_ONLY = frozenset(
@@ -100,6 +106,10 @@ CONFIGURATION_ONLY = frozenset(
         "REQUEST_POLICY_CEILING_INVALID",
         "REQUEST_POLICY_MODEL_EMPTY",
         "REQUEST_POLICY_TOOLS_NOT_IMMUTABLE",
+        "HARBOR_NETWORK_BASELINE_INVALID",
+        "HARBOR_NETWORK_COMPOSE_INVALID",
+        "HARBOR_NETWORK_CONFIG_INVALID",
+        "HARBOR_NETWORK_PHASE_OVERRIDE",
     }
 )
 
@@ -113,6 +123,7 @@ _GROUPS = (
     (_REQUEST_REJECTED, "PROVIDER_REQUEST_REJECTED", "模型请求不符合受限策略。"),
     (_UPSTREAM_FAILED, "PROVIDER_UPSTREAM_FAILED", "上游模型服务未完成本次请求。"),
     (_BUDGET_EXHAUSTED, "PROVIDER_BUDGET_EXHAUSTED", "运行额度或期限已用尽。"),
+    (_RUNTIME_FAILED, "PROVIDER_ACCESS_FAILED", "模型访问未完成。"),
 )
 MAPPED_CODES = {
     code: (failure, summary) for group, failure, summary in _GROUPS for code in group

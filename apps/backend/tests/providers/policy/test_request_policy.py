@@ -14,6 +14,15 @@ from eval_platform.adapters.execution.provider_access.request_policy import (
 POLICY = RequestPolicy(
     model="deepseek-flash", max_output_tokens=32000, allowed_tools=frozenset({"shell"})
 )
+CLI_METADATA = {
+    "root_turn_id": "a",
+    "session_id": "b",
+    "thread_id": "c",
+    "turn_id": "d",
+    "x-codex-installation-id": "e",
+    "x-codex-turn-metadata": "f",
+    "x-codex-window-id": "g",
+}
 
 
 def body(**overrides: object) -> dict[str, object]:
@@ -33,10 +42,24 @@ def check(**overrides: object):
 
 
 def test_admits_the_observed_request_shape():
-    result = check(body=body(max_output_tokens=1000))
+    result = check(
+        body=body(
+            max_output_tokens=1000,
+            client_metadata=CLI_METADATA,
+            include=["reasoning.encrypted_content"],
+            parallel_tool_calls=True,
+            prompt_cache_key="12345678-1234-4234-9234-123456789abc",
+            reasoning={"effort": "medium", "summary": "auto"},
+            store=False,
+            tool_choice="auto",
+        )
+    )
     assert isinstance(result, MappingProxyType)
     assert result["model"] == "deepseek-flash"
     assert result["stream"] is True
+    assert "client_metadata" not in result
+    assert "prompt_cache_key" not in result
+    assert result["include"] == ["reasoning.encrypted_content"]
     with pytest.raises(TypeError):
         result["model"] = "other"  # type: ignore[index]
 
@@ -66,6 +89,23 @@ def test_rejects_unknown_and_missing_fields():
         check(body={"model": "deepseek-flash", "stream": True})
     with pytest.raises(ValueError, match="REQUEST_REQUIRED_FIELD_MISSING"):
         check(body={"input": "x", "stream": True})
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("include", ["file_search_call.results"]),
+        ("parallel_tool_calls", False),
+        ("prompt_cache_key", "not-a-run-uuid"),
+        ("reasoning", {"effort": "medium", "summary": "detailed"}),
+        ("store", True),
+        ("tool_choice", "required"),
+        ("client_metadata", {"session_id": "only-one-key"}),
+    ],
+)
+def test_rejects_any_mutation_of_the_fixed_cli_control_fields(field, value):
+    with pytest.raises(ValueError, match="REQUEST_CONTROL_FIELD_INVALID"):
+        check(body=body(**{field: value}))
 
 
 def test_rejects_a_model_other_than_the_bound_one():
@@ -118,6 +158,23 @@ def test_client_authentication_is_stripped_case_insensitively():
     )
     assert stripped == {"Accept": "text/event-stream"}
     assert "sk-fake-client-value" not in repr(stripped)
+
+
+def test_codex_tracking_headers_are_accepted_but_never_forwarded():
+    tracking = {
+        "Originator": "codex_cli_rs",
+        "Session-Id": "session-value",
+        "Thread-Id": "thread-value",
+        "X-Client-Request-Id": "request-value",
+        "X-Codex-Beta-Features": "feature-value",
+        "X-Codex-Turn-Metadata": "metadata-value",
+        "X-Codex-Window-Id": "window-value",
+    }
+    stripped = strip_client_auth(
+        {**tracking, "Accept": "text/event-stream", "User-Agent": "codex-cli"}
+    )
+    assert stripped == {"Accept": "text/event-stream", "User-Agent": "codex-cli"}
+    assert not any(value in repr(stripped) for value in tracking.values())
 
 
 def test_client_routing_headers_never_reach_the_fixed_upstream():

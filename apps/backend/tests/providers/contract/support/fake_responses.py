@@ -18,6 +18,7 @@ hidden here."""
 from __future__ import annotations
 
 import json
+import ssl
 import sys
 import threading
 from collections.abc import Callable
@@ -55,6 +56,7 @@ class RecordedRequest:
     header_names: tuple[str, ...]
     authorization: str | None
     body: dict | None
+    peer_address: str
 
 
 class _QuietServer(ThreadingHTTPServer):
@@ -72,10 +74,15 @@ class FakeUpstream:
         self,
         port: int = 0,
         on_request: Callable[[RecordedRequest], None] | None = None,
+        *,
+        host: str = "127.0.0.1",
+        tls_context: ssl.SSLContext | None = None,
     ) -> None:
         self.scripts: list[Script] = []
         self.requests: list[RecordedRequest] = []
         self._port = port
+        self._host = host
+        self._tls_context = tls_context
         self._on_request = on_request
         self._httpd: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
@@ -113,6 +120,7 @@ class FakeUpstream:
                     tuple(sorted(self.headers.keys())),
                     self.headers.get("Authorization"),
                     body if isinstance(body, dict) else None,
+                    self.client_address[0],
                 )
                 upstream.requests.append(recorded)
                 if upstream._on_request is not None:
@@ -157,8 +165,13 @@ class FakeUpstream:
                     )
                 return completed(response_id, model, script.text, script.usage)
 
-        self._httpd = _QuietServer(("127.0.0.1", self._port), Handler)
-        self.base_url = f"http://127.0.0.1:{self._httpd.server_port}"
+        self._httpd = _QuietServer((self._host, self._port), Handler)
+        if self._tls_context is not None:
+            self._httpd.socket = self._tls_context.wrap_socket(
+                self._httpd.socket, server_side=True
+            )
+        scheme = "https" if self._tls_context is not None else "http"
+        self.base_url = f"{scheme}://{self._host}:{self._httpd.server_port}"
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
         return self

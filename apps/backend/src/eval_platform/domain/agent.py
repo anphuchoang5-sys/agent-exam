@@ -17,6 +17,7 @@ from typing import Any
 CHATGPT_IDENTITY = ("openai_chatgpt", "chatgpt_auth_json")
 CHATGPT_CREDENTIAL_ID = "owner-codex"
 INTERNAL_TEST_PROVIDER = "internal_test_fake"
+INTERNAL_TEST_MODEL = "deepseek-flash"
 INTERNAL_TEST_AUTHENTICATION = "provider_run_token"
 INTERNAL_TEST_CREDENTIAL_ID = "t05-fake-provider"
 INTERNAL_TEST_UPSTREAM = "https://fake-upstream.t05.invalid"

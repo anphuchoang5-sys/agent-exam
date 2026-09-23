@@ -62,11 +62,11 @@ def test_the_render_is_deterministic_so_the_digest_can_be_recorded():
 
 
 def test_no_credential_can_enter_the_rendered_file():
-    """The function takes a variable *name*; a value has nowhere to go."""
+    """The function takes only a variable name or fixed source path, never a value."""
     import inspect
 
     parameters = inspect.signature(render_provider_config).parameters
-    assert set(parameters) == {"provider", "base_url", "env_key"}
+    assert set(parameters) == {"provider", "base_url", "env_key", "token_source"}
     config = render()
     for forbidden in ("Bearer", "sk-", "secret", "token="):
         assert forbidden not in config.text
@@ -116,3 +116,36 @@ def test_repr_stays_free_of_credentials():
     config = render()
     assert ENV_KEY in repr(config) and config.digest in repr(config)
     assert "Bearer" not in repr(config)
+
+
+def test_fixed_cli_can_read_run_token_from_private_file_without_env():
+    config = render_provider_config(
+        provider=FAKE,
+        base_url=ENTRY,
+        token_source="/tmp/codex-secrets/run-token",
+    )
+    assert "env_key" not in config.text
+    assert "[model_providers.internal_test_fake.auth]" in config.text
+    assert 'command = "/bin/cat"' in config.text
+    assert 'args = ["/tmp/codex-secrets/run-token"]' in config.text
+    assert "refresh_interval_ms = 0" in config.text
+    assert "FAKE-TOKEN-VALUE" not in config.text
+
+
+@pytest.mark.parametrize(
+    "token_source",
+    ["/tmp/codex-secrets/auth.json", "/tmp/codex-secrets/../run-token", "token"],
+)
+def test_token_source_cannot_be_redirected(token_source):
+    with pytest.raises(ValueError, match="PROVIDER_CONFIG_TOKEN_SOURCE_INVALID"):
+        render_provider_config(provider=FAKE, base_url=ENTRY, token_source=token_source)
+
+
+def test_token_file_and_environment_modes_cannot_be_combined():
+    with pytest.raises(ValueError, match="PROVIDER_CONFIG_TOKEN_SOURCE_INVALID"):
+        render_provider_config(
+            provider=FAKE,
+            base_url=ENTRY,
+            env_key=ENV_KEY,
+            token_source="/tmp/codex-secrets/run-token",
+        )

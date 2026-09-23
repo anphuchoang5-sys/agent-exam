@@ -37,6 +37,7 @@ class RuntimeWorkerConfig:
     codex_auth_path: Path | None = field(repr=False)
     dsn: str = field(repr=False)
     minio: MinioConfig = field(repr=False)
+    provider_image_id: str | None = None
 
     @classmethod
     def from_environment(cls) -> "RuntimeWorkerConfig":
@@ -59,6 +60,7 @@ class RuntimeWorkerConfig:
             _optional_path("AGENTEXAM_CODEX_AUTH_PATH"),
             database_url(),
             MinioConfig.from_environment(),
+            os.environ.get("AGENTEXAM_T05_PROVIDER_IMAGE_ID") or None,
         )
 
 
@@ -77,7 +79,10 @@ def create_runtime_worker(config: RuntimeWorkerConfig) -> WorkerShell:
         raise ValueError("Fixed Worker limit profile is unavailable")
     repository = PostgresJobRepository(config.dsn)
     artifacts = MinioArtifactStore(create_client(config.minio), config.minio.bucket)
-    backend = RunBoundExecutionBackend(lambda: _create_chatgpt_backend(config))
+    backend = RunBoundExecutionBackend(
+        lambda: _create_chatgpt_backend(config),
+        lambda: _create_provider_backend(config),
+    )
     evaluator = SWEbenchEvaluator(
         repo_root=config.project_root,
         task_source=source,
@@ -123,6 +128,20 @@ def _create_chatgpt_backend(config: RuntimeWorkerConfig) -> HarborExecutionAdapt
         network_hosts=CHATGPT_NETWORK_HOSTS,
         codex_archive=archive,
         codex_auth_path=auth_path,
+    )
+
+
+def _create_provider_backend(config: RuntimeWorkerConfig) -> HarborExecutionAdapter:
+    archive, image_id = config.codex_archive, config.provider_image_id
+    if archive is None or image_id is None:
+        raise RuntimeError("PROVIDER_RUNTIME_NOT_READY")
+    _verify_codex_archive(archive)
+    return HarborExecutionAdapter(
+        config.project_root / "framework/harbor/.venv/Scripts/harbor.exe",
+        config.evidence_root / "execution",
+        config.project_root,
+        codex_archive=archive,
+        provider_image_id=image_id,
     )
 
 

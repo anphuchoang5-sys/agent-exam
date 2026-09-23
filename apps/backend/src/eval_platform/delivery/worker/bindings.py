@@ -1,6 +1,6 @@
 """Select a frozen Run's owner-local execution binding before Harbor starts.
 
-The provider proxy path is deliberately not executable until S10 wires its
+The provider proxy path requires an explicit S10 backend factory with an
 isolated network and short-lived token. Never fall back to ChatGPT for it.
 """
 
@@ -59,9 +59,10 @@ def select_run_binding(agent: AgentConfiguration) -> WorkerRunBinding:
 
 @dataclass(slots=True)
 class RunBoundExecutionBackend:
-    """Keep the existing backend port while refusing unwired provider Runs."""
+    """Keep the existing backend port; route one controlled proxy Run only."""
 
     chatgpt_backend: Callable[[], ExecutionBackend]
+    provider_backend: Callable[[], ExecutionBackend] | None = None
 
     def execute(
         self,
@@ -70,5 +71,11 @@ class RunBoundExecutionBackend:
     ) -> tuple[ExecutionTrialResult, ...]:
         bindings = tuple(select_run_binding(run.agent) for run in request.runs)
         if any(binding.route == "provider_proxy" for binding in bindings):
-            raise RuntimeError("PROVIDER_RUNTIME_NOT_READY")
+            if (
+                len(bindings) != 1
+                or bindings[0].route != "provider_proxy"
+                or self.provider_backend is None
+            ):
+                raise RuntimeError("PROVIDER_RUNTIME_NOT_READY")
+            return self.provider_backend().execute(request, progress)
         return self.chatgpt_backend().execute(request, progress)

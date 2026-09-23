@@ -103,6 +103,23 @@ def test_proxy_request_never_uses_chatgpt_backend(mixed: bool) -> None:
     assert calls == 0
 
 
+def test_single_proxy_run_uses_its_own_backend_without_chatgpt_auth() -> None:
+    request = _request(_agent(True))
+    received: list[object] = []
+
+    class ProviderBackend:
+        def execute(self, passed_request: object, passed_progress: object) -> tuple[()]:
+            received.extend((passed_request, passed_progress))
+            return ()
+
+    backend = RunBoundExecutionBackend(
+        lambda: (_ for _ in ()).throw(AssertionError("ChatGPT path used")),
+        provider_backend=lambda: ProviderBackend(),
+    )
+    assert backend.execute(request) == ()
+    assert received == [request, None]
+
+
 def test_chatgpt_backend_requires_both_private_inputs() -> None:
     project = Path.cwd().resolve()
     config = RuntimeWorkerConfig(
