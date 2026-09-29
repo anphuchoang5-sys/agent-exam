@@ -2,7 +2,7 @@
 
 ## 状态与情况说明
 
-状态：待提交推送。
+状态：Completed。
 
 来源请求：用户要求更新 `HANDOFF.md` 中的项目状态，推送现有全部项目成果，并报告当前分支。
 
@@ -60,4 +60,4 @@ docs/
 - 静态检查：Ruff lint 通过；Ruff format 首次发现 `harbor_entry.py` 一处合并格式差异，格式化后复核为 `375 files already formatted`；Mypy 通过 `195 source files`。
 - 首次 Pytest 和 Ruff format 写入因受限执行环境拒绝临时目录/源码写入，没有把这些基础设施失败记为代码失败；改用授权的项目目录写入后定向回归已通过。
 - 文档与 Git：`HANDOFF.md` 本地 Markdown 链接全部存在；`git diff --check`、暂存区空白检查和未合并路径检查均通过；本轮测试临时目录已经精确清除，npm 缓存和无关演示文稿仍保持未跟踪且未改动。
-- 提交和推送状态待完成后补齐。
+- 提交与推送：合并提交 `8011e216e316c0687d9e7496981d453e937296a4` 有两个父提交，分别为原 `agent+api@f3956dc` 与 `origin/main@f1f97b5`；已成功推送到 `origin/agent+api`。本行动状态收尾使用同一分支推送，最终以现场 `HEAD` 与上游提交一致为准。
