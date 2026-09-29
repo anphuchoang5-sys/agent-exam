@@ -2,7 +2,7 @@
 
 ## 状态与情况说明
 
-状态：In Progress。
+状态：Completed。
 
 来源请求：用户确认不再需要 `E:\9.1agent_exam\runtime\main-t2-verify` 工作树；此前目标是把 `agent+api` 成果合入本地 `main` 并在主工作区切到 `main`。
 
@@ -22,6 +22,7 @@
 ## 实际修改的文件树与职责
 
 ```text
+HANDOFF.md                                      # 当前分支、worktree 与远端发布状态
 docs/actions/
 ├── 2026-09-22-task05-main-t2-rerun.md       # 从退役 worktree 保留的暂停复测历史
 └── 2026-09-29-retire-main-t2-worktree.md    # 本轮退役、分支移动与验证记录
@@ -41,4 +42,6 @@ docs/actions/
 
 - 退役前目标 worktree 只有一份未跟踪文件、0 个忽略文件。
 - 暂停行动记录复制前后 SHA-256 均为 `3B7CFA1954738B2558CF6B7E1427EE37902B1104687829B36C845DE82FDC7E57`。
-- worktree 移除、分支移动、切换与最终 Git 检查待后续步骤完成。
+- 受管 worktree 归档工具在本会话不可用；已改用 Git 原生 `worktree remove --force`，目标登记和 `E:\9.1agent_exam\runtime\main-t2-verify` 目录均已消失。首次严格路径检查只因 Git 正斜杠与 PowerShell 反斜杠格式不同而停止，未删除内容；规范化分隔符后完成受控移除。
+- 主工作区已切换到 `main`，并从 `6e7690f` fast-forward 到包含 `agent+api@442a3ba` 全部成果的提交；祖先检查通过。
+- `origin/main` 保持 `f1f97b5`，本轮未向远端 `main` 推送。npm 缓存和无关演示文稿仍未跟踪且未改动。

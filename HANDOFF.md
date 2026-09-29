@@ -1,6 +1,6 @@
 # AgentExam 当前接续交接
 
-> 更新：2026-09-29；工作区：`E:\9.1agent_exam`；当前分支：`agent+api`。本分支已合入 `origin/main@f1f97b5` 的任务 05 S9–S11 等主线成果，并保留三项生产 Codex 配置、Harbor 清理超时和 Docker 迁移增量；Git 推送状态仍以现场命令为准。本地 `main` 由另一 worktree 使用，不代表远端主线现状。
+> 更新：2026-09-29；工作区：`E:\9.1agent_exam`；当前分支：`main`。本地 `main` 已快进包含 `agent+api` 的全部成果，包括 `origin/main@f1f97b5` 的任务 05 S9–S11、三项生产 Codex 配置、Harbor 清理超时和 Docker 迁移增量；旧 `main-t2-verify` worktree 已退役。`origin/main` 仍停留在 `f1f97b5`，本轮没有推送远端 `main`。
 >
 > 本文是新窗口的恢复入口，不替代架构、接口、运维、任务和行动文档。若本文与当前代码或专题权威文档冲突，先核对 Git 与现实实现并同步当前状态型文档；`docs/actions/` 中已结束的记录是历史档案，不反向改写。
 >
@@ -80,7 +80,7 @@
 
 2026-09-29 本轮现场核对：
 
-- 当前工作区和目标上游均为 `agent+api` / `origin/agent+api`；本轮把 `origin/main@f1f97b5` 的 25 个新提交合入，并保留本分支 3 个专属提交：Harbor 清理超时、Docker 数据盘迁移和 WSL 启动盘迁移。本地 `main` 仍由另一 worktree 使用且落后于远端，不应切换或强制移动。
+- 当前工作区位于本地 `main`，其上游仍是 `origin/main@f1f97b5`；本地 `main` 已通过 fast-forward 包含 `agent+api` 的全部成果，旧 `runtime/main-t2-verify` worktree 已在保留唯一暂停行动记录后退役。远端 `main` 尚未推送，恢复时不要把本地领先误写成远端已发布。
 - `origin` 指向 `https://github.com/anphuchoang5-sys/agent-exam.git`。恢复时仍以 `git remote -v`、`git branch -vv`、`git status` 的现场输出为准。
 - `apps/web/%USERPROFILE%/` 是 npm 缓存；根目录 `蓝色商务风企业介绍演示文稿.pptx` 是 132 MB、元数据 0 张幻灯片的通用模板。两者都不是 AgentExam 成果，本轮不提交、不删除。
 - 完成本轮后继续按路径暂存，不使用 `git add .`、reset 或清理其他 worktree/运行证据。
