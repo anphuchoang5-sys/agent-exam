@@ -54,4 +54,24 @@ bash t2-assertions.sh        # 期望 status=verified，退出码 0
 
 它覆盖断言 1、2、3、7 中**从做题侧可观测**的部分，并打印原始读数与逐条 PASS/FAIL，与 T1 的 `topology-verdicts.sh` 同一套期望名。**两条硬约束，都来自本机的实测教训**：每个 `/dev/tcp` 检查必须带 `timeout`（否则被封地址会一直挂到内核放弃，吃掉 Trial 的墙钟）；私密标记的扫描必须限定在 `/proc`（递归 grep `/home`、`/etc` 是无界操作，本机烟雾测试里真的把脚本挂住了）。
 
-**本机无法执行它**：本机没有 `framework/harbor`、Docker 守护进程也未运行。已做的验证只有 `bash -n` 与一次本机烟雾运行——后者实测 65 秒完成，并在"有公网、无代理"的宿主上正确报出 `a1`/`a2` 失败（即它不是空过）。真实结果以负责人机器上那一轮的输出为准。
+代理回复测量必须发送 `PING\r\n` 并读取**完整一行**，而不是发送单 LF 后等待固定 16 字节：假上游正常回 `+PONG\r\n`，固定长度读取可能等不到足够字节。无回复与错误回复仍须判 FAIL。断言脚本本身含假哨兵字面量，上传到做题容器时须放在 `/tmp`、`/run`、`/var/tmp` 之外（例如 `/opt/t2-assertions.sh`），否则第 7 条扫描会把脚本自身算作泄漏。
+
+`T05_OTHER_TRIAL_HOST` 若没有对应的**活体**目标，`CLOSED` 只能表示该名称不可达，不能证明两个 Trial 实体之间的网络隔离；完整验收须另做带活体目标的对照并记录其身份与网络。
+
+固定 Harbor 上已经实际执行过 T2；最新结果、活体对照与仍未验证项以[进度日志](../../../../../docs/LLY/03-progress/PROGRESS_LOG.md)指向的行动记录为准，不因 T1 或独立诊断成功而外推完整 T2/S11 结论。没有固定 Harbor 或 Docker 的机器只能做语法/离线区分力检查，不能把它写成运行验收。
+
+## S11：统一集成入口（`verify.ps1`）
+
+S11 在具备固定 Harbor、固定 Fork、任务 parquet、固定 Codex 归档和已缓存测试镜像的 Windows 执行机上运行。入口参数全部显式传入，不拉取镜像、不读真实 Key，也不调用真实供应商：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\apps\backend\tests\providers\runtime\verify.ps1 `
+  -Python <backend-python> -ProjectRoot <repo> -Parquet <fixed-parquet> `
+  -CodexArchive <fixed-codex-tgz> -ProviderImage <proxy-image-id> `
+  -PostgresImage <postgres-image-id> -MinioImage <minio-image-id> `
+  -EvidenceRoot <new-.tmp-evidence-directory>
+```
+
+入口依次执行定向回归、两个并发 Harbor Trial、固定 Fork 错误补丁判卷及隔离 PostgreSQL/MinIO 回归。双 Trial 必须同时满足五组断言无失败、终态 `completed`、trajectory 存在、warnings 为空；否则不会输出 `status=verified`。容器内 Bash 脚本通过原始 UTF-8 字节 stdin 发送，避免 Windows 文本管道把 LF 改成 CRLF。Windows 超长 session 路径只在 trajectory 恢复子进程与文件检查处使用 `\\?\` 前缀，不修改系统长路径配置。
+
+证据目录内的 `SHA256SUMS.txt` 覆盖所有普通文件；固定 Fork 留下的重解析点单列于 `REPARSE_POINTS.txt`，不把断开的链接伪装成可哈希文件。仅在所有测试已完成、最后清单步骤中断时，才可对同一目录加 `-FinalizeOnly` 补做清单；该开关不会启动容器或重跑断言。最新实测状态和未验证边界见[S11 行动记录](../../../../../docs/actions/2026-09-23-task05-s11-integration.md)。

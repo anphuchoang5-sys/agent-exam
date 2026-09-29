@@ -141,3 +141,10 @@ def test_the_request_log_keeps_the_credential_out_of_the_header_names(upstream):
     read_stream(upstream.base_url, PLAIN_REQUEST)
     recorded = upstream.requests[0]
     assert all("FAKE-T05-SENTINEL" not in name for name in recorded.header_names)
+
+
+def test_the_upstream_records_the_network_peer_not_just_a_request_count():
+    """The S10 positive control must identify the proxy's network-side source."""
+    with FakeUpstream(host="127.0.0.1") as fake:
+        read_stream(fake.base_url, PLAIN_REQUEST)
+        assert fake.requests[0].peer_address == "127.0.0.1"

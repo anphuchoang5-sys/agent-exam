@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 import pytest
@@ -12,8 +13,11 @@ def job_minio_sandbox():
     if os.environ.get("AGENTEXAM_RUN_JOB_MINIO") != "1":
         pytest.skip("专属 Job MinIO 集成未显式启用")
     config = MinioConfig.from_environment()
+    endpoint = urlsplit(config.endpoint)
     if (
-        config.endpoint != "http://127.0.0.1:9000"
+        endpoint.scheme != "http"
+        or endpoint.hostname != "127.0.0.1"
+        or endpoint.port is None
         or not config.access_key.startswith("ae_test_")
         or config.bucket != "agentexam-synthetic-test"
     ):

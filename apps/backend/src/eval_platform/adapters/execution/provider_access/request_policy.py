@@ -1,9 +1,5 @@
-"""Request whitelist for the isolated proxy entry: reject before any egress.
-
-The proxy is the only reachable peer for the workload, so every request body is
-decided here rather than forwarded and filtered later. Only fields the fixed CLI
-was observed to send are admitted; anything else is a hard rejection, not an
-ignored key. Nothing in this module reads a credential or performs IO.
+"""Reject outside the fixed CLI request shape before any egress.
+Private CLI metadata is validated then stripped; no credential IO occurs here.
 """
 
 from __future__ import annotations
@@ -12,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
+from uuid import UUID
 
 from eval_platform.adapters.execution.provider_access.failures import (
     ProviderAccessError,
@@ -28,14 +25,44 @@ ALLOWED_FIELDS = frozenset(
         "max_output_tokens",
         "instructions",
         "reasoning",
+        "client_metadata",
+        "include",
+        "parallel_tool_calls",
+        "prompt_cache_key",
+        "store",
+        "tool_choice",
     }
 )
+PRIVATE_CONTROL_FIELDS = frozenset({"client_metadata", "prompt_cache_key"})
 REQUIRED_FIELDS = frozenset({"model", "input"})
 CLIENT_AUTH_HEADERS = frozenset(
     {"authorization", "proxy-authorization", "x-api-key", "api-key"}
 )
-IGNORED_CLIENT_HEADERS = frozenset({"content-length", "content-type"})
+IGNORED_CLIENT_HEADERS = frozenset(
+    {
+        "content-length",
+        "content-type",
+        "originator",
+        "session-id",
+        "thread-id",
+        "x-client-request-id",
+        "x-codex-beta-features",
+        "x-codex-turn-metadata",
+        "x-codex-window-id",
+    }
+)
 FORWARDED_CLIENT_HEADERS = frozenset({"accept", "accept-encoding", "user-agent"})
+_METADATA_FIELDS = frozenset(
+    {
+        "root_turn_id",
+        "session_id",
+        "thread_id",
+        "turn_id",
+        "x-codex-installation-id",
+        "x-codex-turn-metadata",
+        "x-codex-window-id",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,9 +109,12 @@ def check_request(
     if body.get("stream") is not True:
         raise ProviderAccessError("REQUEST_STREAM_REQUIRED")
     _check_input(body["input"])
+    _check_control_fields(body)
     _check_output_ceiling(policy, body.get("max_output_tokens"))
     _check_tools(policy, body.get("tools"))
-    return MappingProxyType({key: body[key] for key in sorted(keys)})
+    return MappingProxyType(
+        {key: body[key] for key in sorted(keys - PRIVATE_CONTROL_FIELDS)}
+    )
 
 
 def strip_client_auth(headers: Mapping[str, str]) -> Mapping[str, str]:
@@ -119,6 +149,43 @@ def _check_output_ceiling(policy: RequestPolicy, value: Any) -> None:
         raise ProviderAccessError("REQUEST_MAX_OUTPUT_TOKENS_INVALID")
     if value > policy.max_output_tokens:
         raise ProviderAccessError("REQUEST_MAX_OUTPUT_TOKENS_EXCEEDED")
+
+
+def _check_control_fields(body: Mapping[str, Any]) -> None:
+    expected = {
+        "include": ["reasoning.encrypted_content"],
+        "parallel_tool_calls": True,
+        "store": False,
+        "tool_choice": "auto",
+    }
+    if any(key in body and body[key] != value for key, value in expected.items()):
+        raise ProviderAccessError("REQUEST_CONTROL_FIELD_INVALID")
+    reasoning = body.get("reasoning")
+    if reasoning is not None and (
+        not isinstance(reasoning, Mapping)
+        or set(reasoning) != {"effort", "summary"}
+        or reasoning.get("effort") not in {"low", "medium", "high", "xhigh"}
+        or reasoning.get("summary") != "auto"
+    ):
+        raise ProviderAccessError("REQUEST_CONTROL_FIELD_INVALID")
+    metadata = body.get("client_metadata")
+    if metadata is not None and (
+        not isinstance(metadata, Mapping)
+        or set(metadata) != _METADATA_FIELDS
+        or any(
+            not isinstance(value, str) or not value or len(value) > 4096
+            for value in metadata.values()
+        )
+    ):
+        raise ProviderAccessError("REQUEST_CONTROL_FIELD_INVALID")
+    cache_key = body.get("prompt_cache_key")
+    if cache_key is not None:
+        try:
+            canonical = str(UUID(cache_key))
+        except (AttributeError, TypeError, ValueError):
+            raise ProviderAccessError("REQUEST_CONTROL_FIELD_INVALID") from None
+        if cache_key != canonical:
+            raise ProviderAccessError("REQUEST_CONTROL_FIELD_INVALID")
 
 
 def _check_tools(policy: RequestPolicy, value: Any) -> None:

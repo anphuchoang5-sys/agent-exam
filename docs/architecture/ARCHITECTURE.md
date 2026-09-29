@@ -277,11 +277,13 @@ apps/backend/
 │  └─ config_mapper.py                                # 业务提供方名到固定 Harbor 名的窄映射
 ├─ src/eval_platform/delivery/worker/
 │  ├─ main.py                                         # 既有 run_once Interface
-│  └─ runtime.py                                      # 正式依赖预检与 owner-local Composition Root
+│  ├─ bindings.py                                     # 冻结 Run 身份/profile 选择与未就绪代理失败关闭
+│  └─ runtime.py                                      # owner-local Composition Root；ChatGPT 绑定按需预检
 └─ tests/
    ├─ unit/test_harbor_config_mapper.py               # 正式目录配置→固定 Harbor 契约
    ├─ jobs/execution/test_evidence_publication.py     # 本地 source→规范化 MinIO destination 行为
-   └─ jobs/runtime/test_worker_runtime.py             # 私有配置脱敏与领取前失败关闭
+   ├─ jobs/runtime/test_worker_runtime.py             # 私有配置脱敏与 ChatGPT 绑定校验
+   └─ jobs/runtime/test_worker_bindings.py            # 逐 Run 身份/profile 选择与代理失败关闭
 runtime/acceptance/m1-task13-20260913-01/              # 首次一次性真实编排与私有证据，保持不改
 runtime/acceptance/m1-task13-20260913-02/              # 第二次及后置验收修复的忽略态专属作用域
 ├─ platform_harbor.py                                 # 源 Job、落盘 Job、唯一 Trial 分层核验

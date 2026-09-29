@@ -85,20 +85,20 @@ DeepSeek/Kimi 真实 Key 只由评测机所有者在本机可信秘密配置中�
 
 用户要求保留 Codex 并规划接入 DeepSeek 与 Kimi 开放平台按量 API，业务正文见[扩展规格](../../.scratch/ui-catalog-providers/spec.md)，确认历史见[规划行动](../actions/2026-09-17-ui-catalog-provider-planning.md#已确认的产品决定)。这是 Codex 的新增提供方路径，不是启用 P2 自研 Agent。当前可用的正式真实路径仍只有 owner ChatGPT `auth.json`；DeepSeek/Kimi 没有生产配置、真实调用或完整执行证据。
 
-凭据所有者、公开请求不含秘密、执行前所有者批准与固定配置身份继续适用。用户在 Q10 选择 B：独立可信代理持有真实 Key，做题容器只取得与单个 Run 绑定的有限访问令牌。任务 05 现已在既有 Execution Adapter 内实现策略组件、固定 Codex 配置渲染和假上游代理服务，并在目录中增加隔离的 `internal_test` 假提供方身份；双网络正式接线和完整生命周期尚未实现。真实 Key 仍不得进入做题容器；本轮没有创建或读取真实 Key，也没有调用、充值或配置任何真实供应商账号。
+凭据所有者、公开请求不含秘密、执行前所有者批准与固定配置身份继续适用。用户在 Q10 选择 B：独立可信代理持有真实 Key，做题容器只取得与单个 Run 绑定的有限访问令牌。任务 05 已在既有 Execution Adapter 内完成 S3–S11 的受控测试身份路径：策略层、按 Run 选绑定、双网络代理生命周期及两个并发固定 Harbor Trial 的集成复核；真实 DeepSeek/Kimi 身份与真实供应商协议兼容仍未实现。真实 Key 仍不得进入做题容器；本轮没有创建或读取真实 Key，也没有调用、充值或配置任何真实供应商账号。
 
 当前机制状态：
 
-1. **部分实现：配置和服务，待运行装配。** `codex/provider_config.py` 已渲染固定测试 TOML/模型目录，`provider_access/server/` 已实现假上游代理服务；固定 CLI 字段和事件仍待实机对账。Worker 仍只领取已批准 Job，尚不会为 API 配置启动 Trial 专属代理。S9–S11、Worker/Harbor Composition Root 和完整工具循环仍待办；提交/批准 HTTP 不读 Key。
+1. **内部测试身份的运行装配已实现。** S9 在 Worker 按冻结 Run 选择绑定；S10 只为恰好一个 `internal_test_fake/provider_run_token` Run 构造固定 provider 后端，并要求本机固定 Codex 包与已核验镜像 ID。Adapter 生成并由入口重新验证精确双网络覆盖，启动 Trial 专属代理/TLS 假上游，使用已有 uploads 目标注入无凭据 config.toml 与短令牌；缺输入、覆盖篡改、代理未就绪或令牌缺失均失败关闭。提交/批准 HTTP 不读 Key。隔离 Registry→批准→Worker→真实 Harbor Adapter 合成链见[S10 行动](../actions/2026-09-22-task05-s10-network-wiring.md)，双 Trial 与完整安全复扫见[S11 行动](../actions/2026-09-23-task05-s11-integration.md)。真实 DeepSeek/Kimi 身份仍未注册。
 2. **策略已实现：私有配置。** `provider_access/private_file.py` 与 `secrets.py` 校验固定 schema、绝对路径、文件类型、大小和平台权限，并在打开后通过文件描述符元数据再次核对以降低路径替换竞态；拒绝原因使用安全错误，不输出路径或内容。真实文件的最终 owner/ACL 部署仍须在所有者机器验收。
 3. **策略与服务已实现：Run 令牌。** `binding.py` 生成随机令牌，并在进程内以原始令牌为键保存固定 Run、提供方、模型、截止时间和预算的绑定；当前没有令牌哈希或持久化账本。服务层可验证与撤销令牌，不向日志输出令牌；跨重启正式生命周期仍未接线。固定 CLI 仍可能用 `-c` 覆盖客户端配置，因此真正安全性必须由代理和网络执行，不能只信任 TOML。
-4. **策略已实现：请求与出站边界。** `request_policy.py`/`transport.py` 只接受固定 Responses 路径、模型和最小 header 集合；客户端认证、`Host`、`Forwarded`、`X-Forwarded-*` 等路由/代理头在任何网络 I/O 前失败关闭。固定测试上游使用不可解析的 `.invalid` 保留域；没有真实 DeepSeek/Kimi endpoint 或协议兼容结论。
+4. **策略已实现：请求与出站边界。** `request_policy.py`/`transport.py` 只接受固定 Responses 路径、模型和最小 header 集合；客户端认证、`Host`、`Forwarded`、`X-Forwarded-*` 等路由/代理头在任何网络 I/O 前失败关闭。代理会在扫描与中继前解码 `identity`/`gzip` 响应，损坏或未知编码按受控传输错误失败关闭；受控 gzip SSE 已复核终止 usage 结算。固定测试上游使用不可解析的 `.invalid` 保留域；没有真实 DeepSeek/Kimi endpoint 或协议兼容结论。
 5. **策略已实现：预算。** `budget.py` 在并发请求前原子预留请求/token/金额预算，按可信用量保守结算；用量缺失或超过预留视为不可信并阻止继续新增调用。它当前是进程内策略对象，不是跨重启持久账本或真实账单事实源。
-6. **部分验证：拓扑与生命周期。** T1 的纯 Docker 假令牌/假上游拓扑探针已有 7 条断言证据；服务层的流终止、结算、收束和秘密外表面已有定向测试。T2 固定 Harbor 集成曾尝试，但侧车退出 127，七条断言未测得；代理进程正式启动/停止、双网络直连拒绝、崩溃残留、完整工具循环和真实供应商兼容仍未验证。代理故障时必须停止该 Run 的模型访问，不得回退直连或自动续跑。
+6. **受控集成验证：拓扑与生命周期。** T1/T2/S10 的单链证据之后，S11 又让两个固定 Harbor Trial 同时存活并完成五组正反对照：每个 main 只通本 Trial 代理，直连假上游/公网/宿主网关/metadata/另一 Trial 代理均拒绝；假上游日志记录来源为各自 proxy egress IP；无发布端口或 Docker 套接字，main 只有本 Trial 的三个 Harbor 日志/制品绑定；代理私有哨兵正对照命中而 main 文件/env/argv/公开证据均为 0；拆除后 task+scope 容器/网络/卷残留为 0。两个 Run 均 `completed`、trajectory 可读、warnings 为空。固定 Fork 独立判卷与隔离 PostgreSQL/MinIO 回归也已执行。真实 Key、真实 DeepSeek/Kimi 响应、供应商压缩差异和真实账单仍未验证；代理故障时必须停止该 Run 的模型访问，不得回退直连或自动续跑。
 
 领域和 PostgreSQL 目前只允许 `openai_chatgpt/chatgpt_auth_json` 与测试专用 `internal_test_fake/provider_run_token` 两个成对身份；生产目录不注册后者。真实 DeepSeek/Kimi 身份留到任务 06/07，在官方事实和安全门禁完成前不得借测试身份提前放行。provider 的受控失败码及公开文案边界见[HTTP 契约第 10.2 节](./HTTP_API.md#102-run-报告)。
 
-额度是有限授权，不是绝对安全或精确账单保证：临时令牌泄漏仍可能消耗该 Run 的允许额度；流式中断、用量缺失、并发与重启都要求失败关闭。Token/请求/金额初值与推导仍见历史研究；历史文档只记录当时事实，不因本轮实现反向改写。策略单元测试和 T1 均不能替代 T2、真实协议或完整生命周期验收，未通过前不得放行真实矩阵。
+额度是有限授权，不是绝对安全或精确账单保证：临时令牌泄漏仍可能消耗该 Run 的允许额度；流式中断、用量缺失、并发与重启都要求失败关闭。Token/请求/金额初值与推导仍见历史研究；历史文档只记录当时事实，不因本轮实现反向改写。T1–S11 的受控假链不能替代真实供应商协议、真实 Key 生命周期或真实账单验收；这些边界未单独通过前不得放行真实矩阵。
 
 ## 5. 实现时的强制安全约束
 

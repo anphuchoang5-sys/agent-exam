@@ -119,8 +119,16 @@ def test_runtime_config_keeps_private_values_out_of_diagnostics(
     assert "object-secret" not in rendered
     assert "auth.json" not in rendered
 
+    monkeypatch.delenv("AGENTEXAM_CODEX_ARCHIVE")
+    monkeypatch.delenv("AGENTEXAM_CODEX_AUTH_PATH")
+    unbound = RuntimeWorkerConfig.from_environment()
+    assert unbound.codex_archive is None
+    assert unbound.codex_auth_path is None
 
-def test_runtime_worker_rejects_unverified_archive_before_claim(tmp_path: Path) -> None:
+
+def test_chatgpt_backend_rejects_unverified_archive_before_harbor(
+    tmp_path: Path,
+) -> None:
     project = Path.cwd().resolve()
     archive = tmp_path / "codex.tgz"
     archive.write_bytes(b"not the pinned archive")
@@ -140,7 +148,7 @@ def test_runtime_worker_rejects_unverified_archive_before_claim(tmp_path: Path) 
     )
 
     with pytest.raises(ValueError, match="CODEX_PACKAGE_SIZE_MISMATCH"):
-        create_runtime_worker(config)
+        runtime_module._create_chatgpt_backend(config)
 
 
 def test_worker_command_fails_closed_without_runtime_config(

@@ -165,6 +165,59 @@ def test_transport_headers_belong_to_the_transport(upstream, tmp_path):
     assert names.count("Accept-Encoding") == 1
 
 
+def test_a_gzip_stream_is_decoded_before_relay_and_usage_settlement(upstream, tmp_path):
+    upstream.script(Script(content_encoding="gzip"))
+    harness = make_harness(tmp_path)
+    admission = harness.decide(
+        headers={"Accept-Encoding": "gzip"},
+        body=request_body(max_output_tokens=1_000),
+    )
+    relay = RunRunner(harness.ledger, sender=sender_for(upstream)).relay(admission)
+
+    relayed = b"".join(relay)
+
+    assert relayed == b"".join(frames())
+    assert relay.outcome is not None
+    assert relay.outcome.ended is True
+    assert relay.outcome.settlement.measured is True
+    assert relay.outcome.settlement.output_tokens == FAKE_USAGE["output_tokens"]
+    assert "Accept-Encoding" in upstream.requests[0].header_names
+
+
+def test_an_unsupported_upstream_encoding_fails_closed(upstream, tmp_path):
+    upstream.script(Script(content_encoding="br"))
+    harness = make_harness(tmp_path)
+    relay = RunRunner(harness.ledger, sender=sender_for(upstream)).relay(
+        harness.decide(headers={"Accept-Encoding": "br"})
+    )
+
+    with pytest.raises(
+        ProviderRejection, match="TRANSPORT_CONTENT_ENCODING_UNSUPPORTED"
+    ):
+        b"".join(relay)
+
+    assert upstream.request_count == 1
+    assert relay.outcome is not None
+    assert relay.outcome.settlement.measured is False
+    assert harness.ledger.closed_reason == UNKNOWN_USAGE_REASON
+
+
+def test_a_malformed_gzip_stream_fails_closed(upstream, tmp_path):
+    upstream.script(Script(content_encoding="gzip", malformed_gzip=True))
+    harness = make_harness(tmp_path)
+    relay = RunRunner(harness.ledger, sender=sender_for(upstream)).relay(
+        harness.decide(headers={"Accept-Encoding": "gzip"})
+    )
+
+    with pytest.raises(ProviderRejection, match="TRANSPORT_CONTENT_DECODING_FAILED"):
+        b"".join(relay)
+
+    assert upstream.request_count == 1
+    assert relay.outcome is not None
+    assert relay.outcome.settlement.measured is False
+    assert harness.ledger.closed_reason == UNKNOWN_USAGE_REASON
+
+
 def post(url: str, body: bytes, token: str = CLIENT_TOKEN) -> bytes:
     request = urllib.request.Request(
         url + "/responses",

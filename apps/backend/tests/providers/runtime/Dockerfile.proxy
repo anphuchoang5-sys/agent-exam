@@ -1,0 +1,21 @@
+FROM public.ecr.aws/docker/library/python:3.12.13-slim-bookworm
+
+# Synthetic TLS identity for the reserved .invalid upstream only. No real key enters
+# this image. Build with --pull=false --network=none from apps/backend.
+RUN mkdir -p /opt/agentexam/tls && \
+    openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+      -keyout /opt/agentexam/tls/upstream.key \
+      -out /opt/agentexam/tls/upstream.crt \
+      -subj '/CN=fake-upstream.t05.invalid' \
+      -addext 'subjectAltName=DNS:fake-upstream.t05.invalid' && \
+    chmod 0444 /opt/agentexam/tls/upstream.key /opt/agentexam/tls/upstream.crt
+
+COPY src /opt/agentexam/src
+COPY tests/providers/contract /opt/agentexam/tests/providers/contract
+COPY tests/providers/runtime/support /opt/agentexam/tests/providers/runtime/support
+
+ENV PYTHONPATH=/opt/agentexam/src:/opt/agentexam/tests \
+    SSL_CERT_FILE=/opt/agentexam/tls/upstream.crt \
+    PYTHONDONTWRITEBYTECODE=1
+USER 65534:65534
+ENTRYPOINT ["python", "/opt/agentexam/tests/providers/runtime/support/serve.py"]

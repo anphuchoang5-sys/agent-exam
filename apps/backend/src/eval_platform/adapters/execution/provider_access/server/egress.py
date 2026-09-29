@@ -17,7 +17,9 @@ pretends that wrapper already exists.
 
 from __future__ import annotations
 
+import gzip
 import http.client
+import zlib
 from collections.abc import Callable, Iterator
 from urllib.parse import urlsplit
 
@@ -52,7 +54,7 @@ def open_stream(
     connector: Connector = https_connector,
     timeout: float = UPSTREAM_TIMEOUT_SECONDS,
 ) -> Iterator[bytes]:
-    """Perform the single permitted call and yield the answer bytes unchanged."""
+    """Perform one call and yield identity bytes, decoding a gzip response once."""
 
     parts = urlsplit(request.url)
     if parts.scheme != "https" or not parts.hostname:
@@ -63,11 +65,24 @@ def open_stream(
         raise UpstreamFailure("TRANSPORT_CONNECTION_FAILED") from None
     try:
         response = _answer(connection, request, parts.path or "/")
+        encoding = (
+            (response.getheader("Content-Encoding") or "identity").strip().lower()
+        )
+        if encoding not in {"identity", "gzip"}:
+            response.close()
+            raise UpstreamFailure("TRANSPORT_CONTENT_ENCODING_UNSUPPORTED")
+        reader = (
+            gzip.GzipFile(fileobj=response, mode="rb")
+            if encoding == "gzip"
+            else response
+        )
         while True:
             try:
-                chunk = response.read(READ_CHUNK_BYTES)
+                chunk = reader.read(READ_CHUNK_BYTES)
             except TimeoutError:
                 raise UpstreamFailure("TRANSPORT_UPSTREAM_TIMEOUT") from None
+            except (gzip.BadGzipFile, EOFError, zlib.error):
+                raise UpstreamFailure("TRANSPORT_CONTENT_DECODING_FAILED") from None
             except (OSError, http.client.HTTPException):
                 raise UpstreamFailure("TRANSPORT_STREAM_INTERRUPTED") from None
             if not chunk:
