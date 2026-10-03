@@ -157,7 +157,7 @@ class HarborExecutionAdapter:
     ) -> tuple[ExecutionTrialResult, ...]:
         env = harbor_environment(auth_path=auth_path, bundle_root=bundle_root)
         command = harbor_command(self.harbor_executable, config_path, control_dir)
-        job_dir = _job_dir(plan, request.job_id)
+        job_dir = Path(str(plan.config["jobs_dir"])) / request.job_id
         monitor = HarborProgressMonitor(plan, job_dir, progress, control_dir)
         try:
             outcome = run_bounded_process(
@@ -178,7 +178,7 @@ class HarborExecutionAdapter:
         cleanup_failed = compose_cleanup_failure_path(run_root).is_file()
         if cleanup_failed:
             process_warnings += (COMPOSE_CLEANUP_RETRY_WARNING,)
-        if outcome.timed_out or cleanup_failed:
+        if outcome.returncode != 0 or outcome.timed_out or cleanup_failed:
             process_warnings += cleanup_timed_out_projects(job_dir)
         elif outcome.returncode == 0:
             process_warnings += recover_missing_codex_trajectories(
@@ -198,7 +198,3 @@ class HarborExecutionAdapter:
                 result for result in results if result.run_id in monitor.finished
             )
         return results
-
-
-def _job_dir(plan: HarborJobPlan, job_id: str) -> Path:
-    return Path(str(plan.config["jobs_dir"])) / job_id

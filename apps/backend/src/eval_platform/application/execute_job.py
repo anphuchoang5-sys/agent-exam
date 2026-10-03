@@ -15,6 +15,7 @@ from eval_platform.application.ports.repositories import JobRepository
 from eval_platform.application.ports.task_source import TaskSource
 from eval_platform.domain.jobs.execution import (
     ClaimedJob,
+    JobLeaseConflict,
     restore_agent,
     restore_public_task,
 )
@@ -47,7 +48,12 @@ class JobExecutor:
 
     def execute(self, claimed: ClaimedJob) -> bool:
         job = claimed.job
-        lease = self.repository.start_execution(claimed.lease, self.clock())
+        try:
+            lease = self.repository.start_execution(claimed.lease, self.clock())
+        except JobLeaseConflict:
+            if self.repository.get(job.job_id).status == "CANCELED":
+                return True
+            raise
         bundles: dict[str, TaskBundle] = {}
         progress = BatchProgress(
             self.repository,

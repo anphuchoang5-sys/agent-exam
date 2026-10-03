@@ -80,7 +80,7 @@ HTTP 返回并不触发长任务；FastAPI 和 Worker 通过 PostgreSQL 交接�
 
 `JobRepository` 是应用与 PostgreSQL 之间的 seam；`PostgresJobRepository` 是 Adapter。状态机、锁、lease、事件序列和恢复判断隐藏在实现中，Web、HTTP 和 Worker 不各写一套 SQL。
 
-取消与 claim 可能并发，因此 Job 读取事务使用 `REPEATABLE READ` 固定同一请求内的快照：取消请求不能在同一次业务判断中一半看到旧状态、一半看到新状态。并发最终仍由行锁、版本和状态前置条件裁决，不靠页面时序保证。
+取消与 claim 可能并发，因此 Job 读取事务使用 `REPEATABLE READ` 固定同一请求内的快照：取消请求不能在同一次业务判断中一半看到旧状态、一半看到新状态。并发最终仍由行锁、版本和状态前置条件裁决，不靠页面时序保证。 Worker 在 claim 已提交、执行启动前遇到 `JobLeaseConflict` 时，只在重新读取确认同一 Job 已为 `CANCELED` 后正常结束本轮，继续领取后续批准任务；其他租约冲突、读取失败或存储错误仍向上传播，不伪装为合法取消。
 
 本 Module 依赖 Identity 提供 actor、Catalog 提供可冻结记录；执行 Module 依赖本 Module 的 claim/进度 Interface。Job Control 不依赖 Harbor 的配置格式或模型秘密。
 
