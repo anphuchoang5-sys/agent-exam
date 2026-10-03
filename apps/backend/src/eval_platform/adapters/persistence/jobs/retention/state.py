@@ -66,7 +66,7 @@ def completed(row: dict[str, Any], expected: ArtifactDeletionIntent) -> bool:
             and row["size_bytes"] == reference.size_bytes
             and row["original_size_bytes"] == reference.original_size_bytes
             and row["expires_at"] == reference.expires_at
-            and row["deletion_intent_id"] == expected.intent_id
+            and str(row["deletion_intent_id"]) == expected.intent_id
             and str(row["deletion_intent_by"]) == expected.actor_user_id
             and row["deletion_intent_reason"] == expected.reason
             and row["deletion_verified_at"] == expected.verified_at

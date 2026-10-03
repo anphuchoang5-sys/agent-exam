@@ -1,4 +1,7 @@
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from botocore.exceptions import ClientError
@@ -9,7 +12,7 @@ from eval_platform.application.owner_approval import OwnerApproval
 from eval_platform.delivery.worker.main import WorkerShell
 from eval_platform.domain.catalog import ArtifactUnavailable
 from eval_platform.domain.jobs.models import JobUnavailable
-from jobs.execution.support.fakes import Backend, Evaluator, MemoryArtifacts
+from jobs.execution.support.fakes import Backend, Evaluator, MemoryArtifacts, artifact
 from jobs.support.postgres_api import login, postgres_api, register
 
 
@@ -42,10 +45,25 @@ class AuditFailure:
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("log_content", [b"", b"same synthetic log\n"])
 def test_real_postgres_and_minio_cleanup_preserves_results_and_audit(
     postgres_sandbox,
     job_minio_sandbox,
+    monkeypatch,
+    log_content,
 ):
+    evaluate = Evaluator.evaluate
+
+    def repeated_logs(self, request):
+        result = evaluate(self, request)
+        first = artifact(
+            self.store, request.run_id, "harness_log", log_content, "text/plain"
+        )
+        second = replace(first, object_key=first.object_key + "/stderr")
+        self.store.put_immutable(second, log_content)
+        return replace(result, log_refs=(*result.log_refs, first, second))
+
+    monkeypatch.setattr(Evaluator, "evaluate", repeated_logs)
     store, client, bucket = job_minio_sandbox
     now = datetime(2026, 9, 13, 8, 0, tzinfo=UTC)
     with postgres_api(postgres_sandbox, report_store=store) as (
@@ -86,6 +104,7 @@ def test_real_postgres_and_minio_cleanup_preserves_results_and_audit(
         assert WorkerShell(repository, executor, lambda: now).run_once(
             "real-retention-worker"
         )
+        assert repository.get(created.job_id).status == "COMPLETED"
         run_id = created.runs[0].run_id
         before = http.get(f"/api/v1/reports/runs/{run_id}").json()
         raw = [
@@ -93,14 +112,15 @@ def test_real_postgres_and_minio_cleanup_preserves_results_and_audit(
             for item in before["artifact_links"]
             if item["retention_class"] == "raw_30d"
         ]
-        assert len(raw) == 3
+        assert len(raw) == 4
+        assert len({item["artifact_id"] for item in raw}) == 4
         assert (
             repository.expired_artifacts(
                 now + timedelta(days=30) - timedelta(microseconds=1), 100
             )
             == ()
         )
-        assert len(repository.expired_artifacts(now + timedelta(days=30), 100)) == 3
+        assert len(repository.expired_artifacts(now + timedelta(days=30), 100)) == 4
 
         expired_at = now + timedelta(days=31)
         target = repository.expired_artifacts(expired_at, 1)[0]
@@ -108,23 +128,33 @@ def test_real_postgres_and_minio_cleanup_preserves_results_and_audit(
             ArtifactRetention(repository, DeleteFailure(store)).cleanup(
                 owner, expired_at, 1
             )
-        assert len(repository.expired_artifacts(expired_at, 100)) == 3
+        assert len(repository.expired_artifacts(expired_at, 100)) == 4
         client.head_object(Bucket=bucket, Key=target.reference.object_key)
 
         with pytest.raises(JobUnavailable):
             ArtifactRetention(AuditFailure(repository), store).cleanup(
                 owner, expired_at, 1
             )
-        assert len(repository.expired_artifacts(expired_at, 100)) == 3
+        assert len(repository.expired_artifacts(expired_at, 100)) == 4
         with pytest.raises(ClientError) as missing:
             client.head_object(Bucket=bucket, Key=target.reference.object_key)
         assert missing.value.response["ResponseMetadata"]["HTTPStatusCode"] == 404
 
+        intent = repository.begin_artifact_deletion(
+            target, owner.user_id, expired_at, "raw_retention_expired", str(uuid4())
+        )
         recovered = ArtifactRetention(repository, store).cleanup(owner, expired_at, 1)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            list(
+                pool.map(
+                    lambda _: repository.mark_artifact_deleted(intent, expired_at),
+                    range(2),
+                )
+            )
         result = ArtifactRetention(repository, store).cleanup(owner, expired_at)
 
         assert (recovered.scanned, recovered.deleted, recovered.recovered) == (1, 0, 1)
-        assert (result.scanned, result.deleted, result.recovered) == (2, 2, 0)
+        assert (result.scanned, result.deleted, result.recovered) == (3, 3, 0)
         assert (
             ArtifactRetention(repository, store).cleanup(owner, expired_at).scanned == 0
         )
@@ -141,7 +171,7 @@ def test_real_postgres_and_minio_cleanup_preserves_results_and_audit(
             item["deletion_reason"] == "raw_retention_expired" for item in deleted
         )
         assert all(
-            item["size_bytes"] > 0 and len(item["sha256"]) == 64 for item in deleted
+            item["size_bytes"] >= 0 and len(item["sha256"]) == 64 for item in deleted
         )
         assert all(item["created_at"] is not None for item in deleted)
         assert (

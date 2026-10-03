@@ -6,6 +6,7 @@ from hashlib import sha256
 
 from eval_platform.application.ports.artifacts import ArtifactReader, ArtifactStore
 from eval_platform.domain.artifacts import ARTIFACT_CONTENT_TYPES, ARTIFACT_FILENAMES
+from eval_platform.domain.catalog import ArtifactUnavailable
 from eval_platform.domain.result import ArtifactRef
 
 _DIRECT_TYPES = {
@@ -29,21 +30,29 @@ def publish_raw(
 ) -> tuple[tuple[ArtifactRef, ...], tuple[str, ...]]:
     if artifact_limit < 128 or run_limit < artifact_limit:
         raise ValueError("Raw artifact limits are invalid")
-    published: list[ArtifactRef] = []
+    published: dict[str, ArtifactRef] = {}
     retained_total = 0
     rejected = False
     for source in sources:
         kind, content_type, filename = raw_identity(source)
-        retained_size = min(source.size_bytes, artifact_limit)
-        if retained_total + retained_size > run_limit:
-            rejected = True
-            continue
         body = source_reader.read_bounded_verified(source, artifact_limit)
         retained = body.content
         digest = sha256(retained).hexdigest()
+        object_key = f"runs/{run_id}/{kind}/{digest}"
+        previous = published.get(object_key)
+        if previous is not None:
+            if (
+                previous.original_size_bytes != body.original_size_bytes
+                or previous.truncated != body.truncated
+            ):
+                raise ArtifactUnavailable
+            continue
+        if retained_total + len(retained) > run_limit:
+            rejected = True
+            continue
         created_at = clock()
         reference = ArtifactRef(
-            f"runs/{run_id}/{kind}/{digest}",
+            object_key,
             kind,
             len(retained),
             digest,
@@ -57,10 +66,10 @@ def publish_raw(
         )
         destination.put_immutable(reference, retained)
         destination.read_verified(reference)
-        published.append(reference)
+        published[object_key] = reference
         retained_total += len(retained)
     warnings = ("RAW_ARTIFACT_RUN_LIMIT_EXCEEDED",) if rejected else ()
-    return tuple(published), warnings
+    return tuple(published.values()), warnings
 
 
 def raw_identity(reference: ArtifactRef) -> tuple[str, str, str]:
