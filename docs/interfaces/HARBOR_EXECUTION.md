@@ -2,20 +2,20 @@
 
 > 文档状态：架构已确认；第四场真实 Codex 单题与固定 Fork 判卷通过；M0 核心闭环已通过；任务 13 的 `-04` 正式 Job/Run、固定 Fork、持久化、真实页面和双轴终审均通过
 >
-> 最后更新：2026-09-17（API扩展规划；执行接口不变）
+> 最后更新：2026-09-30（静态对齐内部测试代理接线与验收边界；执行接口不变）
 >
 > Harbor 固定版本：以 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md) 中的完整提交为唯一事实源
 > 权威范围：本文件维护 AgentExam `ExecutionBackend` 与 Harbor 之间的输入、输出、字段映射、错误和验收门槛。Harbor 来源与恢复方式见 [`DEPENDENCIES.md`](../dependencies/DEPENDENCIES.md)；Codex 与自研 Agent 的凭据所有权和秘密边界只在 [`CODEX_AUTHENTICATION.md`](./CODEX_AUTHENTICATION.md) 维护。
 
-## 新扩展的执行边界（规划，未实施）
+## 新扩展的执行边界（内部测试已接线，真实提供方未实现）
 
-[UI/题库/API计划](../../.scratch/ui-catalog-providers/plan.md)保留一平台Job→一Harbor Job→逐Run/Trial以及独立固定Fork判卷，不重建执行链。新题须先完成固定镜像与离线资格检查；第三方Codex由现有Adapter按冻结配置选择内部绑定，原M0单题与ChatGPT路径保留。
+[UI/题库/API计划](../../.scratch/ui-catalog-providers/plan.md)保留一平台 Job→一 Harbor Job→逐 Run/Trial 以及独立固定 Fork 判卷，不重建执行链。六题受控目录及三项固定 Codex/ChatGPT 配置已实现；任务 05 的内部测试代理由现有 Adapter 按冻结 Run 选择绑定，原 M0 单题与 ChatGPT 路径保留。
 
-新增代理为Trial内部可信辅助进程，不是HTTP业务服务、Worker或Evaluator。公开Execution请求不含Key/私有路径；真正开始已批准Run后才读取所需私有profile，网络、限额、令牌撤销与Key隔离见[认证4.1](./CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)。现有共享网络命名空间侧车不能直接充当凭据代理，具体拓扑须通过专属合成正反例。
+代理为 Trial 内部可信辅助进程，不是 HTTP 业务服务、Worker 或 Evaluator。公开 Execution 请求不含 Key/私有路径；当前接线只接受恰好一个受控假身份 Run 与固定本机输入，双网络拓扑已有 T1/T2、S10/S11 合成正反例证据。网络、限额、令牌撤销及真实 Key 尚未接入的边界见[认证 4.1](./CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)；不能将共享网络命名空间侧车等同于可信凭据代理。
 
 接口合同保持原状态、Observer准入、取消与崩溃恢复语义。代理故障或超限按现有基础设施/策略错误收束，不自动续跑、重试或切换供应商，不以代理机制擅自强杀当前协作取消中的Trial。新版本工具/网络/额度配置先冻结、再参与既有快照校验；现有租约必须覆盖实际准备/执行/判卷/收尾，代理准备不能形成无界等待。
 
-配置请求的既有探针不证明完整Trial；具体假值→真实单题→矩阵门禁见[验证计划](../../.scratch/ui-catalog-providers/verification.md)。长期暂停后重新核对依赖身份与提供方事实，不改上游固定源码或静默升级CLI。
+早期配置探针之后，受控假链已取得两个固定 Harbor Trial 的隔离、独立判卷及隔离存储回归证据，见[S11 行动](../actions/2026-09-23-task05-s11-integration.md)。双 Trial 并发仅用于该隔离验收，正式队列与 Harbor Trial 顺序限制未改变。真实供应商单题与矩阵仍须按[验证计划](../../.scratch/ui-catalog-providers/verification.md)另行安排；恢复时核对固定依赖，不静默升级 CLI。
 
 ## 1. 先用小白能懂的话解释
 

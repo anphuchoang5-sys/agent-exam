@@ -283,3 +283,5 @@ E 侧已有准备产物：[阶段 1 代理测试设计](../../../docs/LLY/01-pla
 | 9 | 回归与收口 | 隔离 PostgreSQL/MinIO 旧 ChatGPT 合成链（16 passed + Registry→批准→Worker→结果/审计/保留 1 passed，PG 用随机回环端口、不使用 55432）；无新增数据库表、无第二执行接口；全程未读取真实 Key、未发起真实供应商调用、未充值 | 通过 |
 
 **如实记录的边界（不因此项而扣分，但不得外推）**：① 真实 DeepSeek/Kimi 与真实 ChatGPT 模型**未调用**（06/07 范围，需单独授权）；因此第 5 项的"真实压缩响应/账单"与第 9 项的"真实模型回归"未验证；② `PROVIDER_UPSTREAM_FAILED` 已是公开受控码，但**仍未列入 `HTTP_API.md` §10.2**（B 侧待办，已三处记录）；③ 存储网络为让宿主 pytest 访问而使用专属 bridge 并关闭 IP masquerade（已测选择，与 Trial 边界不同）；④ 固定 Fork 沿用其既有两标签所有权模型。
+
+2026-09-30 文档对账：上段第 ② 项记录的文档缺口已修正，[HTTP §10.2](../../../docs/interfaces/HTTP_API.md#102-单次运行报告)现按实际映射列出六项受控失败码及短句；架构、模块索引与执行接口也已对齐内部测试接线和 S11 历史验收。此次未修改产品代码或重跑验收，`PROVIDER_UPSTREAM_FAILED` 的单独浏览器覆盖仍未补齐，真实供应商边界与 `ready-for-human` 状态不变。修改与静态验证见[本轮行动](../../../docs/actions/2026-09-30-document-alignment-and-review-research.md)。

@@ -2,20 +2,20 @@
 
 > 文档状态：架构边界已确认；字段契约 v0.3；M0 核心闭环通过，M1 任务 01–13 已验收；任务 13 的 `-04` 正式执行、判卷、持久化、页面和双轴终审均通过；M1/MVP 尚未完成
 >
-> 最后更新：2026-09-22（同步连续规模、六题目录和受控提供方策略切片的现实边界）
+> 最后更新：2026-09-30（静态对齐受控假提供方接线、历史验收与持久化状态）
 > 权威范围：本文件只维护项目内部模块的职责、输入、输出、错误、不变量和依赖。当前 Interface、Implementation 与 Adapter 的现实代码地图见[模块架构索引](./modules/README.md)；全局组成见 [`ARCHITECTURE.md`](./ARCHITECTURE.md)，字段级边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)、[`HTTP_API.md`](../interfaces/HTTP_API.md) 和 [`DATA_MODEL.md`](./DATA_MODEL.md)。
 
 ## 扩展合同增量：已实现切片与后续边界
 
-[扩展规格](../../.scratch/ui-catalog-providers/spec.md)新增 Codex + 两家按量 API，不启动 P2 自研 Agent。六题目录、连续规模、比较页面、提供方独立策略组件、S2 配置渲染、S6 代理服务及 `internal_test` 身份切片已经实现；正式代理装配、T2 和真实提供方仍未完成。以下当前模块的责任不变，具体执行顺序见[计划](../../.scratch/ui-catalog-providers/plan.md)：
+[扩展规格](../../.scratch/ui-catalog-providers/spec.md)新增 Codex + 两家按量 API，不启动 P2 自研 Agent。六题目录、连续规模、比较页面及任务 05 内部测试身份的策略、代理服务与 Worker/Harbor 接线已实现；T1/T2、S9–S11 已有历史验收记录，真实提供方仍未实现。以下当前模块的责任不变，具体执行顺序见[计划](../../.scratch/ui-catalog-providers/plan.md)：
 
 - Task Catalog：仅登记资格合格的固定题目，沿用公开/隐藏数据分离；候选存在不等于目录可用。
 - Agent Registry：领域对象与 PostgreSQL 只接受 `openai_chatgpt/chatgpt_auth_json` 和测试专用 `internal_test_fake/provider_run_token` 两个成对身份；生产目录仍只创建固定 ChatGPT 预设，不开放任意模型、地址、命令或 Key 输入。
 - Job Submission/Repository：新连续规模版本只影响新提交；仍原子保存冻结Job、全部Run和初始事件并立即等待批准，不读Key/启动Agent。原恢复不续跑、新Job重试保留。
-- ExecutionBackend：接口不变。内部 `provider_access` 已实现令牌、私有文件、预算、请求、失败策略及代理服务；Harbor Adapter/Worker 尚未装配该服务。提供方鉴权、协议、限额或生命周期失败必须映射受控基础设施/策略错误，不伪装为题目未通过、不自动重试。代理不能判分或自行领取任务。
+- ExecutionBackend：接口不变。内部 `provider_access` 已实现令牌、私有文件、预算、请求、失败策略及代理服务，Worker/Harbor 只为受控内部测试身份装配单 Run 代理路径。提供方鉴权、协议、限额或生命周期失败必须映射受控基础设施/策略错误，不伪装为题目未通过、不自动重试。代理不能判分或自行领取任务。
 - PatchEvaluator/报告/排行榜：固定Fork独立判断补丁；报告对比复用既有数据，可比性按冻结条件校验，不新增Judge评分或计费平台。
 
-代理短命令牌、真实Key、私有拓扑与故障关闭合同由[认证4.1](../interfaces/CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)维护。当前只有配置探针，安全实现未验收；后文旧版规模/提供方限制表示当前代码，不撤销此规划。
+代理短命令牌、真实 Key、私有拓扑与故障关闭合同由[认证 4.1](../interfaces/CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)维护。假链验收不能替代真实 DeepSeek/Kimi 的身份、协议和账单验证；日期明确的早期实施记录仅描述当时状态。
 
 ## 1. 先用小白能懂的话解释
 
@@ -281,7 +281,7 @@ M0 当前实现注记：执行 port、Harbor Adapter、配置/身份映射、pat
 
 Harbor 映射见 [`HARBOR_EXECUTION.md`](../interfaces/HARBOR_EXECUTION.md)；生产网络配置已在既有 Backend 内接线，最新真实运行及未验收边界统一见其[第四场记录](../interfaces/HARBOR_EXECUTION.md#第四次授权运行真实补丁与独立判卷通过2026-09-08)和验收对账，不增加公开请求字段或新 port。自研/后备进程边界见 [`RUNNER_PROTOCOL.md`](../interfaces/RUNNER_PROTOCOL.md)。
 
-任务 05 已完成 Execution Adapter 内部策略、`codex/provider_config.py` 固定配置渲染及 `provider_access/server/` 代理服务：验证私有配置文件、Run 令牌绑定、并发预算预留/结算、最小出站 header/path/model 允许集合与受控失败码；固定假上游合同和服务生命周期已有测试。真实 DeepSeek/Kimi 身份未注册，固定测试上游使用不可解析的 `.invalid` 保留域。它尚未接入 `JobExecutor`、Worker Composition Root 或 Harbor 生命周期，因此不能作为真实 API 执行能力；S9–S11、T2、固定 CLI 对账和完整工具循环仍按任务单待办。
+任务 05 已完成 Execution Adapter 内部策略、固定配置渲染、代理服务、Worker Run 绑定及 Harbor 双网络生命周期接线。`delivery/worker/bindings.py` 仅允许恰好一个代理 Run，缺工厂或本机固定输入、混合批次均失败关闭；不回退到 ChatGPT。固定假上游使用 `.invalid` 保留域，只有隔离网络中的测试服务解析，真实 DeepSeek/Kimi 身份未注册。T1/T2、S9–S11、固定 CLI 工具循环、双 Trial 隔离与独立判卷的历史证据见[执行模块](modules/execution-and-evaluation/ARCHITECTURE.md)；真实供应商能力不由这些证据推导。
 
 ### 6.9 Agent Source Review（P2，MVP 不实现）
 
@@ -427,8 +427,8 @@ M1 只组合确定性结果、过程指标和安全证据；分析/复核的兼�
 
 ## 8. 尚待技术核验
 
-1. Harbor/Worker 是宿主机进程还是挂载 Docker Socket 的容器；先用不接 Web/数据库的本地 Codex 最小实验裁决。
-2. 任务 01 的身份用例和两张身份表已实现，真实存储/恢复证据见[身份行动](../actions/2026-09-11-m1-owner-identity.md)，双轴评审的 HTTP/浏览器问题及修复验证见[独立修复行动](../actions/2026-09-11-m1-identity-review-fixes.md)。长期数据库部署及远程验收仍未完成；任务 02 邀请/成员亦已完成分层验收，见[成员行动](../actions/2026-09-11-m1-collaborator-invitations.md)。不复用执行凭据，也不新增独立 Auth 服务。
+1. 当前 Worker/Harbor 由 owner 本机进程承载，Docker 运行 Trial 与独立判卷环境，见[所有者单机运行](modules/owner-host-runtime/ARCHITECTURE.md)；其他宿主环境的可移植性未由本机历史验收覆盖。
+2. 任务 01 的身份用例和两张身份表已实现，真实存储/恢复证据见[身份行动](../actions/2026-09-11-m1-owner-identity.md)，双轴评审的 HTTP/浏览器问题及修复验证见[独立修复行动](../actions/2026-09-11-m1-identity-review-fixes.md)。长期存储与手动生命周期已完成 P1–P4，备份恢复已移出范围，完整远程验收仍未完成，见[所有者单机运行](modules/owner-host-runtime/ARCHITECTURE.md)。任务 02 邀请/成员亦已完成分层验收，见[成员行动](../actions/2026-09-11-m1-collaborator-invitations.md)。不复用执行凭据，也不新增独立 Auth 服务。
 3. 真实 Trial 是否需要调整 256 KiB/1 MiB/50 MiB/200 MiB 默认阈值；调整产品行为前回到用户确认。
 4. P2 才完成 `agent-exam.yaml`、Python 版本、依赖锁格式、Harbor 包装与 DeepSeek/Kimi 受控访问；不阻塞 Codex MVP 或 Aider/Claude Code 扩展。
 

@@ -1,7 +1,7 @@
 # AI Coding Agent 评测平台总架构
 
 > 文档状态：总体方案已确认；M0 核心闭环通过；M1 任务 01–13 已验收；任务 13 的 `-04` 正式 Job/Run、固定 Fork、持久化、真实页面和双轴终审均通过；M1/MVP 未完成
-> 最后更新：2026-09-22（同步扩展任务 03–05 的现实实现、受控提供方策略切片与未完成边界）
+> 最后更新：2026-09-30（静态对齐任务 05 接线与历史验收，真实新提供方仍未实现）
 > 权威范围：本文件只维护系统全局组成、依赖方向、已确认决定、规划文件树、风险和待讨论队列。字段级契约由第 1 节列出的专题文档维护。
 
 ## 1. 从哪里开始读
@@ -307,31 +307,32 @@ runtime/acceptance/m1-task13-20260914-04/              # 与 -03 源码等价的
 └─ results/                                            # 安全摘要、Web 日志与真实页面截图
 ```
 
-### 3.2 UI、题库与 Codex 提供方扩展（2026-09-22 实现中）
+### 3.2 UI、题库与 Codex 提供方扩展（2026-09-30 状态对账）
 
 用户当前优先要求角色化 UI/HTML 原型、至少五道新题，以及 Codex 接入 DeepSeek/Kimi API 的详细计划；业务正文见[扩展规格](../../.scratch/ui-catalog-providers/spec.md)，阶段与停点见[执行计划](../../.scratch/ui-catalog-providers/plan.md)，确认历史见[独立规划行动](../actions/2026-09-17-ui-catalog-provider-planning.md#已确认的产品决定)。用户随后已确认将长期持久化和端口隔离前移为 HTML 原型之后、正式组内使用和真实模型 API 之前的独立 P 阶段，备份恢复后来明确移出课设范围；范围见[持久化规格](../../.scratch/persistence-deferred/spec.md)，当前准备度见[所有者单机模块第 10 节](modules/owner-host-runtime/ARCHITECTURE.md#10-当前代码准备度2026-09-18-实际核对)。任务 14 未完项仍按原行动验收，不能由本次持久化进展视为通过。
 
-展示层调整已复用现有 Web、Job 列表/报告 HTTP 与两角色权限，没有新增 Worker 健康接口。六题目录、`continuous(1–20)` 和跨批次对比已经落地。提供方部分已在现有 Execution Adapter 内形成独立策略组件、S2 固定配置渲染及 S6a–S6e 代理服务：私有配置读取、Run 令牌绑定、预算账本、请求白名单、受控出站、流结算和失败归一；S8 的隔离目录切片只允许 `internal_test` 假身份。它不新增业务队列、公开 Interface 或数据库表。S8 真实提供方预设、S9–S11 及 Worker/Harbor 正式接线仍未实现；T2 曾尝试但未测得七条断言。秘密生命周期与未完成边界由[认证文档第 4.1 节](../interfaces/CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)维护。
+展示层调整已复用现有 Web、Job 列表/报告 HTTP 与两角色权限，没有新增 Worker 健康接口。六题目录、`continuous(1–20)` 和跨批次对比已经落地。提供方部分已在现有 Execution Adapter 内完成受控策略、配置渲染、代理服务和内部测试身份的 Worker/Harbor 接线；T1/T2 与 S9–S11 有历史验收记录。生产目录提供三项固定 Codex/ChatGPT 配置，假身份只由显式 `internal_test` 装配使用，真实 DeepSeek/Kimi 身份仍未实现。它不新增业务队列、公开 Interface 或数据库表。秘密生命周期、单 Run 代理限制和验收范围由[认证文档第 4.1 节](../interfaces/CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)维护。
 
-C-19 的新提交规模现已由 `continuous(1–20)` 实现；旧 Job 冻结内容和旧预设语义保持原值。本次 Codex + 第三方 API 与 C-25/C-28/C-31 的 P2 自研 Python Agent 是不同路径。当前领域和数据库只允许生产 `openai_chatgpt/chatgpt_auth_json` 与显式测试装配的 `internal_test_fake/provider_run_token`；DeepSeek/Kimi 仍属于后续任务 06/07，不能提前登记或真实调用。固定 Codex 的假接口配置请求已有[限定探针证据](../research/2026-09-17-codex-provider-config-and-budget.md#61-固定-cli-配置探针)，真实工具循环与完整代理生命周期仍未验证。
+C-19 的新提交规模现已由 `continuous(1–20)` 实现；旧 Job 冻结内容和旧预设语义保持原值。本次 Codex + 第三方 API 与 C-25/C-28/C-31 的 P2 自研 Python Agent 是不同路径。当前领域和数据库只允许生产 `openai_chatgpt/chatgpt_auth_json` 与显式测试装配的 `internal_test_fake/provider_run_token`；DeepSeek/Kimi 仍属于后续任务 06/07。早期[限定配置探针](../research/2026-09-17-codex-provider-config-and-budget.md#61-固定-cli-配置探针)之后，假链已完成固定 CLI 工具循环、双 Trial 隔离与独立判卷的历史验收；真实供应商协议、Key 和账单仍未验证，不能由假链外推。
 
-已确认的设计变更在同一任务内同步数据模型、模块/HTTP/执行/认证接口和依赖文档；仅有意向而未定方案时保留候选标记。当前没有新增产品 Module、公开 Interface 或数据库表；下列现有职责中的源码子目录已经按任务切片深化，候选接线仍明确标注：
+已确认的设计变更在同一任务内同步数据模型、模块/HTTP/执行/认证接口和依赖文档；仅有意向而未定方案时保留候选标记。当前没有新增产品 Module、公开 Interface 或数据库表；下列现有职责中的源码子目录已经按任务切片深化：
 
 ```text
 apps/web/src/features/workbench/                 # 已实现：角色首页与导航，复用 HTTP
 apps/web/src/features/jobs/                      # 已实现：向导、列表、报告与跨批次对比
 apps/backend/src/eval_platform/adapters/tasks/   # 已深化：六题固定集合与公开/隐藏分离
-apps/backend/src/eval_platform/delivery/         # 已深化：受控目录、连续规模及显式迁移入口
+apps/backend/src/eval_platform/delivery/         # 已深化：三项生产配置、目录、连续规模、显式迁移与 Worker Run 绑定
 apps/backend/src/eval_platform/adapters/execution/
 ├─ codex/                                       # 现有运行保护；provider_config.py 已实现固定配置渲染
 ├─ provider_access/                             # 已实现内部策略：私有配置、令牌、预算、请求与失败
-│  └─ server/                                   # 已实现假上游代理服务：HTTP、出站、流和生命周期
+│  ├─ server/                                   # 已实现假上游代理服务：HTTP、出站、流和生命周期
+│  └─ net/                                      # 已实现固定双网络覆盖校验与 Run 私有输入生命周期
 └─ harbor/                                      # 深化：现有Adapter和生命周期，不新增第二后端
-apps/backend/tests/providers/                   # 已实现：策略、合同、服务生命周期与 T1 拓扑门禁
+apps/backend/tests/providers/                   # 已实现：策略、合同、生命周期及 T1/T2、S9–S11 验证入口
 apps/web/tests/                                 # 已实现：角色、向导、报告及浏览器回归
 ```
 
-模式仍为 Adapter：当前生产 Worker 组合根→既有 ExecutionBackend→Harbor Adapter→固定 Codex；PatchEvaluator 独立判卷。`provider_access` 的策略和代理服务是该 Adapter 的内部 Implementation，尚未接入上述生产数据流。选择 B 是为了让长期 Key 不进入做题容器；协议桥和新执行链不在范围。未知计量、alias 漂移、瞬时令牌滥用、崩溃残留和 T2 网络隔离仍是必测风险，未验证时不放行真实矩阵。
+模式仍为 Adapter：当前生产 Worker 组合根→既有 ExecutionBackend→Harbor Adapter→固定 Codex；PatchEvaluator 独立判卷。`provider_access` 是该 Adapter 的内部 Implementation，已接入受控内部测试身份的数据流；生产 Job 队列仍一次一个重型 Job、Trial 顺序执行，S11 两个并发 Trial 只属于隔离验收。选择 B 是为了让长期 Key 不进入做题容器；协议桥和新执行链不在范围。真实供应商计量、alias、凭据与协议须在后续任务单独验证，未验证时不放行真实矩阵。
 
 ## 4. 总体架构
 

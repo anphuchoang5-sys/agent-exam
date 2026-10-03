@@ -1,6 +1,6 @@
 # Web 与 HTTP Module
 
-> 当前状态：M1 身份、目录、Job、批准、取消/恢复、报告、证据和排行榜的 Next.js/FastAPI 路径已实现；六题/continuous 向导与跨批次对比页面已接入。统一浏览器安全头、可关联的安全 500、比较请求竞态防护和 ESLint 质量门禁已补齐。Tailscale 双机负向/VPN/离线及任务 05 provider 端到端呈现仍未完成。
+> 当前状态：M1 身份、目录、Job、批准、取消/恢复、报告、证据和排行榜的 Next.js/FastAPI 路径已实现；六题/continuous 向导与跨批次对比页面已接入。统一浏览器安全头、可关联的安全 500、比较请求竞态防护、ESLint 质量门禁及失败呈现夹具已补齐。Tailscale 双机负向/VPN/离线、真实新提供方和新增上游失败码的单独浏览器覆盖仍待完成。
 > 权威范围：浏览器、Next.js 和 FastAPI 怎样交接，以及当前页面/路由实现位置。
 >
 > 配套文件：[接口索引](interface.md)（调用面硬规则与端点族清单）、[进展与未决项](progress.md)、[任务 03 总行动](actions/03-report-catalog.md)。架构事实只在本文维护，那几份不复制。
@@ -100,4 +100,4 @@ Web 依赖 HTTP Interface，不依赖后端源码目录或数据库 schema。所
 
 扩展任务 03（对比报告的契约、后端与 Web 页面）已完成并合入 `main`，三个子行动全部收口；本地增强证据见[对比报告 UI 行动](../../../actions/2026-09-21-ui-comparison-report.md)。任务 04 的 B 切片覆盖三步向导在六题与 `continuous(1–20)` 规模下的浏览器动线和网页读取面暴露扫描；任务 05 的 B 切片覆盖必要错误呈现通道审计、§10.2 字段内容约束，以及受控失败码/提供方值的契约对齐，均已完成并合入。
 
-核心修复为比较加载增加请求代次，使清空或切换选择后迟到响应不能覆盖当前页面，浏览器回归已覆盖该竞态。多列矩阵的横向滚动机制已有[12 列回归](actions/delivery/11-comparison-wide-matrix-scroll.md)；真机触屏手感与 20 列上限的滚动体验仍未验证。任务 05 的受控失败码已写入 HTTP 契约，但 provider 策略尚未接入 Worker/HTTP 执行路径，所以“受控文案忠实呈现、未知错误码失败关闭”仍是端到端待办，不能用内部异常单测替代；后者还需给浏览器夹具增加“强制下一次响应出错”的控制端点。完整 Tailscale 双机负向/VPN/离线验收也仍待完成。任务 02–05 的 B 切片没有新增接口、数据库表、Worker/模型或部署行为；`GET /api/v1/reports/comparisons` 由 `7553ce0` 交付，不在 B 的改动内。当前远程接入规则见[远程接入](../../../operations/REMOTE_TEAM_ACCESS.md)，部署事实见[所有者单机运行](../owner-host-runtime/ARCHITECTURE.md)。
+核心修复为比较加载增加请求代次，使清空或切换选择后迟到响应不能覆盖当前页面，浏览器回归已覆盖该竞态。多列矩阵的横向滚动机制已有[12 列回归](actions/delivery/11-comparison-wide-matrix-scroll.md)；真机触屏手感与 20 列上限的滚动体验仍未验证。任务 05 的内部测试代理已接入 Worker/Harbor，执行边界见[执行模块](../execution-and-evaluation/ARCHITECTURE.md)。浏览器测试后端已有 `POST /__test__/jobs/fail-next-run`，`tests/jobs/failure-presentation.spec.ts` 覆盖原五项受控码与未知码；新增 `PROVIDER_UPSTREAM_FAILED` 尚无单独浏览器用例，精确映射见[HTTP 契约第 10.2 节](../../../interfaces/HTTP_API.md#102-单次运行报告)。夹具注入证据不等于真实供应商端到端验收。完整 Tailscale 双机负向/VPN/离线验收仍待完成。任务 02–05 的 B 切片没有新增产品接口、数据库表、Worker/模型或部署行为；`GET /api/v1/reports/comparisons` 由 `7553ce0` 交付，不在 B 的改动内。当前远程接入规则见[远程接入](../../../operations/REMOTE_TEAM_ACCESS.md)，部署事实见[所有者单机运行](../owner-host-runtime/ARCHITECTURE.md)。

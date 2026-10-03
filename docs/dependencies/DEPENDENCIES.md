@@ -370,7 +370,7 @@ Harbor 已恢复到本机固定提交且工作树干净；若上述核验失败�
 
 1. 首个原型已经固定 Lite revision、`train` split、单题和内容校验值，并取得真实核心闭环证据；**2026-09-21 受控目录已扩到 6 道题（任务 04，逐题三补丁门禁）**；正式榜最终数据范围仍另行确认，不因原型或扩题自动扩大；
 2. M0 预构建实例镜像的固定 digest 和 `/testbed` base commit 已核验，该固定环境已支持第 2 节记录的真实单题；**扩题的兼容性已验证**：2026-09-21 五道新题各自在其固定镜像内通过三补丁门禁，受控白名单见 `apps/backend/src/eval_platform/adapters/tasks/catalog.py`；改变环境时仍须重新验证；
-3. 后端 Python 与身份切片应用依赖已有精确基线（见第 2 节），Node.js、Docker/Compose、PostgreSQL、MinIO 的正式部署版本/形态仍需确认；不能用本机测试版本代替部署决定；
+3. 后端 Python 与应用依赖已有精确基线；PostgreSQL/MinIO 的固定部署镜像与本地持久化形态已按第 2.4 节及[所有者单机运行](../architecture/modules/owner-host-runtime/ARCHITECTURE.md)落实。Node.js 正式运行时基线、跨机器 Docker/Compose 基线仍需确认，不能用本机测试版本替代部署决定；
 4. SWE-Bench-Fork 已有 Linux Python 3.12 哈希锁与单题实测；新增题目/升级依赖时重新验证，不默认把当前单题扩展成全题库通过；
 5. Codex 首轮 CLI 版本、模型 ID、推理强度与认证政策已确认；制品身份及无凭据容器安装见第 2.1 节，第四场账号/模型路径和实际工具执行已通过，完整生命周期与网络边界仍按专题接口收尾。Aider、Claude Code 的精确 CLI 版本、安装来源和校验方式仍待确认；
 6. P2 自研 Agent 的精确 Python 版本、依赖锁格式、DeepSeek/Kimi 模型 ID、外部接口和受控访问运行依赖；不阻塞 M0/M1；

@@ -2,12 +2,12 @@
 
 > 文档状态：Job/Run 资源边界已确认；HTTP 契约 v0.3。任务 01–13 已验收；六题、continuous 受控选项与跨批次比较页面已接入；提供方策略切片尚未形成新的公开执行端点
 >
-> 最后更新：2026-09-22（同步受控 Agent 身份、统一安全响应头及安全 500 诊断）
+> 最后更新：2026-09-30（静态对齐任务 05 内部测试接线与六项 provider 失败码；未新增路由）
 > 权威范围：本文件只维护 Next.js Web 与 FastAPI 交付层之间的 HTTP 契约。内部模块行为见 [`MODULE_CONTRACTS.md`](../architecture/MODULE_CONTRACTS.md)，存储字段见 [`DATA_MODEL.md`](../architecture/DATA_MODEL.md)。
 
 ## 规划增量与当前接口
 
-[扩展规格](../../.scratch/ui-catalog-providers/spec.md)已确认角色化 UI、至少五道新题、新提交连续规模以及 Codex 第三方 API 方向。六题、连续规模和对比页面已实现；下面只记录当前真实接口，未接线的提供方代理不产生虚构端点。
+[扩展规格](../../.scratch/ui-catalog-providers/spec.md)已确认角色化 UI、至少五道新题、新提交连续规模以及 Codex 第三方 API 方向。六题、连续规模和对比页面已实现；内部测试身份的代理已接入既有 Worker/Harbor 接缝，不新增公开端点，真实新提供方未实现。
 
 - UI首页、列表、向导与对比优先复用现有会话、目录、Job筛选/分页、批次/Run报告和制品接口，不新增Worker健康/全局统计接口。无来源的状态/指标显示未知。
 - 合格题和配置以服务端 preset 进入现有目录；前端只提交 ID，仍拒绝 Key、用户 URL、路径、命令与任意资源值。生产目录当前只公开 ChatGPT 配置；`internal_test_fake` 只允许显式测试装配。首版不提供网页 Key 录入/读取/更换端点，秘密策略见认证 4.1。
@@ -659,21 +659,22 @@ M1 保留上述响应兼容形状，但 `judge_analyses=[]`、`human_review=null
 
 `failure_code` 是受控枚举；`failure_summary` 与 `stage_message` 是**面向用户的受控短文案**，只允许说明失败类别与阶段，不得包含上游主机名或 URL、文件系统路径、凭据 profile 名、令牌或 Key 的任何片段、容器与网络拓扑。这两个字段会被网页原样呈现（恢复页把 `failure_summary` 标为“安全原因”），**内容安全由写入方负责**；Web 层不猜测自由文本是否安全，只按本节契约呈现。
 
-任务 05 策略切片当前固定的 provider 失败码为 `PROVIDER_CREDENTIAL_UNAVAILABLE`、`PROVIDER_ACCESS_DENIED`、`PROVIDER_REQUEST_REJECTED`、`PROVIDER_BUDGET_EXHAUSTED` 与兜底 `PROVIDER_ACCESS_FAILED`。它们已由内部异常映射测试约束，但策略尚未接入 Worker/HTTP 执行路径，因此当前公开 API 不会因为真实第三方调用产生这些码；后续接线必须沿用这些安全码，不回显原始异常。
+任务 05 的内部测试代理已接入 Worker/Harbor；提供方失败映射沿用下表六项受控码，不回显原始异常。生产目录尚无真实 DeepSeek/Kimi 身份，正式报告默认排除 `internal_test`，因此不能把这次接线描述为公开真实第三方调用已经可用。
 
-提供方访问失败在 Run 上只有五个受控 `failure_code`，与固定短句一一对应；映射表是 `provider_access/failures.py` 的 `_GROUPS` 与 `GENERIC_FAILURE`：
+提供方访问失败映射定义六个受控 `failure_code`，与固定短句一一对应；代码事实源是 `provider_access/failures.py` 的 `_GROUPS` 与 `GENERIC_FAILURE`：
 
 | `failure_code` | `failure_summary` | 归入此码的内部错误族 |
 |---|---|---|
-| `PROVIDER_CREDENTIAL_UNAVAILABLE` | 模型凭据不可用，运行未开始。 | `PRIVATE_FILE_*`、`PRIVATE_PROFILE_*`、`PRIVATE_SECRET_EMPTY`、`PRIVATE_ACCESS_UNVERIFIABLE`、`PRIVATE_UPSTREAM_NOT_REGISTERED`、`TRANSPORT_CREDENTIAL_EMPTY` |
+| `PROVIDER_CREDENTIAL_UNAVAILABLE` | 模型凭据不可用，运行未开始。 | `PRIVATE_FILE_*`、`PRIVATE_PROFILE_*`、`PRIVATE_SECRET_EMPTY`、`PRIVATE_ACCESS_UNVERIFIABLE`、`PRIVATE_UPSTREAM_NOT_REGISTERED`、`TRANSPORT_CREDENTIAL_EMPTY`、`TRANSPORT_UPSTREAM_UNAUTHORIZED` |
 | `PROVIDER_ACCESS_DENIED` | 模型访问未获授权。 | `PROVIDER_UNREGISTERED`、`PROVIDER_BINDING_*`、`PROVIDER_TOKEN_*`、`TRANSPORT_PROVIDER_UNREGISTERED` |
 | `PROVIDER_REQUEST_REJECTED` | 模型请求不符合受限策略。 | `REQUEST_*`、`TRANSPORT_PAYLOAD_NOT_SERIALIZABLE`、`TRANSPORT_REDIRECT_NOT_PERMITTED`、`TRANSPORT_RETRY_NOT_PERMITTED`、`TRANSPORT_UPSTREAM_NOT_ENCRYPTED` |
 | `PROVIDER_BUDGET_EXHAUSTED` | 运行额度或期限已用尽。 | `BUDGET_*` |
-| `PROVIDER_ACCESS_FAILED` | 模型访问未完成。 | 兜底：任何未映射的内部错误码 |
+| `PROVIDER_UPSTREAM_FAILED` | 上游模型服务未完成本次请求。 | `TRANSPORT_CONTENT_DECODING_FAILED`、`TRANSPORT_CONTENT_ENCODING_UNSUPPORTED`、`TRANSPORT_CONNECTION_FAILED`、`TRANSPORT_STREAM_INTERRUPTED`、`TRANSPORT_UPSTREAM_RATE_LIMITED`、`TRANSPORT_UPSTREAM_REFUSED`、`TRANSPORT_UPSTREAM_TIMEOUT`、`TRANSPORT_UPSTREAM_UNAVAILABLE` |
+| `PROVIDER_ACCESS_FAILED` | 模型访问未完成。 | `PROVIDER_CONFIG_*`、`PROVIDER_TOPOLOGY_INVALID`、`PROVIDER_PROXY_NOT_READY`、`PROVIDER_TOKEN_UNAVAILABLE`；以及未映射内部码的兜底 |
 
-规则：①**内部错误码绝不回显**——它未经发布审查，部分就在文件路径与凭据 profile 名旁边抛出；未映射的内部码一律落到 `PROVIDER_ACCESS_FAILED`。②只在代理自身配置阶段可能抛出、运行无法触发的码（`BUDGET_LIMITS_INVALID`、`REQUEST_POLICY_*`）**不在本表**。③新增内部码必须先在本节做出归类决定，再由 `tests/providers/policy/test_controlled_failures.py` 的词汇表门禁守住。④本表只管**提供方访问**失败；Job 级的 `BATCH_PARTIAL_FAILURE` / `BATCH_FAILED` 是另一来源，不在本表。
+规则：①**内部错误码绝不回显**——它未经发布审查，部分就在文件路径与凭据 profile 名旁边抛出；未映射的内部码一律落到 `PROVIDER_ACCESS_FAILED`。②只在代理自身配置阶段可能抛出的 `CONFIGURATION_ONLY` 集合（含 `BUDGET_LIMITS_INVALID`、`REQUEST_POLICY_*` 和指定 `HARBOR_NETWORK_*`）不属于上述公开映射；通配错误族以代码内精确成员为准，`PROVIDER_TOKEN_UNAVAILABLE` 按独立表项归类。③新增内部码必须先在本节做出归类决定，再由 `tests/providers/policy/test_controlled_failures.py` 的词汇表门禁守住。④本表只管**提供方访问**失败；Job 级的 `BATCH_PARTIAL_FAILURE` / `BATCH_FAILED` 是另一来源，不在本表。
 
-实现状态：映射表与词汇表门禁已在 `main`；代理链本身尚未接入运行主链路，属任务 05 未完成部分——本表是已冻结的契约词汇，不代表已生效。
+实现状态：映射表、词汇表门禁和内部测试代理接线均已在当前主线；T1/T2、S9–S11 的验收边界见[认证 4.1](CODEX_AUTHENTICATION.md#41-codex-第三方-api-扩展规划2026-09-17)。浏览器夹具 `tests/jobs/failure-presentation.spec.ts` 覆盖原五项码及未知码的呈现，尚未单独覆盖新增 `PROVIDER_UPSTREAM_FAILED`；本次只补齐文档，未重跑或扩写测试。
 
 `artifact_links` 返回当前 Run 全部闭合类型的第 9.2 节安全元数据形状，便于页面同时展示核心证据与受限原始制品的保留状态；这不扩大正文权限，下载仍只允许 `agent_patch/public_test_summary/public_trajectory` 三种公开类型。两个报告端点及制品索引、轨迹和下载采用同一授权：owner 可读全部，协作者只读自己创建的 official Job/Run，其他资源按不存在处理，`internal_test` 只允许显式测试装配。对象键、文件名、正文、消息正文、工具参数、私密轨迹和原始配置均不在元数据响应中。
 
@@ -805,7 +806,7 @@ FastAPI route 文件只做 schema、HTTP 状态和用例调用，不能直接启
 
 ## 14. 待技术核验
 
-1. 任务 01/02 验收及评审发现处理已完成；任务 02 的真实 PostgreSQL 并发/回滚证据，见第 3.3 节行动指针。长期数据库/远程入口验收仍未完成。
+1. 任务 01/02 验收及评审发现处理已完成；任务 02 的真实 PostgreSQL 并发/回滚证据，见第 3.3 节行动指针。长期数据库及手动生命周期已完成 P1–P4，完整远程入口验收仍未完成，见[所有者单机运行](../architecture/modules/owner-host-runtime/ARCHITECTURE.md)。
 2. 任务 09 已实现 `CANCEL_REQUESTED` 的固定 Harbor 协作式准入；任务 10 已实现 owner 显式过期租约收束与关联新 Job，分层验收与双轴终审均已通过并记录在独立行动中，业务行为不改为强杀或自动重试。
 3. M1 后再核验 Quality Judge 的具体模型、Prompt 和结构化响应 Schema；原触发与复核规则保留，不阻塞当前 M1。
 4. 轨迹刷新是否在数据量证明轮询不足后升级 SSE；当前不提前引入。

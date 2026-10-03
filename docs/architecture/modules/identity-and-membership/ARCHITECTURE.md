@@ -69,4 +69,4 @@ SQL 文件是显式初始化/升级输入，不由 Web 或 API 启动时自动�
 
 历史验证入口见[owner 身份行动](../../../actions/2026-09-11-m1-owner-identity.md)和[协作者邀请行动](../../../actions/2026-09-11-m1-collaborator-invitations.md)。本轮没有重跑测试。
 
-仍缺的是正式长期数据库、备份恢复、长期进程和完整远程双机验收；这些属于[所有者单机运行](../owner-host-runtime/ARCHITECTURE.md)，不是再造身份 Module。五人组人数不需要新增角色或表：当前设计是一个 owner 加若干 collaborator，实际邀请数量由组内安排决定。
+长期 PostgreSQL 与手动生命周期已随 P1–P4 完成，备份恢复已明确移出课设范围；仍待完成的是 M1-14 的完整远程双机验收。部署边界见[所有者单机运行](../owner-host-runtime/ARCHITECTURE.md)，进程在线状态须现场核对，不能由历史验收推断。五人组人数不需要新增角色或表：当前设计是一个 owner 加若干 collaborator，实际邀请数量由组内安排决定。
