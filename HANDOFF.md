@@ -1,6 +1,8 @@
 # AgentExam 当前接续交接
 
-> 更新：2026-09-30（本次仅文档对账）；工作区：`E:\9.1agent_exam`；当前分支：`main`，提交基线 `a550eb6`。本地 `main` 已快进包含 `agent+api` 的全部成果，包括 `origin/main@f1f97b5` 的任务 05 S9–S11、三项生产 Codex 配置、Harbor 清理超时和 Docker 迁移增量；旧 `main-t2-verify` worktree 已退役。本地记录的 `origin/main` 仍为 `f1f97b5`；本次未 fetch、提交或推送。
+> 更新：2026-10-03。用户授权在云端 `main@908d2d0` 基础修复九项已审查缺陷，并在重要节点提交、最后推送。代码修复与当前验证边界见[本次行动](docs/actions/2026-10-03-reviewed-defects-remediation.md)，逐项状态见[九项缺陷状态](docs/reviews/2026-10-03-reviewed-defects-status.md)。本轮未操作所有者电脑、启动真实评测或修改完整性读取策略；下述本机运行事实仍为历史记录，不能当作本轮重新验证。恢复时现场核对 Git 远端与环境，不沿用旧的提交领先数。
+
+> 上次本机对账历史快照：2026-09-30（仅文档对账）；工作区：`E:\9.1agent_exam`；当前分支：`main`，提交基线 `a550eb6`。本地 `main` 已快进包含 `agent+api` 的全部成果，包括 `origin/main@f1f97b5` 的任务 05 S9–S11、三项生产 Codex 配置、Harbor 清理超时和 Docker 迁移增量；旧 `main-t2-verify` worktree 已退役。本地记录的 `origin/main` 仍为 `f1f97b5`；本次未 fetch、提交或推送。
 >
 > 本文是新窗口的恢复入口，不替代架构、接口、运维、任务和行动文档。若本文与当前代码或专题权威文档冲突，先核对 Git 与现实实现并同步当前状态型文档；`docs/actions/` 中已结束的记录是历史档案，不反向改写。
 >
