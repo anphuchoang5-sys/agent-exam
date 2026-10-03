@@ -38,10 +38,12 @@ export default function WorkbenchShell({
   actor,
   busy,
   signOut,
+  error,
 }: {
   actor: Actor;
   busy: boolean;
   signOut: () => Promise<void>;
+  error: string;
 }) {
   const [view, setView] = useState<View>(normalizedViewFromUrl);
   const [routeVersion, setRouteVersion] = useState(0);
@@ -110,6 +112,7 @@ export default function WorkbenchShell({
       </div>
     </aside>
     <div className="workbench-content">
+      {error && <p role="alert" className="error">退出未完成：{error} 请重试退出登录。</p>}
       {activeView === "home" && <Dashboard owner={owner}
         newJob={() => navigate("new")} allJobs={() => navigate("jobs")}
         openJob={(id) => navigate("jobs", id)} />}

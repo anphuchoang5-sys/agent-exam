@@ -10,23 +10,41 @@
 3. Web Job/Run 身份与请求次序、分页选择和退出错误修复及回归，形成提交。
 4. 汇总静态检查与测试，更新当前文档和问题状态，复核差异后提交并普通 push；不 force push。
 
-## 需要修改的文件树
-- apps/backend/src/eval_platform/application/execution/：证据发布/完成记录；保持既有存储端口。
-- apps/backend/src/eval_platform/adapters/persistence/jobs/retention/：删除审计幂等比较。
-- apps/backend/src/eval_platform/application/execute_job.py：Worker 执行准入与取消识别。
-- apps/backend/src/eval_platform/adapters/execution/harbor/：异常终止后的既有 project 精确清理。
-- apps/backend/tests/：以上行为的回归证据。
-- apps/web/src/features/jobs/、identity/：按资源身份绑定状态，隔离过期请求并展示退出失败。
-- apps/web/tests/：前端回归；不引入新顶层架构。
-- docs/actions/2026-10-03-reviewed-defects-remediation.md：本次行动及验证。
-- docs/architecture/modules/、docs/interfaces/：按实际改动同步当前契约说明。
-无新设计模式；保持 Web/CLI → delivery → application → domain/ports ← adapters。
+## 实际修改文件树
+- apps/backend/src/eval_platform/
+  - application/execution/raw_evidence.py：规范对象去重与保留审计一致性。
+  - application/execute_job.py：准备阶段取消冲突识别。
+  - adapters/persistence/jobs/retention/state.py：删除完成 UUID 幂等比较。
+  - adapters/execution/harbor/adapter.py：非零退出定向清理。
+- apps/backend/tests/
+  - jobs/artifacts/identity/test_raw_identity.py：重复来源/限额/CompletionFactory 回归。
+  - jobs/artifacts/identity/test_retention_identity.py：数据库 UUID 形状与审计负向回归。
+  - jobs/artifacts/test_postgres_minio.py：门控真实完成和重复审计回归。
+  - jobs/execution/cancellation/test_preparing_worker.py：真实 Worker 循环的受控取消竞争。
+  - unit/harbor/test_abnormal_cleanup.py：异常退出、精确资源与告警。
+- apps/web/
+  - package.json：无浏览器状态测试入口，无新增依赖。
+  - src/features/jobs/submit.tsx、report.tsx、evidence.tsx：Job/Run 身份、报告次序、轨迹重入保护。
+  - src/features/jobs/lifecycle/recovery.tsx：重试详情读成功才更新 URL，卸载废弃迟到状态。
+  - src/features/jobs/reporting/comparison.tsx：保留首屏外选择，权限核验及卸载失效。
+  - src/features/identity/session.tsx、src/features/workbench/shell.tsx：退出失败在登录态可见。
+  - tests/support/component-probe.mjs：实际 TSX 转译/隔离 hook 测试辅助，非 React DOM renderer。
+  - tests/jobs/report-state.test.mjs、tests/reporting/selection-state.test.mjs、tests/security/logout-state.test.mjs：可运行状态回归。
+  - tests/jobs/report-state.spec.ts、tests/security/logout-failure.spec.ts：新浏览器回归。
+  - tests/jobs/interruption-recovery.spec.ts、tests/workbench/pagination.spec.ts：扩展原浏览器恢复/跨页选择用例。
+- docs/architecture/DATA_MODEL.md：规范对象及审计合同，纠正读取成本描述。
+- docs/architecture/modules/job-control/ARCHITECTURE.md、web-and-http/ARCHITECTURE.md：取消和页面状态边界。
+- docs/interfaces/HARBOR_EXECUTION.md、HTTP_API.md：清理及跨页选择合同。
+- docs/reviews/2026-10-03-reviewed-defects-status.md：九项当前状态及剩余验证边界。
+- docs/actions/2026-10-03-reviewed-defects-remediation.md：本次行动与证据。
+- HANDOFF.md：当前修复入口，保留并标识本机历史状态。
+无新设计模式；保持 Web/CLI → delivery → application → domain/ports ← adapters。新增 identity/ 只是在既有 artifacts 测试职责内分组，父目录不超过 8 个文件。原有超限 adapter.py 已减少到 200 行；本次改动的生产源文件均不超过 200 行。忽略态 runtime/tests/review-fixes/ 保存检查日志，不进入 Git。
 
 ## 修改后自验证方式
 后端使用 apps/backend/.venv/bin 下 Ruff check、Ruff format --check、Mypy、Pytest；先运行定向回归，再运行根 Pytest。前端 npm run lint、typecheck、build 及可执行的无浏览器回归；新增浏览器用例若当前隔离环境不可运行，明确记为未运行。回归尽量验证修复前失败、修复后通过。Docker/PostgreSQL/MinIO/真实模型未运行不得宣称通过。按路径暂存，检查每次提交内容，推送后核对 origin/main SHA 与可用 CI。
 
 ## 自验证情况
-Pending。
+后端两个里程碑已完成；前端静态检查与构建收尾中。下文记录已执行结果。
 
 ### 存储与删除审计里程碑
 - 已修复 #1、#9：`publish_raw` 对每份来源独立校验后按规范对象键去重，重复项在 Run 预算中只计一次；保留正文相同但截断审计矛盾时失败关闭。既有 CompletionFactory 因此只为每个对象分配一个 UUID，无需修改该类。
@@ -43,3 +61,11 @@ Pending。
 - 新增 20 项回归对旧实现为 13 failed / 7 passed，修复后 20 passed；相邻执行/Worker/取消/Harbor 回归为 132 passed / 11 skipped。4 文件 Ruff check/format、2 源文件 Mypy、diff 检查通过。
 - `adapter.py` 内联仅单次使用的路径辅助，204 行降至 200；其余改动源文件不超过 200 行。无新生产模块、接口、依赖或迁移。
 - 真实 Docker、PG、MinIO 与模型未运行；11 项 skipped 为既有显式持久化门禁，不代表真实容器故障注入通过。
+
+### Web 状态里程碑
+- 已修复 #4–#8：Run 身份隔离与轨迹防重入、最后一次报告请求生效、新 Job 切换清空旧报告、首屏外选择单独核验、登录态可见退出错误并保留重试。
+- 独立审查发现比较刷新卸载后迟到 `JOB_NOT_FOUND` 仍可能调用父级 toggle，已补卸载/清空请求失效与回归。恢复组件也在卸载后废弃迟到结果；新 Job 详情读取成功后才更新 URL，失败仍保留原幂等键。
+- `cd apps/web && npm run test:state`：21 passed / 0 failed。隔离源码副本使用 `908d2d0` 旧实现时同 21 例为 20 failed / 1 passed；没有改回共享工作树源码。日志在忽略态 `runtime/tests/frontend-state-before.log` 与 `frontend-state-after.log`。
+- `npm run lint`、`npm run typecheck`、`npm run build` 均通过；未新增依赖，锁文件未变化，`next-env.d.ts`/`tsconfig.json` 未变化。
+- `npx playwright test --list tests/jobs/report-state.spec.ts tests/security/logout-failure.spec.ts tests/jobs/interruption-recovery.spec.ts tests/workbench/pagination.spec.ts` 成功收集 4 文件 6 例（新增 4，扩展原 2）。本轮未执行浏览器，不将收集算作测试通过。
+- 独立审查重跑 21 项状态回归通过，并额外核对失败重试沿用幂等键、recover 卸载后不更新父状态；无待处理代码 blocker。状态辅助只是实际 TSX 的隔离 hook 探针，不是 React DOM 或浏览器渲染验收。

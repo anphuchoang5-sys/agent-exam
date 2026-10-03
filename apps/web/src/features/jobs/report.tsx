@@ -32,6 +32,6 @@ export default function RunReportView({ report }: { report: RunReport }) {
     <p>Judge 分析：未启用（0）；人工复核：无；质量决胜：无；复核状态：无需复核</p>
     {report.run.warnings.includes("RAW_ARTIFACT_RUN_LIMIT_EXCEEDED") &&
       <p role="alert">单 Run 原始制品达到 200 MiB 上限；超出制品已明确拒绝。</p>}
-    <EvidenceView runId={report.run.run_id} artifacts={report.artifact_links} />
+    <EvidenceView key={report.run.run_id} runId={report.run.run_id} artifacts={report.artifact_links} />
   </section>;
 }

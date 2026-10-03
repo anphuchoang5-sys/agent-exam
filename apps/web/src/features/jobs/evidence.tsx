@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api-client";
 import { PUBLIC_ARTIFACT_TYPES } from "../../lib/contracts";
 import type { RunReport, TrajectoryPage } from "../../lib/contracts";
@@ -26,6 +26,10 @@ export default function EvidenceView({
 }) {
   const [trajectory, setTrajectory] = useState<TrajectoryPage | null>(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const generation = useRef(0);
+  useEffect(() => () => { generation.current += 1; }, []);
   const published = artifacts.filter((item) => publicTypes.has(item.artifact_type));
   const raw = artifacts.filter((item) => item.retention_class === "raw_30d");
   const waiting = raw.filter((item) => item.content_status === "not_ready");
@@ -33,15 +37,23 @@ export default function EvidenceView({
   const truncated = raw.filter((item) => item.truncated);
 
   async function loadTrajectory(after = 0) {
-    setError("");
+    if (pending.current) return;
+    pending.current = true;
+    const request = generation.current;
+    setBusy(true); setError("");
     try {
       const page = await runTrajectory(runId, after);
+      if (request !== generation.current) return;
       setTrajectory((current) => after === 0 || current === null ? page : {
         ...page, items: [...current.items, ...page.items],
       });
     }
     catch (value) {
-      setError(value instanceof ApiError ? value.message : "安全轨迹暂不可用。");
+      if (request === generation.current) {
+        setError(value instanceof ApiError ? value.message : "安全轨迹暂不可用。");
+      }
+    } finally {
+      if (request === generation.current) { pending.current = false; setBusy(false); }
     }
   }
 
@@ -68,12 +80,12 @@ export default function EvidenceView({
       </li>)}</ul>}
     {published.some((item) => item.artifact_type === "public_trajectory") &&
       trajectory === null &&
-      <button onClick={() => void loadTrajectory()}>查看安全轨迹</button>}
+      <button disabled={busy} onClick={() => void loadTrajectory()}>查看安全轨迹</button>}
     {error && <p role="alert">{error}</p>}
     {trajectory && <ol>{trajectory.items.map((event) => <li key={event.sequence}>
       {event.sequence}. {event.summary}
     </li>)}</ol>}
-    {trajectory && !trajectory.complete && <button onClick={() =>
+    {trajectory && !trajectory.complete && <button disabled={busy} onClick={() =>
       void loadTrajectory(trajectory.next_after_sequence)}>加载更多轨迹</button>}
     <p className="muted">轨迹只含可观察事件；消息正文、工具参数和私密思维链不公开。</p>
   </section>;

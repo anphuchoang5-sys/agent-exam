@@ -86,7 +86,9 @@ apps/web/
 
 A 工作台的数据流是：侧栏/移动菜单只修改 `view`；列表筛选把 `job_status`/`job_mine` 保存在 URL 并调用 `GET /jobs`；选择 Job 后增加不透明 `job` 并调用详情；三步向导只在浏览器保存未提交选择，最终通过 `POST /jobs` 创建并再次 `GET /jobs/{id}`。owner 决定、取消、恢复和重试成功后同样重读详情，不把乐观页面状态冒充服务器完成。
 
-对比页的数据流是：`view=reports` 先读取当前 actor 可见的 Job 首屏；用户选择后由比较端点返回权威五档矩阵，`src/lib/reporting/comparison-shape.ts` 的 `parseComparison` 统一校验响应形状，再以最多 3 个并发详情请求读取冻结配置。`comparison-client.ts` 与 `job-client.ts` 的比较请求入口均调用这一解析器。用量默认不请求；用户点击后只读取有报告路径的 Run，最多 3 个并发，并把缺失或 `null` 保持为未知。单元格钻取复用既有 Run 报告、轨迹和制品下载，不创建第二套证据规则。
+对比页的数据流是：`view=reports` 先读取当前 actor 可见的 Job 首屏，保留列表跨页带入的选择；刷新时对首屏外选择单独核验权限，具体规则见[比较 HTTP 契约](../../../interfaces/HTTP_API.md#104-跨批次对比报告)。用户选择后由比较端点返回权威五档矩阵，`src/lib/reporting/comparison-shape.ts` 的 `parseComparison` 统一校验响应形状，再以最多 3 个并发详情请求读取冻结配置。`comparison-client.ts` 与 `job-client.ts` 的比较请求入口均调用这一解析器。用量默认不请求；用户点击后只读取有报告路径的 Run，最多 3 个并发，并把缺失或 `null` 保持为未知。单元格钻取复用既有 Run 报告、轨迹和制品下载，不创建第二套证据规则。
+
+单批次详情的关联状态按 Job 身份清空，重试产生新 Job 后旧批次/Run 报告和迟到响应不能覆盖新详情；单 Run 报告按最后一次请求生效，证据组件按 Run 身份重建，轨迹分页有同步重入保护。退出请求失败时保留当前登录界面，在工作台内容区显示可重试的错误；只有成功退出才清除 actor 与 URL。验证范围见[九项缺陷修复行动](../../../actions/2026-10-03-reviewed-defects-remediation.md)。
 
 ## 5. 模式、依赖和深度
 

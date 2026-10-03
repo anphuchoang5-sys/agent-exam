@@ -51,7 +51,7 @@ export default function SessionPanel() {
 
   if (loading) return <p role="status">正在检查登录状态…</p>;
 
-  if (actor) return <WorkbenchShell actor={actor} busy={busy} signOut={signOut} />;
+  if (actor) return <WorkbenchShell actor={actor} busy={busy} signOut={signOut} error={error} />;
 
   return <div className="login-shell">
     <header>

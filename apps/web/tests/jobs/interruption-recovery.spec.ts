@@ -49,6 +49,11 @@ test("owner closes an expired job and creates a separately approved retry", asyn
   await expect(recovery).toContainText("阶段中断");
   await expect(recovery).not.toContainText("internal-browser-interrupted");
 
+  await jobs.getByRole("button", { name: "查看批次进度" }).click();
+  await jobs.getByRole("button", { name: "查看单题运行报告" }).click();
+  await expect(jobs.getByRole("region", { name: "批次进度" })).toBeVisible();
+  await expect(jobs.getByRole("region", { name: "单题运行报告" })).toBeVisible();
+
   const retried = page.waitForResponse((candidate) =>
     candidate.request().method() === "POST" &&
     new URL(candidate.url()).pathname.endsWith(`/jobs/${source}/retry`),
@@ -63,4 +68,6 @@ test("owner closes an expired job and creates a separately approved retry", asyn
     .toBe(replacement.job_id);
   await expect(jobs.getByText("等待所有者批准", { exact: true })).toBeVisible();
   await expect(jobs).toContainText(`重试来源：${source}`);
+  await expect(jobs.getByRole("region", { name: "批次进度" })).toHaveCount(0);
+  await expect(jobs.getByRole("region", { name: "单题运行报告" })).toHaveCount(0);
 });

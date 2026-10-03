@@ -9,6 +9,7 @@
     "lint": "eslint . --max-warnings 0",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
+    "test:state": "node --test tests/jobs/report-state.test.mjs tests/reporting/selection-state.test.mjs tests/security/logout-state.test.mjs",
     "test:e2e": "node tests/run-browser-tests.mjs"
   },
   "dependencies": {

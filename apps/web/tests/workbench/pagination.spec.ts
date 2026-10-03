@@ -43,6 +43,20 @@ test("job list pages forward and back with the server cursor", async ({ page }) 
   await list.getByRole("button", { name: "下一页" }).click();
   await expect(list.locator(".job-row")).toHaveCount(1);
   await expect(list.getByRole("button", { name: "上一页" })).toBeVisible();
+  const laterId = await list.locator(".job-row code").innerText();
+  await list.getByRole("checkbox", { name: "选择对比" }).check();
+  await list.getByRole("button", { name: "对比所选（1/20）" }).click();
+  const comparison = page.getByRole("region", { name: "对比报告工作区" });
+  const selection = comparison.getByRole("list", { name: "已选批次" });
+  await expect(selection).toContainText(laterId);
+  const checked = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === `/api/v1/jobs/${laterId}`);
+  await comparison.getByRole("button", { name: "刷新可见批次" }).click();
+  expect((await checked).status()).toBe(200);
+  await expect(selection).toContainText(laterId);
+
+  await navigation.getByRole("button", { name: "评测", exact: true }).click();
+  await list.getByRole("button", { name: "下一页" }).click();
   await list.getByRole("button", { name: "上一页" }).click();
   await expect(list.locator(".job-row")).toHaveCount(20);
 });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../../lib/api-client";
 import type { JobDetail, JobSummary, RunReport } from "../../../lib/contracts";
-import { jobs, runReport } from "../../../lib/job-client";
+import { jobDetail, jobs, runReport } from "../../../lib/job-client";
 import {
   comparison, comparisonDetails, comparisonReports,
 } from "../../../lib/reporting/comparison-client";
@@ -31,18 +31,29 @@ export default function ComparisonWorkspace({
   const comparisonRequest = useRef(0);
   const openRequest = useRef(0); const metricsRequest = useRef(0);
 
-  async function loadJobs(reconcile = false) {
-    setError("");
+  async function loadJobs() {
+    resetResult();
+    const request = comparisonRequest.current;
     try {
       const next = (await jobs()).items;
-      setAvailable(next);
-      if (reconcile) {
-        const visible = new Set(next.map((job) => job.job_id));
-        ids.filter((id) => !visible.has(id)).forEach(toggle);
-        resetResult();
+      const visible = new Set(next.map((job) => job.job_id));
+      const denied: string[] = [];
+      let failure: unknown;
+      for (const id of ids.filter((id) => !visible.has(id))) {
+        try { await jobDetail(id); }
+        catch (value) {
+          if (value instanceof ApiError && value.code === "JOB_NOT_FOUND") denied.push(id);
+          else failure = value;
+        }
+        if (request !== comparisonRequest.current) return;
       }
+      if (request !== comparisonRequest.current) return;
+      setAvailable(next);
+      denied.forEach(toggle);
+      if (failure) setError(failure instanceof ApiError ? failure.message : "暂时无法核验所选批次。");
     }
     catch (value) {
+      if (request !== comparisonRequest.current) return;
       setAvailable(null);
       setError(value instanceof ApiError ? value.message : "暂时无法读取评测列表。");
     }
@@ -57,7 +68,10 @@ export default function ComparisonWorkspace({
         setError(value instanceof ApiError ? value.message : "暂时无法读取评测列表。");
       }
     });
-    return () => { active = false; };
+    return () => {
+      active = false; comparisonRequest.current += 1;
+      openRequest.current += 1; metricsRequest.current += 1;
+    };
   }, []);
 
   function resetResult(invalidateComparison = true) {
@@ -130,7 +144,7 @@ export default function ComparisonWorkspace({
     <section aria-label="跨批次对比报告">
       <div className="section-heading"><div><span className="eyebrow">服务端只读聚合</span>
         <h2>对比报告</h2><p>选择已登记的评测批次进行对比；缺失不当作未解决或零。</p></div>
-        <div className="heading-actions"><button disabled={busy} onClick={() => void loadJobs(true)}>
+        <div className="heading-actions"><button disabled={busy} onClick={() => void loadJobs()}>
           刷新可见批次</button><button onClick={resetSelection}>清空选择</button></div>
       </div>
       <fieldset className="comparison-picker"><legend>

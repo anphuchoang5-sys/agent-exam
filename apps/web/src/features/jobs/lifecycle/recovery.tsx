@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../../lib/api-client";
 import type { JobDetail } from "../../../lib/contracts";
 import { jobDetail, recoverJob, retryJob } from "../../../lib/job-client";
@@ -16,6 +16,8 @@ export default function RecoveryPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const retryKey = useRef<string | null>(null);
+  const activeRequest = useRef(0);
+  useEffect(() => () => { activeRequest.current += 1; }, []);
   const expired = active.includes(job.status) && job.lease_expires_at !== null &&
     Date.parse(job.lease_expires_at) <= Date.now();
   const recovered = job.job_state_events.some(
@@ -27,25 +29,30 @@ export default function RecoveryPanel({
     setError(value instanceof ApiError ? value.message : "暂时无法处理执行中断。");
   }
   async function recover() {
+    const request = ++activeRequest.current;
     setBusy(true); setError("");
     try {
       await recoverJob(job.job_id);
-      onChanged(await jobDetail(job.job_id));
-    } catch (value) { explain(value); }
-    finally { setBusy(false); }
+      const next = await jobDetail(job.job_id);
+      if (request === activeRequest.current) onChanged(next);
+    } catch (value) { if (request === activeRequest.current) explain(value); }
+    finally { if (request === activeRequest.current) setBusy(false); }
   }
   async function retry() {
+    const request = ++activeRequest.current;
     setBusy(true); setError("");
     retryKey.current ??= crypto.randomUUID();
     try {
       const created = await retryJob(job.job_id, retryKey.current);
+      const next = await jobDetail(created.job_id);
+      if (request !== activeRequest.current) return;
       const url = new URL(window.location.href);
       url.searchParams.set("job", created.job_id);
       window.history.replaceState(null, "", url);
-      onChanged(await jobDetail(created.job_id));
+      onChanged(next);
       retryKey.current = null;
-    } catch (value) { explain(value); }
-    finally { setBusy(false); }
+    } catch (value) { if (request === activeRequest.current) explain(value); }
+    finally { if (request === activeRequest.current) setBusy(false); }
   }
   return <section aria-label="中断恢复">
     <h4>执行中断处理</h4>
